@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# Secrets and local state — never commit these.
+.env
+.env.local
+
+# The SQLite database is the record; it lives on the server, not in git.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+*.log
+.DS_Store
