@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  build:
+    name: Typecheck, build and smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Assemble release
+        run: bash deploy/build-release.sh
+
+      - name: Install production dependencies into the release
+        working-directory: release
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      # Boots the release exactly as Passenger does — require() on the CommonJS
+      # app.js, which dynamic-imports the ESM service — so a regression in that
+      # bridge fails here rather than on the server.
+      - name: Smoke test
+        run: bash deploy/smoke-test.sh
