@@ -1,0 +1,160 @@
+name: Deploy
+
+# Merging into main is the release. workflow_dispatch is there for the first
+# run and for re-deploying without an empty commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two deploys rsyncing into the same directory would interleave. Queue them,
+# and never cancel one midway — a half-copied release is worse than a late one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education-tracker.dreamhosters.com' }}
+  DEPLOY_USER: ${{ vars.DEPLOY_USER || 'edtrackerpaige' }}
+  # Relative to the SSH user's home. On DreamHost this is the directory the
+  # panel points the domain at, with Passenger serving <dir>/public.
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'education-tracker.dreamhosters.com' }}
+  SHARED_DIR: ${{ vars.SHARED_DIR || 'tracker-shared' }}
+  PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://education-tracker.dreamhosters.com' }}
+  DASHBOARD_PUBLIC: ${{ vars.DASHBOARD_PUBLIC || 'true' }}
+  NODE_MAJOR: '22'
+
+jobs:
+  deploy:
+    name: Build, ship and verify
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Assemble release
+        run: bash deploy/build-release.sh
+
+      - name: Install production dependencies into the release
+        working-directory: release
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Smoke test the release
+        run: bash deploy/smoke-test.sh
+
+      # better-sqlite3 is a native module. The runner's copy is built against
+      # the runner's Node ABI and glibc, so it is thrown away and the server
+      # installs its own in the remote-setup step.
+      - name: Drop the runner's node_modules
+        run: rm -rf release/node_modules
+
+      - name: Check required secrets are present
+        env:
+          SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          TRACKER_PASSWORD: ${{ secrets.TRACKER_PASSWORD }}
+        run: |
+          missing=
+          [ -n "$SSH_PASSWORD" ] || missing="$missing DEPLOY_SSH_PASSWORD"
+          [ -n "$TRACKER_PASSWORD" ] || missing="$missing TRACKER_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing — see DEPLOYMENT.md" >&2
+            exit 1
+          fi
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Render the server .env
+        env:
+          TRACKER_PASSWORD: ${{ secrets.TRACKER_PASSWORD }}
+        run: |
+          umask 077
+          # printf rather than a heredoc: a password containing a backslash
+          # would be mangled by heredoc escape processing.
+          {
+            printf 'PUBLIC_URL=%s\n' "$PUBLIC_URL"
+            printf 'TRACKER_PASSWORD=%s\n' "$TRACKER_PASSWORD"
+            printf 'DASHBOARD_PUBLIC=%s\n' "$DASHBOARD_PUBLIC"
+            printf 'NODE_ENV=production\n'
+          } > "$RUNNER_TEMP/tracker.env"
+          # DB_PATH is appended server-side by remote-setup.sh, which is the
+          # only place that knows the account's real home directory.
+
+      - name: Ship the release
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
+          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+
+          # The shared directory holds the password file and the database, and
+          # must exist before anything is copied into it.
+          $SSH "$TARGET" "mkdir -p '$SHARED_DIR/data' '$DEPLOY_DIR/public' '$DEPLOY_DIR/tmp'"
+
+          sshpass -e scp -o StrictHostKeyChecking=accept-new \
+            "$RUNNER_TEMP/tracker.env" "$TARGET:$SHARED_DIR/.env"
+          $SSH "$TARGET" "chmod 600 '$SHARED_DIR/.env'"
+
+          # --delete keeps the server free of files removed from the repo.
+          # node_modules, tmp and public are server-owned and stay out of it.
+          rsync -rlptz --delete \
+            --exclude 'node_modules/' \
+            --exclude 'tmp/' \
+            --exclude 'public/' \
+            -e "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \
+            release/ "$TARGET:$DEPLOY_DIR/"
+
+      - name: Install dependencies and restart Passenger
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH=\"\$HOME/$DEPLOY_DIR\" SHARED_PATH=\"\$HOME/$SHARED_DIR\" NODE_VERSION='$NODE_MAJOR' bash \"\$HOME/$DEPLOY_DIR/deploy/remote-setup.sh\""
+
+      # The deploy is not finished until the public URL actually answers.
+      # Passenger boots lazily on the first request, and the first ever deploy
+      # also compiles better-sqlite3, so this is given room before it gives up.
+      - name: Verify the live service
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            body="$(curl -fsS --max-time 30 "$PUBLIC_URL/healthz" 2>/dev/null || true)"
+            if printf '%s' "$body" | grep -q '"ok":true'; then
+              echo "healthz: $body"
+              echo "### Deployed to [$PUBLIC_URL]($PUBLIC_URL)" >> "$GITHUB_STEP_SUMMARY"
+              echo "\`healthz\` → \`$body\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "attempt $attempt/30: not healthy yet"
+            sleep 10
+          done
+          echo "::error::$PUBLIC_URL/healthz never returned ok — see DEPLOYMENT.md, 'When the health check fails'" >&2
+          exit 1
+
+      - name: Verify the MCP handshake is discoverable
+        run: |
+          set -euo pipefail
+          headers="$(curl -sS -o /dev/null -D - -X POST "$PUBLIC_URL/mcp" \
+            -H 'content-type: application/json' -d '{}')"
+          printf '%s' "$headers" | grep -qi 'www-authenticate: Bearer resource_metadata=' || {
+            echo "::error::/mcp did not return the WWW-Authenticate challenge Claude needs to discover the auth server" >&2
+            printf '%s\n' "$headers" >&2
+            exit 1
+          }
+          echo "MCP discovery challenge present"

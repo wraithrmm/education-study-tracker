@@ -14,7 +14,16 @@ Claude.ai custom connectors don't take a static bearer token the way Claude Code
 
 There's one human user, so "log in" is a single shared password on the consent screen rather than a user table. `TRACKER_PASSWORD` is the only thing between the internet and the tracker. Make it long and random.
 
-## Running it
+## Where it runs
+
+Production is <https://education-tracker.dreamhosters.com>, deployed
+automatically on every merge into `main`. See [DEPLOYMENT.md](DEPLOYMENT.md) for
+the pipeline, the one-time DreamHost panel setup, the repository secrets it
+needs, and what to check when a deploy goes red.
+
+The Docker setup below is for running it locally or on a box you control.
+
+## Running it locally
 
 ```bash
 cp .env.example .env
@@ -32,9 +41,10 @@ On first start it seeds the maths subject from `03-TOPIC-STATE.md` v1.1. Seeding
 | `DASHBOARD_PUBLIC` | `true` (default) leaves the dashboard readable to anyone with the link. `false` puts it behind the same token as the API. |
 | `DB_PATH` | Defaults to `/data/tracker.db`. |
 
-## Getting it on the internet
+## Getting a local instance on the internet
 
-Compose binds to `127.0.0.1` deliberately — the box shouldn't be listening on the LAN. Put a tunnel in front so you get HTTPS and a stable hostname without opening a port:
+Production already has a public hostname and a certificate; this section is for
+an instance you're running yourself. Compose binds to `127.0.0.1` deliberately — the box shouldn't be listening on the LAN. Put a tunnel in front so you get HTTPS and a stable hostname without opening a port:
 
 ```bash
 cloudflared tunnel --url http://localhost:8080          # quick test, random hostname
@@ -50,7 +60,8 @@ If you firewall the tunnel origin, Anthropic's outbound traffic comes from `160.
 ## Connecting Claude
 
 1. Settings → Connectors → Add custom connector.
-2. URL: `https://your-host/mcp` — exactly matching `PUBLIC_URL` plus `/mcp`.
+2. URL: `https://education-tracker.dreamhosters.com/mcp` — exactly matching
+   `PUBLIC_URL` plus `/mcp`.
 3. Leave the OAuth client ID and secret blank. The server registers Claude dynamically.
 4. Claude opens the consent screen; enter `TRACKER_PASSWORD` and allow access.
 
