@@ -22,7 +22,16 @@ REMOTE=0
 
 WORK="$(mktemp -d)"
 FAILURES=0
-trap 'kill "${APP_PID:-0}" 2>/dev/null; rm -rf "$WORK"' EXIT
+# Guard the kill on APP_PID actually being set. A --remote run never starts a
+# server, and `kill 0` signals the whole process group — which on a CI runner
+# means the job itself, so the script passed every check and then took the job
+# down with it on the way out.
+cleanup() {
+    [ -n "${APP_PID:-}" ] && kill "$APP_PID" 2>/dev/null
+    rm -rf "$WORK"
+    return 0
+}
+trap cleanup EXIT
 
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
