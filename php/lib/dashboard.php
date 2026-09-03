@@ -62,6 +62,16 @@ small{color:var(--muted)}
 footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line);
   font-size:.75rem;color:var(--muted)}
 a{color:#1c1917}
+table{width:100%;border-collapse:collapse;margin-top:.75rem;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.85rem}
+th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);font-weight:400;padding:.5rem .6rem;border-bottom:1px solid var(--line)}
+td{padding:.5rem .6rem;border-bottom:1px solid #ededea;vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.full td:first-child{box-shadow:inset 3px 0 0 #10b981}
+tr.part td:first-child{box-shadow:inset 3px 0 0 #fbbf24}
+tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
+.tablewrap{overflow-x:auto}
 CSS;
 
 function dash_shell(string $title, string $body): string
@@ -150,13 +160,15 @@ function render_subject(Store $store, array $subject): string
 
         $chips = '';
         foreach ($rows as $t) {
-            $chips .= '<span class="chip" title="' . h(STATUS_LABEL[$t['status']] ?? $t['status']) . '">'
+            $chips .= '<a class="chip" href="/s/' . h($subject['slug']) . '/t/'
+                . rawurlencode((string) $t['ref']) . '" style="text-decoration:none"'
+                . ' title="' . h(STATUS_LABEL[$t['status']] ?? $t['status']) . ' — click for its history">'
                 . '<span class="dot" style="background:' . (STATUS_COLOUR[$t['status']] ?? '#d6d3d1') . '"></span>'
                 . '<b class="mono">' . h($t['ref']) . '</b> ' . h($t['name'])
                 . ($t['watch'] ? '<b style="color:#d97706">!</b>' : '')
                 . (in_array($t['ref'], $withResources, true) ? '<b style="color:#0ea5e9" title="has resources">&#9633;</b>' : '')
                 . ($t['tier'] === 'H' ? '<b style="color:#a8a29e">H</b>' : '')
-                . '</span>';
+                . '</a>';
         }
         $chipGroups .= '<h3 class="kicker mono" style="margin:1rem 0 0">' . h($label) . '</h3>'
             . '<div class="chips">' . $chips . '</div>';
@@ -201,7 +213,8 @@ function render_subject(Store $store, array $subject): string
         foreach ($loose as $t) {
             $looseHtml .= '<div class="item">'
                 . '<span class="dot" style="margin-top:.4rem;background:' . (STATUS_COLOUR[$t['status']] ?? '#d6d3d1') . '"></span>'
-                . '<div class="grow"><strong class="mono">' . h($t['ref']) . '</strong> ' . h($t['name'])
+                . '<div class="grow"><strong class="mono"><a href="/s/' . h($subject['slug']) . '/t/'
+                . rawurlencode((string) $t['ref']) . '">' . h($t['ref']) . '</a></strong> ' . h($t['name'])
                 . '<div><small>' . h($t['watch']) . '</small></div></div></div>';
         }
     }
@@ -243,7 +256,8 @@ function render_subject(Store $store, array $subject): string
                     . ($paper['note'] ? ' — ' . h($paper['note']) : '')
                     . '</small></div>';
             }
-            $assessHtml .= '<div class="item"><div class="grow"><strong>' . h($x['name']) . '</strong>'
+            $assessHtml .= '<div class="item"><div class="grow"><strong><a href="/s/' . h($subject['slug'])
+                . '/a/' . (int) $x['id'] . '">' . h($x['name']) . '</a></strong>'
                 . '<div><small>' . $meta . '</small></div>'
                 . $papers
                 . ($x['note'] ? '<div><small>' . h($x['note']) . '</small></div>' : '')
@@ -275,11 +289,14 @@ function render_subject(Store $store, array $subject): string
                 foreach ($changes as $c) {
                     $from = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
                     $to   = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
-                    $moved .= '<div><small><b class="mono">' . h($c['ref']) . '</b> '
+                    $moved .= '<div><small><a class="mono" href="/s/' . h($subject['slug']) . '/t/'
+                        . rawurlencode((string) $c['ref']) . '"><b>' . h($c['ref']) . '</b></a> '
                         . h($from) . ' → ' . h($to) . ' — ' . h($c['evidence']) . '</small></div>';
                 }
                 $void = $x['void_reason'] ?? null;
-                $sessionHtml .= '<div class="item"><div class="grow"><strong>' . h($x['date']) . '</strong>'
+                $sessionHtml .= '<div class="item"><div class="grow"><strong><a href="/s/'
+                    . h($subject['slug']) . '/session/' . (int) $x['id'] . '">' . h($x['date'])
+                    . '</a></strong>'
                     . ($void ? ' <b style="color:#b91c1c">VOID</b>' : '')
                     . '<div><small>' . h($x['summary']) . '</small></div>'
                     . ($void ? '<div><small>Voided: ' . h($void) . '</small></div>' : '')
@@ -304,9 +321,10 @@ function render_subject(Store $store, array $subject): string
         : '';
 
     $latest = $lastPaper
-        ? '<p class="big mono">' . num($lastPaper['score']) . '<small>/' . num($lastPaper['max']) . '</small></p>'
+        ? '<a href="/s/' . h($subject['slug']) . '/a/' . (int) $lastPaper['id'] . '" style="text-decoration:none">'
+            . '<p class="big mono">' . num($lastPaper['score']) . '<small>/' . num($lastPaper['max']) . '</small></p>'
             . '<p><small>≈ grade ' . h(gradeFor($subject, (float) $lastPaper['score'], (float) $lastPaper['max'], (string) $lastPaper['tier']))
-            . ' · ' . h($lastPaper['date']) . '</small></p>'
+            . ' · ' . h($lastPaper['date']) . '</small></p></a>'
         : '<p><small>No full paper logged.</small></p>';
 
     $kicker      = h($subject['spec_code'] ?? '') . ($subject['tier'] ? ' · ' . h($subject['tier']) : '');
@@ -351,4 +369,208 @@ function render_subject(Store $store, array $subject): string
 HTML;
 
     return dash_shell($subject['name'] . ' tracker', $body);
+}
+
+// ---- detail pages -------------------------------------------------------
+//
+// The tools could always return the question-by-question record; the dashboard
+// could not show it. These three pages are the auditable views: one sitting in
+// full, one session in full, and one topic's whole history.
+
+/** Shared page furniture: a back link, a title, and a subtitle line. */
+function detail_head(array $subject, string $title, string $sub): string
+{
+    return '<header><div><p class="kicker"><a href="/s/' . h($subject['slug']) . '">← '
+        . h($subject['name']) . '</a></p><h1>' . h($title) . '</h1>'
+        . '<p><small>' . $sub . '</small></p></div></header>';
+}
+
+function render_attempt(Store $store, array $subject, array $x): string
+{
+    $slug    = $subject['slug'];
+    $outcome = $x['kind'] === 'check'
+        ? round(((float) $x['score'] / max((float) $x['max'], 1)) * 100) . '% · not grade-converted'
+        : '≈ grade ' . h(gradeFor($subject, (float) $x['score'], (float) $x['max'], (string) $x['tier']))
+            . ' on tier ' . h((string) $x['tier']);
+
+    $body = detail_head($subject, (string) $x['name'],
+        h((string) $x['date']) . ' · ' . h((string) $x['kind']) . ' · '
+        . count($x['papers']) . ' paper' . (count($x['papers']) === 1 ? '' : 's')
+        . ' · <strong class="mono">' . num($x['score']) . '/' . num($x['max']) . '</strong> · ' . $outcome);
+
+    if ($x['note']) {
+        $body .= '<div class="flag">' . h((string) $x['note']) . '</div>';
+    }
+
+    foreach ($x['papers'] as $paper) {
+        $body .= '<h2>' . h((string) $paper['code']) . ' <span class="mono">'
+            . num($paper['score']) . '/' . num($paper['max']) . '</span></h2>';
+        $bits = [];
+        if (!empty($paper['sat_on'])) {
+            $bits[] = 'sat ' . h((string) $paper['sat_on']);
+        }
+        if ($paper['blanks'] !== null) {
+            $bits[] = (int) $paper['blanks'] . ' left blank';
+        }
+        if ($paper['note']) {
+            $bits[] = h((string) $paper['note']);
+        }
+        if ($bits) {
+            $body .= '<p><small>' . implode(' · ', $bits) . '</small></p>';
+        }
+
+        if (!$paper['questions']) {
+            $body .= '<p><small>No question breakdown was recorded for this paper — only the total.</small></p>';
+            continue;
+        }
+
+        $body .= '<div class="tablewrap"><table><thead><tr><th>Q</th><th>Topic</th><th>Marks</th>'
+            . '<th>Question</th><th>Answer given</th><th>Note</th></tr></thead><tbody>';
+        foreach ($paper['questions'] as $q) {
+            $lost  = (float) $q['max'] - (float) $q['score'];
+            $klass = $lost <= 0 ? 'full' : ((float) $q['score'] > 0 ? 'part' : 'none');
+            $ref   = $q['topic_ref'] ?? null;
+            $body .= '<tr class="' . $klass . '"><td class="mono">' . h((string) $q['number']) . '</td>'
+                . '<td class="mono">' . ($ref !== null
+                    ? '<a href="/s/' . h($slug) . '/t/' . rawurlencode($ref) . '">' . h($ref) . '</a>'
+                    : '—') . '</td>'
+                . '<td class="mono">' . num($q['score']) . '/' . num($q['max']) . '</td>'
+                . '<td>' . h((string) ($q['question'] ?? '')) . '</td>'
+                . '<td>' . h((string) ($q['answer'] ?? '')) . '</td>'
+                . '<td><small>' . h((string) ($q['note'] ?? '')) . '</small></td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+
+    // What the marks actually say about the teaching, rather than the score.
+    $breakdown = $store->attemptTopicBreakdown($slug, (int) $x['id']);
+    if ($breakdown) {
+        $body .= '<h2>Marks by topic</h2>'
+            . '<p><small>Ordered by marks lost. These are the candidates for reteaching.</small></p>'
+            . '<div class="tablewrap"><table><thead><tr><th>Topic</th><th>Name</th><th>Marks</th><th>Lost</th></tr></thead><tbody>';
+        foreach ($breakdown as $b) {
+            $lost  = (float) $b['max'] - (float) $b['score'];
+            $body .= '<tr class="' . ($lost > 0 ? 'part' : 'full') . '">'
+                . '<td class="mono"><a href="/s/' . h($slug) . '/t/' . rawurlencode((string) $b['ref']) . '">'
+                . h((string) $b['ref']) . '</a></td>'
+                . '<td>' . h((string) $b['name']) . '</td>'
+                . '<td class="mono">' . num($b['score']) . '/' . num($b['max']) . '</td>'
+                . '<td class="mono">' . num($lost) . '</td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+
+    return dash_shell($x['name'] . ' — ' . $subject['name'], $body);
+}
+
+function render_session(Store $store, array $subject, array $x): string
+{
+    $slug = $subject['slug'];
+    $void = $x['void_reason'] ?? null;
+
+    $body = detail_head($subject, 'Session ' . $x['id'],
+        h((string) $x['date']) . ' · ' . h(Store::weekOf((string) $x['date'])['label'])
+        . ($void ? ' · <b style="color:#b91c1c">VOID</b>' : ''));
+
+    if ($void) {
+        $body .= '<div class="flag">Voided: ' . h((string) $void)
+            . '<br><small>The row is kept rather than deleted, and no longer counts towards'
+            . ' the review queue or the export.</small></div>';
+    }
+    $body .= '<h2>What happened</h2><p>' . h((string) $x['summary']) . '</p>';
+    if ($x['next_steps']) {
+        $body .= '<h2>Planned next</h2><p>' . h((string) $x['next_steps']) . '</p>';
+    }
+
+    $changes = $store->changesForSession((int) $x['id']);
+    $body   .= '<h2>What this session changed</h2>';
+    if (!$changes) {
+        $body .= '<p><small>No topic statuses were changed in this session.</small></p>';
+    } else {
+        $body .= '<div class="tablewrap"><table><thead><tr><th>Topic</th><th>Name</th><th>Change</th><th>Evidence recorded</th></tr>'
+            . '</thead><tbody>';
+        foreach ($changes as $c) {
+            $from  = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+            $to    = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+            $body .= '<tr><td class="mono"><a href="/s/' . h($slug) . '/t/'
+                . rawurlencode((string) $c['ref']) . '">' . h((string) $c['ref']) . '</a></td>'
+                . '<td>' . h((string) ($c['topic_name'] ?? '')) . '</td>'
+                . '<td><small>' . h($from) . ' → <strong>' . h($to) . '</strong></small></td>'
+                . '<td><small>' . h((string) $c['evidence']) . '</small></td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+
+    return dash_shell('Session ' . $x['id'] . ' — ' . $subject['name'], $body);
+}
+
+function render_topic_history(Store $store, array $subject, array $topic): string
+{
+    $slug = $subject['slug'];
+    $ref  = (string) $topic['ref'];
+    $body = detail_head($subject, $ref . ' ' . (string) $topic['name'],
+        'Currently <strong>' . h(STATUS_LABEL[$topic['status']] ?? (string) $topic['status']) . '</strong>'
+        . ($topic['last_touched'] ? ' · last touched ' . h((string) $topic['last_touched']) : ''));
+
+    if (!empty($topic['watch'])) {
+        $body .= '<div class="flag">' . h((string) $topic['watch']) . '</div>';
+    }
+
+    // Every status this topic has held, and why — the whole point of keeping
+    // evidence on each change rather than only a current status.
+    $h    = $store->history($slug, 520, $ref);
+    $body .= '<h2>Every change</h2>';
+    if (!$h['changes']) {
+        $body .= '<p><small>No recorded changes. The status is where it was seeded.</small></p>';
+    } else {
+        $body .= '<div class="tablewrap"><table><thead><tr><th>When</th><th>Change</th><th>Evidence</th><th>Session</th></tr>'
+            . '</thead><tbody>';
+        foreach ($h['changes'] as $c) {
+            $from  = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+            $to    = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+            $body .= '<tr><td class="mono"><small>' . h(substr((string) $c['changed_at'], 0, 10)) . '</small></td>'
+                . '<td><small>' . h($from) . ' → <strong>' . h($to) . '</strong></small></td>'
+                . '<td><small>' . h((string) $c['evidence']) . '</small></td>'
+                . '<td>' . ($c['session_id']
+                    ? '<a href="/s/' . h($slug) . '/session/' . (int) $c['session_id'] . '">session '
+                        . (int) $c['session_id'] . '</a>'
+                    : '<small>standalone</small>') . '</td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+
+    // Where this topic has been examined, pulled back out of the question rows.
+    $qs    = $store->questionsForTopic($slug, $ref);
+    $body .= '<h2>In papers</h2>';
+    if (!$qs) {
+        $body .= '<p><small>No marked question has been recorded against this topic yet.</small></p>';
+    } else {
+        $body .= '<div class="tablewrap"><table><thead><tr><th>Attempt</th><th>Paper</th><th>Q</th><th>Marks</th><th>Note</th></tr>'
+            . '</thead><tbody>';
+        foreach ($qs as $q) {
+            $lost  = (float) $q['max'] - (float) $q['score'];
+            $body .= '<tr class="' . ($lost <= 0 ? 'full' : ((float) $q['score'] > 0 ? 'part' : 'none')) . '">'
+                . '<td><small><a href="/s/' . h($slug) . '/a/' . (int) $q['attempt_id'] . '">'
+                . h((string) $q['attempt_name']) . '</a></small></td>'
+                . '<td class="mono"><small>' . h((string) $q['code']) . '</small></td>'
+                . '<td class="mono">' . h((string) $q['number']) . '</td>'
+                . '<td class="mono">' . num($q['score']) . '/' . num($q['max']) . '</td>'
+                . '<td><small>' . h((string) ($q['note'] ?? '')) . '</small></td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+
+    $resources = $store->resourcesForTopic($slug, $ref);
+    if ($resources) {
+        $body .= '<h2>Materials</h2>';
+        foreach ($resources as $r) {
+            $body .= '<div class="item"><div class="grow"><strong>'
+                . ($r['url'] ? '<a href="' . h((string) $r['url']) . '">' . h((string) $r['title']) . '</a>'
+                    : h((string) $r['title'])) . '</strong>'
+                . ($r['note'] ? '<div><small>' . h((string) $r['note']) . '</small></div>' : '')
+                . '</div><div class="num"><small>' . h((string) $r['kind']) . '</small></div></div>';
+        }
+    }
+
+    return dash_shell($ref . ' — ' . $subject['name'], $body);
 }

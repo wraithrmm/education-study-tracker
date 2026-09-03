@@ -97,11 +97,44 @@ check "maths dashboard renders" "$code" "200"
 body="$("${CURL[@]}" "$BASE/s/maths")"
 contains "the dashboard groups sessions by week" "$body" "Sessions, by week"
 contains "the dashboard has an attempts section" "$body" "Papers &amp; checks"
+contains "the dashboard links into attempts" "$body" "/a/"
+contains "the dashboard links into sessions" "$body" "/session/"
+contains "the dashboard links topics to their history" "$body" "/t/"
 if [ "$REMOTE" = 0 ]; then
-  contains "the dashboard shows what each session changed" "$body" "A17"
-  contains "the dashboard lists attempts" "$body" "8300/2F Jun-22"
+  contains "the dashboard lists the grouped sitting" "$body" "AQA 8300 Foundation, June 2022"
   contains "the dashboard shows the per-paper breakdown" "$body" "10 questions recorded"
 fi
+
+# The drill-downs are the auditable views: everything the tools can report,
+# the page can now show. Read-only, so they run against production too.
+echo
+echo "== detail pages =="
+attempt_url="$(printf '%s' "$body" | grep -o '/s/[^\"]*/a/[0-9]*' | head -1)"
+if [ -n "$attempt_url" ]; then
+  page="$("${CURL[@]}" "$BASE$attempt_url")"
+  contains "an attempt page renders its papers" "$page" " paper"
+  contains "an attempt page links back to its subject" "$page" "/s/maths\""
+else
+  fail "no attempt link on the dashboard to follow"
+fi
+
+session_url="$(printf '%s' "$body" | grep -o '/s/[^\"]*/session/[0-9]*' | head -1)"
+if [ -n "$session_url" ]; then
+  page="$("${CURL[@]}" "$BASE$session_url")"
+  contains "a session page renders what happened" "$page" "What happened"
+  contains "a session page renders what it changed" "$page" "What this session changed"
+else
+  fail "no session link on the dashboard to follow"
+fi
+
+page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"
+contains "a topic page renders its change history" "$page" "Every change"
+contains "a topic page renders where it was examined" "$page" "In papers"
+
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/a/999999")"
+check "an unknown attempt id is a 404" "$code" "404"
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/t/NOPE")"
+check "an unknown topic ref is a 404" "$code" "404"
 
 echo
 echo "== discovery =="
@@ -247,6 +280,17 @@ body="$(call tracker_list_attempts '{"subject":"maths"}')"
 contains "tracker_list_attempts converts paper grades" "$body" "grade"
 contains "topic checks are never grade-converted" "$body" "no grade"
 
+# The three 8300 papers were one sitting. Held as three attempts, each 80-mark
+# paper was scaled against the 240-mark boundary table on its own and reported
+# a grade for an exam that was only a third sat.
+contains "the three 8300 papers are one attempt" "$body" "AQA 8300 Foundation, June 2022"
+contains "and that attempt is graded over all 240 marks" "$body" "148/240"
+if printf '%s' "$body" | grep -qF '8300/2F Jun-22'; then
+  fail "the old one-paper-per-attempt rows are gone"
+else
+  pass "the old one-paper-per-attempt rows are gone"
+fi
+
 body="$(call tracker_export_markdown '{"subject":"maths"}')"
 contains "tracker_export_markdown renders the document" "$body" "topic state"
 contains "the export carries the attempts" "$body" "## Attempts"
@@ -271,7 +315,7 @@ echo "== attempts, papers and questions =="
 # An attempt is one sitting. A three-paper mock is one attempt with three
 # papers and a single grade across the lot, which is the whole point of the
 # shape: one paper of three does not carry a grade.
-body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke three-paper mock","kind":"paper","tier":"F","date":"2026-08-28","papers":[{"code":"8300/1F","score":40,"max":80,"blanks":2},{"code":"8300/2F","score":50,"max":80},{"code":"8300/3F","score":45,"max":80}]}')"
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke three-paper mock","kind":"paper","tier":"F","date":"2026-08-28","papers":[{"code":"8300/1H","score":40,"max":80,"blanks":2},{"code":"8300/2H","score":50,"max":80},{"code":"8300/3H","score":45,"max":80}]}')"
 contains "tracker_log_attempt takes several papers as one attempt" "$body" "3 papers"
 contains "the grade is computed across the whole attempt" "$body" "135/240"
 contains "tracker_log_attempt grades a paper attempt" "$body" "grade"
@@ -283,6 +327,7 @@ if [ -n "$mock_id" ]; then pass "the attempt reports its id"; else fail "the att
 # what later turns a score into teaching information.
 body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke marked paper","kind":"paper","tier":"F","date":"2026-08-29","papers":[{"code":"8300/1F Nov-22","score":6,"max":10,"blanks":1,"note":"marked question by question","questions":[{"number":"1","score":3,"max":3,"topic_ref":"A17","question":"Solve 3x + 4 = 19","answer":"x = 5","note":"clean"},{"number":"2a","score":3,"max":4,"topic_ref":"A4","answer":"2x(3x+4)","note":"factor not fully taken out"},{"number":"2b","score":0,"max":3,"topic_ref":"A4","answer":"","note":"left blank"}]}]}')"
 contains "questions are accepted alongside the paper" "$body" "3 questions recorded"
+
 marked_id="$(printf '%s' "$body" | sed -n 's/.*as attempt \([0-9]*\).*/\1/p' | head -1)"
 
 body="$(call tracker_get_attempt "{\"subject\":\"maths\",\"attempt_id\":$marked_id}")"
@@ -293,8 +338,14 @@ contains "tracker_get_attempt breaks the marks down by topic" "$body" "Marks by 
 contains "the topic that lost the marks is named" "$body" "A4"
 
 body="$(call tracker_get_attempt "{\"subject\":\"maths\",\"attempt_id\":$mock_id}")"
-contains "an attempt with no questions still lists its papers" "$body" "8300/2F"
+contains "an attempt with no questions still lists its papers" "$body" "8300/2H"
 contains "and says the breakdown is missing" "$body" "No question breakdown recorded for this paper"
+
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke split sitting","papers":[{"code":"P1","score":10,"max":20,"sat_on":"2026-08-01"},{"code":"P2","score":12,"max":20,"sat_on":"2026-08-08"}]}')"
+contains "papers of one sitting may carry their own dates" "$body" "2 papers"
+split_id="$(printf '%s' "$body" | sed -n 's/.*as attempt \([0-9]*\).*/\1/p' | head -1)"
+body="$(call tracker_get_attempt "{\"subject\":\"maths\",\"attempt_id\":$split_id}")"
+contains "and those dates are reported back" "$body" "sat 2026-08-08"
 
 # A breakdown that does not reconcile with the paper total would make the
 # per-topic analysis lie, so it is refused rather than stored.

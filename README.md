@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -98,9 +98,21 @@ tests. Those references are what turn a score into teaching information —
 `tracker_get_attempt` adds up marks lost per topic and names the topics to
 reteach.
 
-Databases written before this shape existed are migrated on first open: each
-old assessment becomes an attempt with one paper. The original `assessments`
-table is left untouched as the fallback copy.
+Each of those views is a page as well as a tool call. The tools were always
+able to report the question-by-question record; until these pages existed the
+dashboard could only say how many questions had been recorded, which is a
+count, not an audit trail.
+
+Migrations run on first open as a numbered ladder (`meta.schema_version`),
+each step in its own `BEGIN IMMEDIATE` transaction so concurrent requests
+cannot double-apply one. Step 1 turned each old assessment into an attempt
+with one paper; the original `assessments` table is left untouched as the
+fallback copy. Step 2 added per-paper `sat_on` and grouped the three AQA 8300
+June 2022 foundation papers into the single sitting they actually were — held
+as three attempts, each 80-mark paper was scaled against the 240-mark boundary
+table on its own and reported a grade for an exam only a third sat. That step
+is guarded on the exact shape step 1 produces, so a database where those rows
+have since been edited or built on is left alone.
 
 ## Adding a subject
 

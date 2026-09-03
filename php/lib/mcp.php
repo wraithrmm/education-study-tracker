@@ -443,8 +443,9 @@ function mcp_tools(): array
                 . "the per-question topic refs are what later tell you which topics lost the marks.\n\n"
                 . "One attempt holds every paper sat together: a three-paper mock is ONE call with three papers, not three calls. "
                 . "The grade is computed across the whole attempt. kind 'check' is never grade-converted.\n\n"
-                . "Args: subject, name, papers[] of { code, score, max, blanks?, note?, questions?[] }. "
+                . "Args: subject, name, papers[] of { code, score, max, blanks?, note?, sat_on?, questions?[] }. "
                 . "Each question is { number, max, score, topic_ref?, question?, answer?, note? }. "
+                . "Give a paper its own sat_on when the papers of one sitting were not all sat on the same day.\n\n"
                 . 'Optional kind (paper|check, default paper), tier, date, note.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -472,6 +473,8 @@ function mcp_tools(): array
                                 'blanks' => ['type' => 'integer', 'minimum' => 0,
                                     'description' => 'Questions left blank on this paper'],
                                 'note'   => ['type' => 'string', 'maxLength' => 1000],
+                                'sat_on' => ['type' => 'string', 'pattern' => '^\\d{4}-\\d{2}-\\d{2}$',
+                                    'description' => 'Date this paper was sat, if not all on one day'],
                                 'questions' => [
                                     'type'     => 'array',
                                     'maxItems' => 200,
@@ -816,6 +819,9 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
             foreach ($x['papers'] as $paper) {
                 $head = "\n### " . $paper['code'] . ' — ' . num($paper['score']) . '/' . num($paper['max']);
+                if (!empty($paper['sat_on'])) {
+                    $head .= ' · sat ' . $paper['sat_on'];
+                }
                 if ($paper['blanks'] !== null) {
                     $head .= ' · ' . (int) $paper['blanks'] . ' blank' . ((int) $paper['blanks'] === 1 ? '' : 's');
                 }
@@ -1226,6 +1232,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     'blanks'    => array_key_exists('blanks', $paper) && $paper['blanks'] !== null
                         ? (int) mcp_num($paper, 'blanks', false, 0) : null,
                     'note'      => mcp_str($paper, 'note', false, 0, 1000),
+                    'sat_on'    => mcp_date($paper, 'sat_on', null),
                     'questions' => $qClean,
                 ];
             }
