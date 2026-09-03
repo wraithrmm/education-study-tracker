@@ -63,6 +63,7 @@ mkdir -p "$HOME/bin"
 ln -sf "$NODE_BIN/node" "$HOME/bin/node"
 ln -sf "$NODE_BIN/npm" "$HOME/bin/npm"
 ln -sf "$NODE_BIN/npx" "$HOME/bin/npx"
+# npm is symlinked for manual use but is not run by this script — see below.
 
 PROFILE="$HOME/.bash_profile"
 touch "$PROFILE"
@@ -75,14 +76,34 @@ if ! grep -q '# tracker-deploy PATH' "$PROFILE"; then
   echo "added ~/bin to PATH in $PROFILE"
 fi
 export PATH="$HOME/bin:$PATH"
-echo "node $(node -v), npm $(npm -v)"
+echo "node $(node -v)"
 
 say "Dependencies"
+# npm is deliberately never run on this host. It dies here with
+#   Check failed: 12 == (*__errno_location ())
+# inside v8::base::OS::SetPermissions — errno 12 is ENOMEM, V8 failing to
+# allocate executable memory under the shared account's cap. Plain node runs
+# fine; npm is simply too heavy. So node_modules is installed on the CI runner
+# and shipped whole, which is also faster and pins the tree to exactly what the
+# smoke test exercised. Nothing needs compiling: better-sqlite3 carries its own
+# prebuilt binaries inside the package.
 cd "$DEPLOY_PATH"
-# --omit=dev: the release ships compiled JS, so TypeScript is not needed here.
-# better-sqlite3 pulls a prebuilt binary when one matches this Node ABI and
-# compiles from source when it does not; either way it is cached across deploys.
-npm ci --omit=dev --no-audit --no-fund
+[ -d node_modules ] || { echo "node_modules is missing — the release was not shipped completely" >&2; exit 1; }
+
+# The prebuilt binary still has to load under *this* node and *this* glibc.
+# Prove it here, where the error is readable, rather than leaving Passenger to
+# report it as a blank 502.
+if ! node -e "
+  const Database = require('better-sqlite3');
+  const db = new Database(':memory:');
+  db.exec('create table probe (x)');
+  console.log('better-sqlite3 loads, sqlite ' + db.prepare('select sqlite_version() v').get().v);
+"; then
+  echo "The shipped better-sqlite3 binary does not load under $(node -v) on this host." >&2
+  echo "If the error above mentions GLIBC, this box is older than the prebuild requires;" >&2
+  echo "see DEPLOYMENT.md, 'When the health check fails'." >&2
+  exit 1
+fi
 
 say "Restart"
 # Passenger re-reads the app when this file's mtime changes.

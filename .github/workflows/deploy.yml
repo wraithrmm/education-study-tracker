@@ -52,14 +52,20 @@ jobs:
         working-directory: release
         run: npm ci --omit=dev --no-audit --no-fund
 
+      # better-sqlite3 ships prebuilt binaries for eight platforms inside its
+      # package. Only the one this deploy targets is worth 2 MB of rsync, and
+      # the smoke test below runs against the pruned tree, so a bad prune fails
+      # here rather than on the server.
+      - name: Prune native binaries for platforms we do not deploy to
+        run: |
+          set -euo pipefail
+          before=$(du -sm release/node_modules | cut -f1)
+          find release/node_modules -path '*/prebuilds/*' -name '*.node' \
+            ! -name 'linux-x64.node' -delete
+          echo "node_modules: ${before}M -> $(du -sm release/node_modules | cut -f1)M"
+
       - name: Smoke test the release
         run: bash deploy/smoke-test.sh
-
-      # better-sqlite3 is a native module. The runner's copy is built against
-      # the runner's Node ABI and glibc, so it is thrown away and the server
-      # installs its own in the remote-setup step.
-      - name: Drop the runner's node_modules
-        run: rm -rf release/node_modules
 
       - name: Check required secrets are present
         env:
@@ -149,10 +155,11 @@ jobs:
             < "$RUNNER_TEMP/tracker.env"
 
           # --delete keeps the server free of files removed from the repo.
-          # node_modules, tmp and public are server-owned and stay out of it.
-          # rsync runs over the shell, not SFTP, so it was never affected.
+          # tmp and public are server-owned and stay out of it. node_modules is
+          # shipped: npm cannot run on this host (see deploy/remote-setup.sh),
+          # so the runner's tree — the one the smoke test just exercised — is
+          # the tree that runs in production.
           rsync -rlptz --delete \
-            --exclude 'node_modules/' \
             --exclude 'tmp/' \
             --exclude 'public/' \
             -e "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \

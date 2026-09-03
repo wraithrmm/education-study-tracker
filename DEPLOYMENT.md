@@ -16,12 +16,13 @@ service locally or on a box you control; they are not what production uses.
    boots it the way Passenger does and checks `/healthz`, both discovery
    documents, the `401` + `WWW-Authenticate` challenge on `/mcp`, and the
    dashboard. A broken build never reaches the server.
-3. Throw away the runner's `node_modules` (`better-sqlite3` is native and must
-   be built for the server's Node ABI and glibc, not the runner's).
+3. Prune `better-sqlite3`'s prebuilt binaries down to the one platform this
+   deploys to.
 4. Write `~/tracker-shared/.env` on the server from the repository secrets.
-5. `rsync --delete` the release into `~/education.rmmann.co.uk/`.
+5. `rsync --delete` the release — `node_modules` included — into
+   `~/education.rmmann.co.uk/`.
 6. Run `deploy/remote-setup.sh` on the server: install Node via nvm if it isn't
-   there, `npm ci --omit=dev`, `touch tmp/restart.txt`.
+   there, prove the native module loads, `touch tmp/restart.txt`.
 7. Poll `https://education.rmmann.co.uk/healthz` until it answers
    `{"ok":true,…}`, then confirm `/mcp` still returns the discovery challenge.
    **The job fails if the live site does not come up**, so a green deploy means
@@ -37,13 +38,36 @@ the ESM service through a dynamic `import()`, and nothing depends on a Node new
 enough to `require()` an ES module. The CI smoke test exercises exactly this
 path.
 
+### Why npm never runs on the server
+
+The shared account's memory cap is low enough that V8 cannot allocate
+executable pages for a process npm's size. It dies as:
+
+```
+# Fatal error in , line 0
+# Check failed: 12 == (*__errno_location ()).
+  v8::base::OS::SetPermissions(...)
+```
+
+errno 12 is `ENOMEM`. Plain `node` runs fine — `node -v`, and the service
+itself, are far smaller — but `npm -v` and `npm ci` both die this way.
+
+So `node_modules` is installed on the CI runner and rsynced whole. Nothing
+needs compiling at either end: `better-sqlite3` carries prebuilt binaries for
+every platform inside its own package, and the deploy prunes them to the one
+it targets. The tree that runs in production is therefore byte-for-byte the
+tree the smoke test exercised. `remote-setup.sh` still loads the native module
+under the server's own Node before restarting Passenger, because a prebuilt
+binary can still meet a glibc it doesn't like — better a readable error at
+deploy time than a blank 502 afterwards.
+
 ### What lives where on the server
 
 ```
 ~/education.rmmann.co.uk/   deploy target (Passenger app root)
 ├── app.js          Passenger startup file
 ├── dist/           compiled service
-├── node_modules/   installed on the server, never rsynced
+├── node_modules/   installed on the CI runner and shipped whole
 ├── public/         document root — deliberately empty, everything falls through
 └── tmp/restart.txt touch to restart
 
@@ -71,9 +95,9 @@ scheme it is reached on.
 
 Then, under **Manage Users**, check that `edtrackerpaige` is a **Shell user
 (SSH)** and not an SFTP user. The deploy does not merely copy files: it runs
-`npm ci` and restarts Passenger on the box, and rsync itself spawns a login
-shell. An SFTP-only account fails this in the least helpful way possible —
-sshd answers every command with `internal-sftp`, which exits 0 having done
+node and restarts Passenger on the box, and rsync itself spawns a login shell.
+An SFTP-only account fails this in the least helpful way possible — sshd
+answers every command with `internal-sftp`, which exits 0 having done
 nothing, so remote commands appear to succeed while changing nothing. The
 "Probe the SSH account" step exists to catch exactly that and name it.
 
@@ -107,8 +131,8 @@ writes still require OAuth.
 ### 3. First deploy
 
 Merge into `main`, or run **Actions → Deploy → Run workflow**. The first run
-takes noticeably longer than later ones — it installs Node and builds
-`better-sqlite3` before anything answers.
+takes noticeably longer than later ones — it installs Node via nvm and rsyncs
+the whole dependency tree before anything answers.
 
 On first start the service seeds the maths subject. Seeding only happens when
 the database has no subjects, so later deploys never touch real progress.
@@ -129,8 +153,8 @@ through it in this order:
   DreamHost panel → Manage Users → the deploy user → set the type to **Shell
   user (SSH)**, then re-run the workflow. Nothing else in the deploy can work
   until this is right, and it fails quietly rather than loudly: `internal-sftp`
-  exits 0 for every command it is handed, so `mkdir` and `npm ci` alike report
-  success and change nothing.
+  exits 0 for every command it is handed, so `mkdir` and everything after it
+  report success and change nothing.
 - **`/healthz` times out, or the browser shows a directory listing or a
   DreamHost placeholder.** Passenger is not enabled on the domain, or the web
   directory is not `…/public`. Fix it in the panel (step 1) and re-run the
@@ -148,9 +172,12 @@ through it in this order:
   login shell, so it needs `~/bin` on the PATH. `deploy/remote-setup.sh` adds
   that to `~/.bash_profile`; confirm the line is there and that
   `~/bin/node -v` works.
-- **`better-sqlite3` fails to load.** Its native binary was built for a
-  different Node than the one Passenger is using. Re-run the workflow, which
-  reinstalls it against the pinned version in `.nvmrc`.
+- **`better-sqlite3` fails to load.** The deploy's own check reports this
+  before Passenger ever sees it. If the error mentions `GLIBC_2.x not found`,
+  the box is older than the prebuilt binary requires; the fix is to build the
+  module on a matching base image in CI and ship that, not to install it on the
+  server. If it mentions the Node ABI, `.nvmrc` and the server's Node have
+  drifted apart — re-run the workflow.
 - **The deploy is healthy but Claude says it "couldn't reach the MCP server".**
   Check `PUBLIC_URL` matches the origin exactly, with no trailing slash, and
   that `curl -si -X POST https://education.rmmann.co.uk/mcp -H
