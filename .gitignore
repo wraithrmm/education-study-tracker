@@ -14,5 +14,3 @@ data/
 
 *.log
 .DS_Store
-release/
-php/lib/*.db

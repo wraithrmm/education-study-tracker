@@ -232,7 +232,7 @@ function oauth_authorize_submit(Store $store, string $password, array $b): void
         $b['client_id'],
         $b['redirect_uri'],
         $b['code_challenge'] ?? '',
-        $b['scope'] ?: OAUTH_SCOPE,
+        ($b['scope'] ?? '') ?: OAUTH_SCOPE,
         now_ms() + CODE_TTL * 1000,
     ]);
 

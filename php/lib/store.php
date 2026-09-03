@@ -290,9 +290,7 @@ final class Store
         $next    = $args['status'] ?? $existing['status'];
         $touched = $args['last_touched'] ?? gmdate('Y-m-d');
         // A key that is absent leaves the note alone; an explicit null clears it.
-        $watch = array_key_exists('watch', $args) && $args['watch'] !== null
-            ? $args['watch']
-            : (array_key_exists('watch', $args) ? null : $existing['watch']);
+        $watch = array_key_exists('watch', $args) ? $args['watch'] : $existing['watch'];
 
         $this->db->beginTransaction();
         try {

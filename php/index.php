@@ -13,6 +13,13 @@ declare(strict_types=1);
 
 define('TRACKER', true);
 
+// A stray notice printed into a response would corrupt the JSON an MCP client
+// is parsing, or inject text above the doctype. Errors go to the log instead;
+// the log is where a deploy failure is diagnosed from anyway.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
 // ---- small helpers the libraries rely on --------------------------------
 
 function h(mixed $s): string
@@ -55,7 +62,6 @@ function load_env(): void
     $candidates = array_filter([
         getenv('TRACKER_ENV_FILE') ?: null,
         dirname(__DIR__) . '/tracker-shared/.env',
-        __DIR__ . '/../tracker-shared/.env',
     ]);
     foreach ($candidates as $file) {
         if (!is_readable($file)) {
