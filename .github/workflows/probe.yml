@@ -1,0 +1,34 @@
+name: Probe
+
+# A scratch SSH terminal on the deploy host. Runs on pushes to working
+# branches only, never on main, and never as part of a release. Delete this
+# workflow once the hosting question is settled.
+on:
+  push:
+    branches: ['claude/**']
+
+concurrency:
+  group: probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Inspect the deploy host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Run the diagnostic sweep
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education.rmmann.co.uk' }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER || 'edtrackerpaige' }}
+        run: |
+          set -uo pipefail
+          [ -n "$SSHPASS" ] || { echo "::error::DEPLOY_SSH_PASSWORD is not set"; exit 1; }
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' < deploy/probe-remote.sh 2>&1
+          echo "sweep exit: $?"
