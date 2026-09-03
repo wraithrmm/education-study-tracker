@@ -73,6 +73,51 @@ CREATE TABLE IF NOT EXISTS assessments (
   note          TEXT
 );
 
+-- An attempt is one sitting: a mock might be three papers, a topic check one.
+-- The grade belongs here, at the top, because it is only meaningful across the
+-- whole sitting — a single paper of a three-paper mock does not carry a grade.
+CREATE TABLE IF NOT EXISTS attempts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  subject_slug  TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
+  date          TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'paper',
+  tier          TEXT NOT NULL DEFAULT 'F',
+  note          TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS attempt_papers (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  attempt_id    INTEGER NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  code          TEXT NOT NULL,
+  score         REAL NOT NULL,
+  max           REAL NOT NULL,
+  blanks        INTEGER,
+  note          TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0
+);
+
+-- topic_ref is what turns a marked paper into teaching information: it says
+-- which topic each lost mark belongs to.
+CREATE TABLE IF NOT EXISTS attempt_questions (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  paper_id      INTEGER NOT NULL REFERENCES attempt_papers(id) ON DELETE CASCADE,
+  number        TEXT NOT NULL,
+  topic_ref     TEXT,
+  score         REAL NOT NULL,
+  max           REAL NOT NULL,
+  question      TEXT,
+  answer        TEXT,
+  note          TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   subject_slug   TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
@@ -139,6 +184,9 @@ CREATE INDEX IF NOT EXISTS idx_topics_subject ON topics(subject_slug, sort_order
 CREATE INDEX IF NOT EXISTS idx_assessments_subject ON assessments(subject_slug, date);
 CREATE INDEX IF NOT EXISTS idx_changes_subject ON topic_changes(subject_slug, changed_at);
 CREATE INDEX IF NOT EXISTS idx_resources_subject ON resources(subject_slug, ref, sort_order);
+CREATE INDEX IF NOT EXISTS idx_attempts_subject ON attempts(subject_slug, date);
+CREATE INDEX IF NOT EXISTS idx_papers_attempt ON attempt_papers(attempt_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_questions_paper ON attempt_questions(paper_id, sort_order);
 SQL;
 
 /** What a resource is for, used to sort and label it. */
@@ -164,6 +212,99 @@ final class Store
         // often than the single long-lived Node process ever did.
         $this->db->exec('PRAGMA busy_timeout = 5000');
         $this->db->exec(SCHEMA);
+        $this->migrate();
+    }
+
+    /**
+     * Schema changes that CREATE TABLE IF NOT EXISTS cannot express, applied
+     * once and guarded so they are safe on every request. This runs against a
+     * live database holding the only copy of the record, so each step checks
+     * the current shape rather than assuming it.
+     */
+    private function migrate(): void
+    {
+        // Fast path: the marker is set, so there is nothing to do and no lock
+        // to take. This runs on every single request.
+        if ($this->meta('schema_attempts') !== null) {
+            return;
+        }
+
+        // BEGIN IMMEDIATE takes the write lock before anything is read, so two
+        // requests arriving together cannot both decide the migration is still
+        // pending and run it twice. Everything below is one transaction: on a
+        // database holding the only copy of the record, a half-applied
+        // migration is worse than a failed one.
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            if ($this->meta('schema_attempts') !== null) {
+                $this->db->exec('COMMIT');
+                return;
+            }
+
+            // Attributes a topic change to the session that produced it, so the
+            // history can show what each session actually moved. Changes made
+            // by tracker_update_topic alone keep a null session_id.
+            if (!$this->hasColumn('topic_changes', 'session_id')) {
+                $this->db->exec('ALTER TABLE topic_changes ADD COLUMN session_id INTEGER');
+            }
+            // A session logged in error is voided with a reason rather than
+            // deleted: an audit trail that can lose entries is not one.
+            if (!$this->hasColumn('sessions', 'void_reason')) {
+                $this->db->exec('ALTER TABLE sessions ADD COLUMN void_reason TEXT');
+            }
+
+            // Flat assessments become one attempt holding a single paper. The
+            // assessments table itself is left untouched as the fallback copy.
+            foreach ($this->all('SELECT * FROM assessments ORDER BY id') as $a) {
+                $st = $this->db->prepare(
+                    'INSERT INTO attempts (subject_slug, date, name, kind, tier, note)
+                     VALUES (?, ?, ?, ?, ?, ?)'
+                );
+                $st->execute([
+                    $a['subject_slug'], $a['date'], $a['name'],
+                    $a['kind'], $a['tier'], $a['note'],
+                ]);
+                $attemptId = (int) $this->db->lastInsertId();
+
+                $st = $this->db->prepare(
+                    'INSERT INTO attempt_papers (attempt_id, code, score, max, blanks, sort_order)
+                     VALUES (?, ?, ?, ?, ?, 0)'
+                );
+                // The old rows carried no paper code, only the assessment name.
+                $st->execute([$attemptId, $a['name'], $a['score'], $a['max'], $a['blanks']]);
+            }
+
+            $this->setMeta('schema_attempts', gmdate('c'));
+            $this->db->exec('COMMIT');
+        } catch (Throwable $e) {
+            $this->db->exec('ROLLBACK');
+            throw $e;
+        }
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        foreach ($this->all("PRAGMA table_info($table)") as $c) {
+            if (($c['name'] ?? null) === $column) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function meta(string $key): ?string
+    {
+        $row = $this->one('SELECT value FROM meta WHERE key = ?', [$key]);
+        return $row ? (string) $row['value'] : null;
+    }
+
+    public function setMeta(string $key, string $value): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO meta (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+        );
+        $st->execute([$key, $value]);
     }
 
     /** @param array<int,mixed> $params */
@@ -321,10 +462,13 @@ final class Store
             $st->execute([$next, $args['evidence'], $watch, $touched, $args['subject_slug'], $args['ref']]);
 
             $st = $this->db->prepare(
-                'INSERT INTO topic_changes (subject_slug, ref, from_status, to_status, evidence)
-                 VALUES (?, ?, ?, ?, ?)'
+                'INSERT INTO topic_changes (subject_slug, ref, from_status, to_status, evidence, session_id)
+                 VALUES (?, ?, ?, ?, ?, ?)'
             );
-            $st->execute([$args['subject_slug'], $args['ref'], $existing['status'], $next, $args['evidence']]);
+            $st->execute([
+                $args['subject_slug'], $args['ref'], $existing['status'], $next,
+                $args['evidence'], $args['session_id'] ?? null,
+            ]);
             $this->db->commit();
         } catch (Throwable $e) {
             $this->db->rollBack();
@@ -342,8 +486,22 @@ final class Store
         );
     }
 
-    // ---- assessments and sessions ---------------------------------------
+    /** The changes one session produced. */
+    public function changesForSession(int $sessionId): array
+    {
+        return $this->all(
+            'SELECT * FROM topic_changes WHERE session_id = ? ORDER BY id',
+            [$sessionId]
+        );
+    }
 
+    // ---- sessions --------------------------------------------------------
+
+    /**
+     * The pre-attempts table. Nothing writes to it any more — migrate()
+     * copied every row into attempts on first open and the copy is left in
+     * place as the only fallback if that migration ever turns out wrong.
+     */
     public function listAssessments(string $slug): array
     {
         return $this->all(
@@ -352,25 +510,6 @@ final class Store
         );
     }
 
-    public function addAssessment(array $a): int
-    {
-        $st = $this->db->prepare(
-            'INSERT INTO assessments (subject_slug, date, name, kind, tier, score, max, blanks, note)
-             VALUES (:subject_slug, :date, :name, :kind, :tier, :score, :max, :blanks, :note)'
-        );
-        $st->execute([
-            ':subject_slug' => $a['subject_slug'],
-            ':date'         => $a['date'],
-            ':name'         => $a['name'],
-            ':kind'         => $a['kind'],
-            ':tier'         => $a['tier'],
-            ':score'        => $a['score'],
-            ':max'          => $a['max'],
-            ':blanks'       => $a['blanks'] ?? null,
-            ':note'         => $a['note'] ?? null,
-        ]);
-        return (int) $this->db->lastInsertId();
-    }
 
     public function listSessions(string $slug, int $limit = 20): array
     {
@@ -378,6 +517,225 @@ final class Store
             'SELECT * FROM sessions WHERE subject_slug = ? ORDER BY date DESC, id DESC LIMIT ?',
             [$slug, $limit]
         );
+    }
+
+    // ---- attempts, papers, questions ------------------------------------
+
+    /** Attempt rows with their papers totalled; questions are not loaded. */
+    public function listAttempts(string $slug, int $limit = 20): array
+    {
+        $rows = $this->all(
+            'SELECT * FROM attempts WHERE subject_slug = ? ORDER BY date DESC, id DESC LIMIT ?',
+            [$slug, $limit]
+        );
+        foreach ($rows as &$a) {
+            $a['papers'] = $this->listPapers((int) $a['id']);
+            $a['score']  = array_sum(array_column($a['papers'], 'score'));
+            $a['max']    = array_sum(array_column($a['papers'], 'max'));
+            $blanks      = array_filter(array_column($a['papers'], 'blanks'), static fn($b) => $b !== null);
+            $a['blanks'] = $blanks ? array_sum($blanks) : null;
+        }
+        return $rows;
+    }
+
+    public function getAttempt(string $slug, int $id): ?array
+    {
+        $a = $this->one('SELECT * FROM attempts WHERE subject_slug = ? AND id = ?', [$slug, $id]);
+        if (!$a) {
+            return null;
+        }
+        $a['papers'] = $this->listPapers($id);
+        foreach ($a['papers'] as &$p) {
+            $p['questions'] = $this->listQuestions((int) $p['id']);
+        }
+        unset($p);
+        $a['score']  = array_sum(array_column($a['papers'], 'score'));
+        $a['max']    = array_sum(array_column($a['papers'], 'max'));
+        $blanks      = array_filter(array_column($a['papers'], 'blanks'), static fn($b) => $b !== null);
+        $a['blanks'] = $blanks ? array_sum($blanks) : null;
+        return $a;
+    }
+
+    public function listPapers(int $attemptId): array
+    {
+        return $this->all(
+            'SELECT * FROM attempt_papers WHERE attempt_id = ? ORDER BY sort_order, id',
+            [$attemptId]
+        );
+    }
+
+    public function listQuestions(int $paperId): array
+    {
+        return $this->all(
+            'SELECT * FROM attempt_questions WHERE paper_id = ? ORDER BY sort_order, id',
+            [$paperId]
+        );
+    }
+
+    /**
+     * Writes an attempt and everything under it in one transaction: a half
+     * written sitting is worse than a rejected one.
+     *
+     * @param array $a subject_slug, date, name, kind, tier, note, papers[]
+     */
+    public function addAttempt(array $a): int
+    {
+        $this->db->beginTransaction();
+        try {
+            $st = $this->db->prepare(
+                'INSERT INTO attempts (subject_slug, date, name, kind, tier, note)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $a['subject_slug'], $a['date'], $a['name'],
+                $a['kind'] ?? 'paper', $a['tier'] ?? 'F', $a['note'] ?? null,
+            ]);
+            $attemptId = (int) $this->db->lastInsertId();
+
+            foreach (array_values($a['papers'] ?? []) as $i => $paper) {
+                $st = $this->db->prepare(
+                    'INSERT INTO attempt_papers (attempt_id, code, score, max, blanks, note, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                $st->execute([
+                    $attemptId, $paper['code'], $paper['score'], $paper['max'],
+                    $paper['blanks'] ?? null, $paper['note'] ?? null, $i,
+                ]);
+                $paperId = (int) $this->db->lastInsertId();
+
+                foreach (array_values($paper['questions'] ?? []) as $j => $q) {
+                    $st = $this->db->prepare(
+                        'INSERT INTO attempt_questions
+                           (paper_id, number, topic_ref, score, max, question, answer, note, sort_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $st->execute([
+                        $paperId, $q['number'], $q['topic_ref'] ?? null,
+                        $q['score'], $q['max'], $q['question'] ?? null,
+                        $q['answer'] ?? null, $q['note'] ?? null, $j,
+                    ]);
+                }
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+        return $attemptId;
+    }
+
+    /**
+     * Marks lost per topic across one attempt — the thing a marked paper is
+     * actually for. Only questions carrying a topic_ref can contribute.
+     */
+    public function attemptTopicBreakdown(string $slug, int $attemptId): array
+    {
+        return $this->all(
+            "SELECT q.topic_ref AS ref,
+                    COALESCE(t.name, '(unknown topic)') AS name,
+                    SUM(q.score) AS score,
+                    SUM(q.max) AS max,
+                    COUNT(*) AS questions
+             FROM attempt_questions q
+             JOIN attempt_papers p ON p.id = q.paper_id
+             JOIN attempts a ON a.id = p.attempt_id
+             LEFT JOIN topics t ON t.subject_slug = a.subject_slug AND t.ref = q.topic_ref
+             WHERE a.subject_slug = ? AND a.id = ? AND q.topic_ref IS NOT NULL AND q.topic_ref <> ''
+             GROUP BY q.topic_ref
+             ORDER BY (SUM(q.max) - SUM(q.score)) DESC, q.topic_ref",
+            [$slug, $attemptId]
+        );
+    }
+
+    // ---- history ---------------------------------------------------------
+
+    /**
+     * Sessions and topic changes for a subject, newest first, each tagged with
+     * the ISO week it happened in so a caller can group by week without
+     * parsing dates itself.
+     */
+    public function history(string $slug, int $weeks = 12, ?string $ref = null): array
+    {
+        $since = gmdate('Y-m-d', time() - $weeks * 7 * 86400);
+
+        // Filtered to one topic, the trail should be that topic's trail: only
+        // the sessions that actually moved it, or a session list that mostly
+        // has nothing to do with the question being asked.
+        $sessions = $ref === null
+            ? $this->all(
+                'SELECT * FROM sessions WHERE subject_slug = ? AND date >= ? ORDER BY date DESC, id DESC',
+                [$slug, $since]
+            )
+            : $this->all(
+                'SELECT * FROM sessions WHERE subject_slug = ? AND date >= ? AND id IN (
+                     SELECT session_id FROM topic_changes
+                     WHERE subject_slug = ? AND ref = ? AND session_id IS NOT NULL
+                 ) ORDER BY date DESC, id DESC',
+                [$slug, $since, $slug, $ref]
+            );
+
+        $sql    = "SELECT c.*, COALESCE(t.name, '') AS topic_name
+                   FROM topic_changes c
+                   LEFT JOIN topics t ON t.subject_slug = c.subject_slug AND t.ref = c.ref
+                   WHERE c.subject_slug = ? AND date(c.changed_at) >= ?";
+        $params = [$slug, $since];
+        if ($ref !== null) {
+            $sql .= ' AND c.ref = ?';
+            $params[] = $ref;
+        }
+        $sql .= ' ORDER BY c.changed_at DESC, c.id DESC';
+        $changes = $this->all($sql, $params);
+
+        return ['sessions' => $sessions, 'changes' => $changes];
+    }
+
+    /** ISO week label for a date, e.g. 2026-W36, plus the Monday it starts. */
+    public static function weekOf(string $date): array
+    {
+        $t = strtotime(substr($date, 0, 10) . ' 12:00:00 UTC');
+        if ($t === false) {
+            return ['label' => 'unknown', 'monday' => ''];
+        }
+        return [
+            'label'  => gmdate('o-\WW', $t),
+            'monday' => gmdate('Y-m-d', $t - ((int) gmdate('N', $t) - 1) * 86400),
+        ];
+    }
+
+    public function getSession(string $slug, int $id): ?array
+    {
+        return $this->one('SELECT * FROM sessions WHERE subject_slug = ? AND id = ?', [$slug, $id]);
+    }
+
+    /** Set after the fact, once the session's updates have been applied. */
+    public function setSessionTopics(int $id, string $topics): void
+    {
+        $st = $this->db->prepare('UPDATE sessions SET topics_touched = ? WHERE id = ?');
+        $st->execute([$topics, $id]);
+    }
+
+    /** @param array<string,mixed> $fields date, summary, next_steps, void_reason */
+    public function amendSession(string $slug, int $id, array $fields): bool
+    {
+        $allowed = ['date', 'summary', 'next_steps', 'void_reason'];
+        $sets    = [];
+        $params  = [];
+        foreach ($allowed as $k) {
+            if (array_key_exists($k, $fields)) {
+                $sets[]   = "$k = ?";
+                $params[] = $fields[$k];
+            }
+        }
+        if (!$sets) {
+            return false;
+        }
+        $params[] = $slug;
+        $params[] = $id;
+        $st = $this->db->prepare(
+            'UPDATE sessions SET ' . implode(', ', $sets) . ' WHERE subject_slug = ? AND id = ?'
+        );
+        $st->execute($params);
+        return $st->rowCount() > 0;
     }
 
     // ---- resources ------------------------------------------------------

@@ -58,6 +58,23 @@ function mcp_resource_line(array $r, bool $showRef = false): string
     return $bits;
 }
 
+/**
+ * The grade for a whole attempt. Only a full paper sitting converts: a check
+ * on a handful of topics cannot stand in for a paper, so it reports a
+ * percentage and says so.
+ */
+function mcp_attempt_outcome(array $subject, array $attempt): string
+{
+    $max = (float) $attempt['max'];
+    if ($max <= 0) {
+        return '—';
+    }
+    if ($attempt['kind'] === 'check') {
+        return round(((float) $attempt['score'] / $max) * 100) . '% (no grade)';
+    }
+    return '≈ grade ' . gradeFor($subject, (float) $attempt['score'], $max, (string) $attempt['tier']);
+}
+
 /** Shared subject lookup and its error message. */
 function mcp_resolve(Store $store, string $slug): array
 {
@@ -239,13 +256,15 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
         [
-            'name'  => 'tracker_list_assessments',
-            'title' => 'List papers and checks',
+            'name'  => 'tracker_list_attempts',
+            'title' => 'List attempts (mocks, papers, checks)',
             'description' =>
-                "Logged assessments for a subject, newest first, with grade conversions.\n\n"
+                "Every logged attempt for a subject, newest first, each with its papers and the grade for the sitting as a whole.\n\n"
                 . "USE WHEN: asked about marks, grades, mocks, past papers, or \"what grade is she on\".\n\n"
-                . "Full papers are scaled to the subject's boundary maximum and converted using its stored boundaries. "
-                . "Topic checks report a percentage only and are never grade-converted — a check on a handful of topics cannot stand in for a whole paper.\n\n"
+                . "An attempt is one sitting and may hold several papers — a three-paper mock is one attempt, not three. "
+                . "The grade belongs to the attempt, computed across all its papers together, because one paper of three does not carry a grade. "
+                . "Attempts of kind 'check' report a percentage only and are never grade-converted.\n\n"
+                . "Call tracker_get_attempt for the question-by-question breakdown of any one of these.\n\n"
                 . "Args: subject (slug). Optional limit (default 20).\n"
                 . 'Read-only.',
             'inputSchema' => [
@@ -253,6 +272,51 @@ function mcp_tools(): array
                 'properties' => [
                     'subject' => $subjectArg,
                     'limit'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20],
+                ],
+                'required'   => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_get_attempt',
+            'title' => 'Question-by-question breakdown of one attempt',
+            'description' =>
+                "One attempt in full: every paper, every question with its marks, the answer given where recorded, and marks lost per topic.\n\n"
+                . "USE WHEN: reviewing a marked paper, asked why a grade came out as it did, deciding what to reteach after a mock, "
+                . "or asked about a specific question. The per-topic breakdown turns a score into teaching information — "
+                . "it names the topics that actually lost the marks, so use it before planning post-mock work.\n\n"
+                . "Args: subject (slug), attempt_id (from tracker_list_attempts).\n"
+                . 'Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject'    => $subjectArg,
+                    'attempt_id' => ['type' => 'integer', 'minimum' => 1,
+                        'description' => 'The id shown by tracker_list_attempts'],
+                ],
+                'required'   => ['subject', 'attempt_id'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_history',
+            'title' => 'Progress over time, grouped by week',
+            'description' =>
+                "The audit trail for a subject, week by week: each session logged, and every topic status change it produced, with the evidence recorded at the time.\n\n"
+                . "USE WHEN: asked how progress has gone over time, what happened in a period, what changed recently, "
+                . "\"what did we do last month\", \"when did X become secure\", or when writing a progress report. "
+                . "Also use it to check a record before correcting one.\n\n"
+                . "Pass ref to follow one topic's whole history — every status it has held and why.\n\n"
+                . "Args: subject (slug). Optional weeks (default 12) and ref for a single topic.\n"
+                . 'Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'weeks'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 260, 'default' => 12,
+                        'description' => 'How far back to look'],
+                    'ref'     => ['type' => 'string', 'maxLength' => 40,
+                        'description' => "Follow one topic only, e.g. 'A17'"],
                 ],
                 'required'   => ['subject'],
             ],
@@ -339,30 +403,102 @@ function mcp_tools(): array
             'annotations' => $write,
         ],
         [
-            'name'  => 'tracker_log_assessment',
-            'title' => 'Log a paper or topic check',
+            'name'  => 'tracker_amend_session',
+            'title' => 'Correct a logged session',
             'description' =>
-                "Records an assessment result and converts it to a grade where that is meaningful.\n\n"
-                . "USE WHEN: a past paper, mock or topic check has been marked. Log it as soon as you have the score, including when you marked it yourself.\n\n"
-                . "kind 'paper' is grade-converted against the subject's boundaries; kind 'check' returns a percentage only and is never grade-converted. "
-                . "Log blanks every time you know it — a blank scores nothing while working earns method marks, so the count is worth watching.\n\n"
-                . 'Args: subject, name, score, max. Optional kind (paper|check, default paper), tier, date, blanks, note.',
+                "Corrects the record of a session already logged: its date, summary or next steps, or voids it with a reason if it was logged in error.\n\n"
+                . "USE WHEN: a session was recorded wrongly, on the wrong date, or should not have been recorded at all.\n\n"
+                . "Voiding keeps the row and its reason — an audit trail that can lose entries is not one — and marks it VOID in the history, so it stops counting towards the review queue and the export. "
+                . "To correct a TOPIC's status instead, call tracker_update_topic with the right status and evidence saying it is a correction: "
+                . "that appends to the trail rather than rewriting it.\n\n"
+                . 'Args: subject, session_id (from tracker_history). Any of date, summary, next_steps, void_reason.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject'     => $subjectArg,
+                    'session_id'  => ['type' => 'integer', 'minimum' => 1,
+                        'description' => 'The id shown by tracker_history'],
+                    'date'        => $isoDate,
+                    'summary'     => ['type' => 'string', 'minLength' => 10, 'maxLength' => 2000],
+                    'next_steps'  => ['type' => 'string', 'maxLength' => 1000],
+                    'void_reason' => ['type' => ['string', 'null'], 'maxLength' => 500,
+                        'description' => 'Why this session should not count. null un-voids it.'],
+                ],
+                'required'   => ['subject', 'session_id'],
+            ],
+            'annotations' => [
+                'readOnlyHint'    => false,
+                'destructiveHint' => false,
+                'idempotentHint'  => true,
+                'openWorldHint'   => false,
+            ],
+        ],
+        [
+            'name'  => 'tracker_log_attempt',
+            'title' => 'Log a mock, paper or check',
+            'description' =>
+                "Records one sitting — an attempt — with its papers and, where you have them, every question, mark, answer and the topic it tests.\n\n"
+                . "USE WHEN: a past paper, mock or topic check has been marked. Log it as soon as you have the marks, including when you marked it yourself. "
+                . "If you have just marked a script question by question, record those questions here rather than only the total: "
+                . "the per-question topic refs are what later tell you which topics lost the marks.\n\n"
+                . "One attempt holds every paper sat together: a three-paper mock is ONE call with three papers, not three calls. "
+                . "The grade is computed across the whole attempt. kind 'check' is never grade-converted.\n\n"
+                . "Args: subject, name, papers[] of { code, score, max, blanks?, note?, questions?[] }. "
+                . "Each question is { number, max, score, topic_ref?, question?, answer?, note? }. "
+                . 'Optional kind (paper|check, default paper), tier, date, note.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'subject' => $subjectArg,
                     'name'    => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200,
-                        'description' => "What was sat, e.g. '8300/1H Jun-23'"],
+                        'description' => "What was sat, e.g. 'June 2023 Higher mock'"],
                     'kind'    => ['type' => 'string', 'enum' => ['paper', 'check'], 'default' => 'paper',
-                        'description' => 'A full past paper, or a topic check. Only papers are grade-converted.'],
-                    'score'   => ['type' => 'number', 'minimum' => 0],
-                    'max'     => ['type' => 'number', 'minimum' => 1],
+                        'description' => 'Full paper(s), or a topic check. Only papers are grade-converted.'],
                     'tier'    => ['type' => 'string', 'maxLength' => 4, 'default' => 'F'],
                     'date'    => $isoDate,
-                    'blanks'  => ['type' => 'integer', 'minimum' => 0, 'description' => 'Questions left blank'],
                     'note'    => ['type' => 'string', 'maxLength' => 1000],
+                    'papers'  => [
+                        'type'     => 'array',
+                        'minItems' => 1,
+                        'maxItems' => 10,
+                        'description' => 'Every paper sat in this attempt',
+                        'items'    => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'code'   => ['type' => 'string', 'minLength' => 1, 'maxLength' => 60,
+                                    'description' => "e.g. '8300/1H'"],
+                                'score'  => ['type' => 'number', 'minimum' => 0],
+                                'max'    => ['type' => 'number', 'minimum' => 1],
+                                'blanks' => ['type' => 'integer', 'minimum' => 0,
+                                    'description' => 'Questions left blank on this paper'],
+                                'note'   => ['type' => 'string', 'maxLength' => 1000],
+                                'questions' => [
+                                    'type'     => 'array',
+                                    'maxItems' => 200,
+                                    'items'    => [
+                                        'type'       => 'object',
+                                        'properties' => [
+                                            'number'    => ['type' => 'string', 'minLength' => 1, 'maxLength' => 20,
+                                                'description' => "e.g. '4a'"],
+                                            'score'     => ['type' => 'number', 'minimum' => 0],
+                                            'max'       => ['type' => 'number', 'minimum' => 0],
+                                            'topic_ref' => ['type' => 'string', 'maxLength' => 40,
+                                                'description' => "Topic this question tests, e.g. 'A17'"],
+                                            'question'  => ['type' => 'string', 'maxLength' => 1000],
+                                            'answer'    => ['type' => 'string', 'maxLength' => 1000,
+                                                'description' => 'What was written'],
+                                            'note'      => ['type' => 'string', 'maxLength' => 500,
+                                                'description' => 'Why the marks went the way they did'],
+                                        ],
+                                        'required'   => ['number', 'score', 'max'],
+                                    ],
+                                ],
+                            ],
+                            'required'   => ['code', 'score', 'max'],
+                        ],
+                    ],
                 ],
-                'required'   => ['subject', 'name', 'score', 'max'],
+                'required'   => ['subject', 'name', 'papers'],
             ],
             'annotations' => $write,
         ],
@@ -618,7 +754,10 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     . implode("\n", array_map(static fn($r) => mcp_resource_line($r), $general));
             }
 
-            $sessions = $store->listSessions($slug, 1);
+            $sessions = array_values(array_filter(
+                $store->listSessions($slug, 10),
+                static fn($x) => empty($x['void_reason'])
+            ));
             $parts[]  = $sessions
                 ? "\nLast session logged: " . $sessions[0]['date'] . ' — ' . $sessions[0]['summary']
                     . ($sessions[0]['next_steps'] ? "\nPlanned next: " . $sessions[0]['next_steps'] : '')
@@ -627,7 +766,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text(implode("\n", $parts));
         }
 
-        case 'tracker_list_assessments': {
+        case 'tracker_list_attempts': {
             $slug  = mcp_str($a, 'subject', true, 1);
             $limit = (int) mcp_num($a, 'limit', false, 1, 100, 20);
             $r     = mcp_resolve($store, $slug);
@@ -635,21 +774,146 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 return mcp_text($r['error']);
             }
             $s    = $r['subject'];
-            $rows = array_slice($store->listAssessments($slug), 0, $limit);
+            $rows = $store->listAttempts($slug, $limit);
             if (!$rows) {
-                return mcp_text('No assessments logged for this subject yet.');
+                return mcp_text('No attempts logged for this subject yet. Record one with tracker_log_attempt.');
             }
-            $body = [];
+            $out = ['| # | Date | Attempt | Kind | Tier | Papers | Score | Outcome | Blanks |',
+                    '|---|---|---|---|---|---|---|---|---|'];
             foreach ($rows as $x) {
-                $outcome = $x['kind'] === 'check'
-                    ? round(($x['score'] / $x['max']) * 100) . '% (no grade)'
-                    : '≈ grade ' . gradeFor($s, (float) $x['score'], (float) $x['max'], (string) $x['tier']);
-                $body[] = '| ' . $x['date'] . ' | ' . $x['name'] . ' | ' . $x['kind'] . ' | ' . $x['tier']
-                    . ' | ' . num($x['score']) . '/' . num($x['max']) . ' | ' . $outcome
-                    . ' | ' . ($x['blanks'] ?? '—') . ' | ' . ($x['note'] ?? '') . ' |';
+                $outcome = mcp_attempt_outcome($s, $x);
+                $out[]   = '| ' . $x['id'] . ' | ' . $x['date'] . ' | ' . $x['name'] . ' | ' . $x['kind']
+                    . ' | ' . $x['tier'] . ' | ' . count($x['papers'])
+                    . ' | ' . num($x['score']) . '/' . num($x['max'])
+                    . ' | ' . $outcome . ' | ' . ($x['blanks'] ?? '—') . ' |';
             }
-            return mcp_text("| Date | Assessment | Kind | Tier | Score | Outcome | Blanks | Note |\n"
-                . "|---|---|---|---|---|---|---|---|\n" . implode("\n", $body));
+            $out[] = '';
+            $out[] = 'Call tracker_get_attempt with one of the # ids for the question-by-question breakdown.';
+            return mcp_text(implode("\n", $out));
+        }
+
+        case 'tracker_get_attempt': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $id   = (int) mcp_num($a, 'attempt_id', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $s = $r['subject'];
+            $x = $store->getAttempt($slug, $id);
+            if (!$x) {
+                return mcp_text("No attempt $id in $slug. Call tracker_list_attempts to see the ids.");
+            }
+
+            $parts = [
+                '**' . $x['name'] . '** — ' . $x['date'] . ', tier ' . $x['tier'] . ', ' . $x['kind'],
+                'Total ' . num($x['score']) . '/' . num($x['max']) . ' — ' . mcp_attempt_outcome($s, $x)
+                    . ($x['blanks'] !== null ? ' · ' . (int) $x['blanks'] . ' blank' . ((int) $x['blanks'] === 1 ? '' : 's') : ''),
+            ];
+            if ($x['note']) {
+                $parts[] = $x['note'];
+            }
+
+            foreach ($x['papers'] as $paper) {
+                $head = "\n### " . $paper['code'] . ' — ' . num($paper['score']) . '/' . num($paper['max']);
+                if ($paper['blanks'] !== null) {
+                    $head .= ' · ' . (int) $paper['blanks'] . ' blank' . ((int) $paper['blanks'] === 1 ? '' : 's');
+                }
+                $parts[] = $head;
+                if ($paper['note']) {
+                    $parts[] = $paper['note'];
+                }
+                if ($paper['questions']) {
+                    $parts[] = '| Q | Topic | Marks | Answer given | Note |';
+                    $parts[] = '|---|---|---|---|---|';
+                    foreach ($paper['questions'] as $q) {
+                        $parts[] = '| ' . $q['number']
+                            . ' | ' . ($q['topic_ref'] ?? '—')
+                            . ' | ' . num($q['score']) . '/' . num($q['max'])
+                            . ' | ' . str_replace('|', '/', (string) ($q['answer'] ?? ''))
+                            . ' | ' . str_replace('|', '/', (string) ($q['note'] ?? '')) . ' |';
+                    }
+                } else {
+                    $parts[] = '_No question breakdown recorded for this paper._';
+                }
+            }
+
+            $breakdown = $store->attemptTopicBreakdown($slug, $id);
+            if ($breakdown) {
+                $parts[] = "\n### Marks by topic";
+                $parts[] = '| Topic | Name | Marks | Lost |';
+                $parts[] = '|---|---|---|---|';
+                foreach ($breakdown as $b) {
+                    $lost = (float) $b['max'] - (float) $b['score'];
+                    $parts[] = '| ' . $b['ref'] . ' | ' . $b['name']
+                        . ' | ' . num($b['score']) . '/' . num($b['max'])
+                        . ' | ' . num($lost) . ' |';
+                }
+                $parts[] = '';
+                $parts[] = 'Topics at the top lost the most marks — treat those as the candidates for reteaching.';
+            }
+            return mcp_text(implode("\n", $parts));
+        }
+
+        case 'tracker_history': {
+            $slug  = mcp_str($a, 'subject', true, 1);
+            $weeks = (int) mcp_num($a, 'weeks', false, 1, 260, 12);
+            $ref   = mcp_str($a, 'ref', false, 0, 40);
+            $r     = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $h = $store->history($slug, $weeks, $ref);
+
+            // Everything is bucketed by ISO week so the trail reads as a
+            // timeline rather than a flat list of rows.
+            $buckets = [];
+            foreach ($h['sessions'] as $x) {
+                $w = Store::weekOf($x['date']);
+                $buckets[$w['label']]['monday']     = $w['monday'];
+                $buckets[$w['label']]['sessions'][] = $x;
+            }
+            foreach ($h['changes'] as $c) {
+                $w = Store::weekOf($c['changed_at']);
+                $buckets[$w['label']]['monday']    = $w['monday'];
+                $buckets[$w['label']]['changes'][] = $c;
+            }
+            if (!$buckets) {
+                return mcp_text($ref !== null
+                    ? "Nothing recorded for $ref in " . $r['subject']['name'] . " in the last $weeks weeks."
+                    : 'Nothing recorded for ' . $r['subject']['name'] . " in the last $weeks weeks.");
+            }
+            krsort($buckets);
+
+            $parts = ['**History — ' . $r['subject']['name'] . '**'
+                . ($ref !== null ? " · topic $ref" : '') . " · last $weeks weeks"];
+
+            foreach ($buckets as $label => $b) {
+                $parts[] = "\n### $label (week of " . ($b['monday'] ?? '?') . ')';
+
+                foreach ($b['sessions'] ?? [] as $x) {
+                    $void = $x['void_reason'] ?? null;
+                    $parts[] = '- **Session ' . $x['id'] . '** ' . $x['date']
+                        . ($void ? ' — VOID: ' . $void : '') . ' — ' . $x['summary'];
+                    if ($x['next_steps']) {
+                        $parts[] = '  - Planned next: ' . $x['next_steps'];
+                    }
+                }
+
+                foreach ($b['changes'] ?? [] as $c) {
+                    $from = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+                    $to   = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+                    $name = $c['topic_name'] ?? '';
+                    $parts[] = '- ' . $c['ref'] . ($name ? ' ' . $name : '') . ': ' . $from . ' → ' . $to
+                        . ($c['session_id'] ? ' (session ' . $c['session_id'] . ')' : ' (standalone update)')
+                        . "\n  - " . $c['evidence'];
+                }
+            }
+            $parts[] = '';
+            $parts[] = 'To correct a session use tracker_amend_session; to correct a topic status call '
+                . 'tracker_update_topic with evidence saying it is a correction, which appends to this trail '
+                . 'rather than rewriting it.';
+            return mcp_text(implode("\n", $parts));
         }
 
         case 'tracker_export_markdown': {
@@ -695,22 +959,36 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 }
             }
 
-            $assessments = $store->listAssessments($slug);
-            if ($assessments) {
-                $rows = array_map(
-                    static function ($x) use ($s) {
-                        $outcome = $x['kind'] === 'check'
-                            ? round(($x['score'] / $x['max']) * 100) . '% (check, not grade-converted)'
-                            : '≈ grade ' . gradeFor($s, (float) $x['score'], (float) $x['max'], (string) $x['tier']);
-                        return '| ' . $x['date'] . ' | ' . $x['name'] . ' | ' . num($x['score']) . '/' . num($x['max']) . ' | ' . $outcome . ' |';
-                    },
-                    $assessments
-                );
-                $parts[] = '## Assessment log';
+            $attempts = $store->listAttempts($slug, 100);
+            if ($attempts) {
+                $parts[] = '## Attempts';
                 $parts[] = '';
-                $parts[] = '| Date | Assessment | Score | Outcome |';
-                $parts[] = '|---|---|---|---|';
-                $parts[] = implode("\n", $rows);
+                $parts[] = '| Date | Attempt | Papers | Score | Outcome |';
+                $parts[] = '|---|---|---|---|---|';
+                foreach ($attempts as $x) {
+                    $codes = implode(', ', array_column($x['papers'], 'code'));
+                    $parts[] = '| ' . $x['date'] . ' | ' . $x['name'] . ' | ' . $codes
+                        . ' | ' . num($x['score']) . '/' . num($x['max'])
+                        . ' | ' . mcp_attempt_outcome($s, $x) . ' |';
+                }
+                $parts[] = '';
+            }
+
+            $sessions = $store->listSessions($slug, 50);
+            $sessions = array_values(array_filter($sessions, static fn($x) => empty($x['void_reason'])));
+            if ($sessions) {
+                $parts[] = '## Session log';
+                $parts[] = '';
+                foreach ($sessions as $x) {
+                    $w = Store::weekOf($x['date']);
+                    $parts[] = '- **' . $x['date'] . '** (' . $w['label'] . ') — ' . $x['summary'];
+                    $changes = $store->changesForSession((int) $x['id']);
+                    foreach ($changes as $c) {
+                        $from = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+                        $to   = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+                        $parts[] = '  - ' . $c['ref'] . ': ' . $from . ' → ' . $to . ' — ' . $c['evidence'];
+                    }
+                }
                 $parts[] = '';
             }
             return mcp_text(implode("\n", $parts));
@@ -764,6 +1042,17 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $missing = [];
             $refs    = [];
 
+            // The session row is written first so every change it produces can
+            // carry its id. Without that the history can list what changed but
+            // not which session did it, which is most of the point.
+            $sessionId = $store->addSession([
+                'subject_slug'   => $slug,
+                'date'           => $when,
+                'summary'        => $summary,
+                'topics_touched' => null,
+                'next_steps'     => $next,
+            ]);
+
             foreach ($updates as $u) {
                 if (!is_array($u)) {
                     throw new McpError('each update must be an object.');
@@ -778,6 +1067,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     'status'       => $ust,
                     'evidence'     => $uev,
                     'last_touched' => $when,
+                    'session_id'   => $sessionId,
                 ];
                 if (array_key_exists('watch', $u)) {
                     $args['watch'] = $u['watch'] === null ? null : mcp_str($u, 'watch', false, 0, 500);
@@ -792,15 +1082,11 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 }
             }
 
-            $store->addSession([
-                'subject_slug'   => $slug,
-                'date'           => $when,
-                'summary'        => $summary,
-                'topics_touched' => $refs ? implode(', ', $refs) : null,
-                'next_steps'     => $next,
-            ]);
+            if ($refs) {
+                $store->setSessionTopics($sessionId, implode(', ', $refs));
+            }
 
-            $lines = ['Session logged for ' . $s['name'] . " on $when."];
+            $lines = ["Session $sessionId logged for " . $s['name'] . " on $when."];
             if ($applied) {
                 $lines[] = 'Updated: ' . implode('; ', $applied) . '.';
             }
@@ -811,47 +1097,167 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text(implode("\n", $lines));
         }
 
-        case 'tracker_log_assessment': {
-            $slug  = mcp_str($a, 'subject', true, 1);
-            $name  = mcp_str($a, 'name', true, 1, 200);
-            $kind  = $a['kind'] ?? 'paper';
+        case 'tracker_amend_session': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $id   = (int) mcp_num($a, 'session_id', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            if (!$store->getSession($slug, $id)) {
+                return mcp_text("No session $id in $slug. Call tracker_history to see the ids.");
+            }
+            $fields = [];
+            if (array_key_exists('date', $a)) {
+                $fields['date'] = mcp_date($a, 'date');
+            }
+            if (array_key_exists('summary', $a)) {
+                $fields['summary'] = mcp_str($a, 'summary', true, 10, 2000);
+            }
+            if (array_key_exists('next_steps', $a)) {
+                $fields['next_steps'] = $a['next_steps'] === null ? null : mcp_str($a, 'next_steps', false, 0, 1000);
+            }
+            if (array_key_exists('void_reason', $a)) {
+                $fields['void_reason'] = $a['void_reason'] === null ? null : mcp_str($a, 'void_reason', false, 0, 500);
+            }
+            if (!$fields) {
+                throw new McpError('Give at least one of date, summary, next_steps or void_reason to change.');
+            }
+            $store->amendSession($slug, $id, $fields);
+            $what = [];
+            foreach ($fields as $k => $v) {
+                $what[] = $k === 'void_reason'
+                    ? ($v === null ? 'un-voided' : 'voided (' . $v . ')')
+                    : "$k updated";
+            }
+            return mcp_text("Session $id amended: " . implode('; ', $what) . '.');
+        }
+
+        case 'tracker_log_attempt': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $name = mcp_str($a, 'name', true, 1, 200);
+            $kind = $a['kind'] ?? 'paper';
             if (!in_array($kind, ['paper', 'check'], true)) {
                 throw new McpError("kind must be 'paper' or 'check'.");
             }
-            $score = mcp_num($a, 'score', true, 0);
-            $max   = mcp_num($a, 'max', true, 1);
-            $tier  = mcp_str($a, 'tier', false, 0, 4, 'F');
-            $when  = mcp_date($a, 'date', gmdate('Y-m-d'));
-            $hasBlanks = array_key_exists('blanks', $a) && $a['blanks'] !== null;
-            $blanks    = $hasBlanks ? (int) mcp_num($a, 'blanks', false, 0) : null;
-            $note      = mcp_str($a, 'note', false, 0, 1000);
+            $tier = mcp_str($a, 'tier', false, 0, 4, 'F');
+            $when = mcp_date($a, 'date', gmdate('Y-m-d'));
+            $note = mcp_str($a, 'note', false, 0, 1000);
 
             $r = mcp_resolve($store, $slug);
             if (isset($r['error'])) {
                 return mcp_text($r['error']);
             }
             $s = $r['subject'];
-            if ($score > $max) {
-                return mcp_text('Score ' . num($score) . ' exceeds the maximum ' . num($max) . '. Check the figures.');
+
+            $papers = is_array($a['papers'] ?? null) ? $a['papers'] : [];
+            if (!$papers) {
+                throw new McpError('papers must be a non-empty array of { code, score, max }.');
             }
-            $store->addAssessment([
+            if (count($papers) > 10) {
+                throw new McpError('an attempt may hold at most 10 papers.');
+            }
+
+            $known   = array_column($store->listTopics($slug), 'ref');
+            $unknown = [];
+            $clean   = [];
+
+            foreach (array_values($papers) as $paper) {
+                if (!is_array($paper)) {
+                    throw new McpError('each paper must be an object.');
+                }
+                $code  = mcp_str($paper, 'code', true, 1, 60);
+                $score = mcp_num($paper, 'score', true, 0);
+                $max   = mcp_num($paper, 'max', true, 1);
+                if ($score > $max) {
+                    return mcp_text("Paper $code scores " . num($score) . ' out of ' . num($max)
+                        . '. Check the figures.');
+                }
+
+                $questions = is_array($paper['questions'] ?? null) ? $paper['questions'] : [];
+                if (count($questions) > 200) {
+                    throw new McpError("paper $code may hold at most 200 questions.");
+                }
+                $qClean = [];
+                $qTotal = 0.0;
+                $qMax   = 0.0;
+                foreach (array_values($questions) as $q) {
+                    if (!is_array($q)) {
+                        throw new McpError('each question must be an object.');
+                    }
+                    $qNumber = mcp_str($q, 'number', true, 1, 20);
+                    $qScore  = mcp_num($q, 'score', true, 0);
+                    $qMaxOne = mcp_num($q, 'max', true, 0);
+                    if ($qScore > $qMaxOne) {
+                        return mcp_text("Question $qNumber on $code scores " . num($qScore)
+                            . ' out of ' . num($qMaxOne) . '. Check the figures.');
+                    }
+                    $topicRef = mcp_str($q, 'topic_ref', false, 0, 40);
+                    if ($topicRef !== null && !in_array($topicRef, $known, true)) {
+                        $unknown[] = $topicRef;
+                    }
+                    $qTotal += $qScore;
+                    $qMax   += $qMaxOne;
+                    $qClean[] = [
+                        'number'    => $qNumber,
+                        'score'     => $qScore,
+                        'max'       => $qMaxOne,
+                        'topic_ref' => $topicRef,
+                        'question'  => mcp_str($q, 'question', false, 0, 1000),
+                        'answer'    => mcp_str($q, 'answer', false, 0, 1000),
+                        'note'      => mcp_str($q, 'note', false, 0, 500),
+                    ];
+                }
+
+                // A question breakdown that does not add up to the paper total
+                // means one of the two is wrong, and silently keeping both
+                // would make the per-topic analysis lie.
+                if ($qClean && (abs($qTotal - $score) > 0.001 || abs($qMax - $max) > 0.001)) {
+                    return mcp_text("The questions on $code add up to " . num($qTotal) . '/' . num($qMax)
+                        . ', but the paper is recorded as ' . num($score) . '/' . num($max)
+                        . '. Fix whichever is wrong — a breakdown that does not reconcile would make the'
+                        . ' per-topic analysis wrong.');
+                }
+
+                $clean[] = [
+                    'code'      => $code,
+                    'score'     => $score,
+                    'max'       => $max,
+                    'blanks'    => array_key_exists('blanks', $paper) && $paper['blanks'] !== null
+                        ? (int) mcp_num($paper, 'blanks', false, 0) : null,
+                    'note'      => mcp_str($paper, 'note', false, 0, 1000),
+                    'questions' => $qClean,
+                ];
+            }
+
+            $id = $store->addAttempt([
                 'subject_slug' => $slug,
                 'date'         => $when,
                 'name'         => $name,
                 'kind'         => $kind,
                 'tier'         => $tier,
-                'score'        => $score,
-                'max'          => $max,
-                'blanks'       => $blanks,
                 'note'         => $note,
+                'papers'       => $clean,
             ]);
+
+            $total   = array_sum(array_column($clean, 'score'));
+            $maxAll  = array_sum(array_column($clean, 'max'));
             $outcome = $kind === 'check'
-                ? round(($score / $max) * 100) . '% — a topic check, so not grade-converted'
-                : '≈ grade ' . gradeFor($s, $score, $max, $tier) . " on tier $tier";
-            $blankNote = !$hasBlanks
-                ? ' No blank count recorded — worth counting next time.'
-                : " $blanks blank" . ($blanks === 1 ? '' : 's') . '.';
-            return mcp_text("Logged $name ($when): " . num($score) . '/' . num($max) . ", $outcome." . $blankNote);
+                ? round(($total / max($maxAll, 1)) * 100) . '% — a check, so not grade-converted'
+                : '≈ grade ' . gradeFor($s, $total, $maxAll, $tier) . " on tier $tier";
+            $nQ = array_sum(array_map(static fn($p) => count($p['questions']), $clean));
+
+            $lines = ["Logged $name ($when) as attempt $id: " . count($clean) . ' paper'
+                . (count($clean) === 1 ? '' : 's') . ', ' . num($total) . '/' . num($maxAll) . ", $outcome."];
+            $lines[] = $nQ
+                ? "$nQ questions recorded — call tracker_get_attempt with id $id for the per-topic breakdown."
+                : 'No question breakdown recorded. Adding one lets the tracker say which topics lost the marks.';
+            if ($unknown) {
+                $lines[] = 'Note: no topic with reference ' . implode(', ', array_unique($unknown))
+                    . ' exists in this subject, so those questions will not appear in the per-topic breakdown.'
+                    . ' Check the references with tracker_get_state.';
+            }
+            return mcp_text(implode("\n", $lines));
         }
 
         case 'tracker_list_resources': {

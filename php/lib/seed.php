@@ -148,27 +148,71 @@ function seedIfEmpty(Store $store): void
         ]);
     }
 
-    $assessments = [
-        ['2026-07-01', '8300/2F Jun-22', 'paper', 49, 80, null, null],
-        ['2026-07-15', '8300/3F Jun-22', 'paper', 41, 80, null,
-            '27 of the 39 marks lost were on questions left blank.'],
-        ['2026-08-01', '8300/1F Jun-22 (reported)', 'paper', 58, 80, null,
-            'Reported as a percentage; per-question breakdown not on file.'],
-        ['2026-08-19', 'Phase 1 exit check', 'check', 22, 25, 0,
-            'Grade 4-5 algebra and ratio only. All ten questions attempted.'],
+    // Seeded as attempts rather than bare totals: one sitting, its papers,
+    // and for the paper we have marks for, the questions themselves. That is
+    // the shape the tracker records from now on, and the dashboard shows the
+    // difference between a total and a marked script.
+    $attempts = [
+        ['2026-07-01', '8300/2F Jun-22', 'paper', null, [
+            ['8300/2F', 49, 80, null, null, []],
+        ]],
+        ['2026-07-15', '8300/3F Jun-22', 'paper',
+            '27 of the 39 marks lost were on questions left blank.', [
+            ['8300/3F', 41, 80, 12, null, []],
+        ]],
+        ['2026-08-01', '8300/1F Jun-22 (reported)', 'paper',
+            'Reported as a percentage; per-question breakdown not on file.', [
+            ['8300/1F', 58, 80, null, null, []],
+        ]],
+        ['2026-08-19', 'Phase 1 exit check', 'check',
+            'Grade 4-5 algebra and ratio only. All ten questions attempted.', [
+            ['Phase 1 exit check', 22, 25, 0, null, [
+                ['1',  3, 3, 'A17', 'Solve 4x - 7 = 13',            'x = 5',       null],
+                ['2',  2, 3, 'A4',  'Factorise 6x^2 + 8x',          '2(3x^2 + 4x)', 'x not taken out'],
+                ['3',  3, 3, 'R8',  'Share 60 in the ratio 2:3',    '24 : 36',      null],
+                ['4',  2, 2, 'R10', '15% of 240',                   '36',           null],
+                ['5',  3, 3, 'A17', 'Solve 2(x + 3) = 16',          'x = 5',        null],
+                ['6',  3, 3, 'R8',  'Simplify the ratio 18:24',     '3 : 4',        null],
+                ['7',  2, 3, 'A4',  'Expand and simplify (x+2)(x+5)', 'x^2 + 7x + 7', 'constant term wrong'],
+                ['8',  2, 2, 'R10', 'Increase 80 by 25%',           '100',          null],
+                ['9',  1, 2, 'A17', 'Solve 5 - 2x = 11',            'x = 3',        'sign error'],
+                ['10', 1, 1, 'R8',  'Write 3:6 in the form 1:n',    '1 : 2',        null],
+            ]],
+        ]],
     ];
 
-    foreach ($assessments as [$date, $name, $kind, $score, $max, $blanks, $note]) {
-        $store->addAssessment([
+    foreach ($attempts as [$date, $name, $kind, $note, $papers]) {
+        $clean = [];
+        foreach ($papers as [$code, $score, $max, $blanks, $pNote, $questions]) {
+            $qs = [];
+            foreach ($questions as [$number, $qScore, $qMax, $ref, $question, $answer, $qNote]) {
+                $qs[] = [
+                    'number'    => $number,
+                    'score'     => $qScore,
+                    'max'       => $qMax,
+                    'topic_ref' => $ref,
+                    'question'  => $question,
+                    'answer'    => $answer,
+                    'note'      => $qNote,
+                ];
+            }
+            $clean[] = [
+                'code'      => $code,
+                'score'     => $score,
+                'max'       => $max,
+                'blanks'    => $blanks,
+                'note'      => $pNote,
+                'questions' => $qs,
+            ];
+        }
+        $store->addAttempt([
             'subject_slug' => 'maths',
             'date'         => $date,
             'name'         => $name,
             'kind'         => $kind,
             'tier'         => 'F',
-            'score'        => $score,
-            'max'          => $max,
-            'blanks'       => $blanks,
             'note'         => $note,
+            'papers'       => $clean,
         ]);
     }
 

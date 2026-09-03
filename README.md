@@ -60,18 +60,47 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_list_resources` | The materials stored for a topic or subject. |
 | `tracker_get_state` | Full topic state, filterable by status or strand. Consult before teaching. |
 | `tracker_review_queue` | Ageing secures, loose ends, priority gaps. Use this to open a session. |
-| `tracker_list_assessments` | Papers and checks with grade conversions. |
+| `tracker_list_attempts` | Every sitting, with its papers and the grade for the attempt as a whole. |
+| `tracker_get_attempt` | One attempt question by question, with marks lost per topic. |
+| `tracker_history` | The audit trail week by week: sessions, and every change each one made. |
 | `tracker_export_markdown` | Renders the whole state as a markdown document. |
 | `tracker_update_topic` | Change one topic. Evidence is mandatory. |
 | `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. |
-| `tracker_log_assessment` | Record a paper or check. |
+| `tracker_amend_session` | Correct or void a session already logged. |
+| `tracker_log_attempt` | Record a sitting: its papers, and the questions, answers and marks behind them. |
 | `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
 | `tracker_remove_resource` | Delete one stored resource by title. |
 | `tracker_create_subject` | Add a subject, or extend one. Never resets existing topic statuses. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
-Two rules are enforced in the schema rather than left to good intentions. Every status change requires an evidence string of at least ten characters, so the audit trail in `topic_changes` can't be empty. And topic checks are never grade-converted — only full papers are scaled against boundaries — so a good result on seven topics can't quietly become a projected grade.
+Three rules are enforced rather than left to good intentions. Every status change requires an evidence string of at least ten characters, so the audit trail in `topic_changes` can't be empty. Topic checks are never grade-converted — only full papers are scaled against boundaries — so a good result on seven topics can't quietly become a projected grade. And a question breakdown that doesn't add up to the paper total is refused outright: one of the two figures is wrong, and keeping both would make the per-topic analysis lie.
+
+## The audit trail
+
+The record is meant to be readable backwards, not just forwards.
+
+**Sessions.** Every status change is stamped with the session that made it, so
+the trail says not only that a topic moved but which sitting moved it and on
+what evidence. `tracker_history` groups all of it by ISO week, so a term reads
+as a timeline. A session logged wrongly is corrected with
+`tracker_amend_session` or voided with a reason — the row and the reason stay,
+because a trail that can lose entries isn't one. A topic status is never
+rewritten; correcting it means another change with evidence saying so, which
+appends to the trail.
+
+**Attempts.** One sitting is one *attempt*, and an attempt holds however many
+papers were sat together. A three-paper mock is one attempt with three papers
+and a single grade computed across all of them, because one paper of three
+doesn't carry a grade. Under each paper sit its questions: the number, the
+marks, the answer given, the marker's note, and the spec reference the question
+tests. Those references are what turn a score into teaching information —
+`tracker_get_attempt` adds up marks lost per topic and names the topics to
+reteach.
+
+Databases written before this shape existed are migrated on first open: each
+old assessment becomes an attempt with one paper. The original `assessments`
+table is left untouched as the fallback copy.
 
 ## Adding a subject
 

@@ -107,10 +107,10 @@ function render_subject(Store $store, array $subject): string
         $pts += STATUS_POINTS[$t['status']] ?? 0;
     }
     $pct         = $topics ? (int) round(($pts / (count($topics) * 3)) * 100) : 0;
-    $assessments = $store->listAssessments($subject['slug']);
+    $attempts = $store->listAttempts($subject['slug'], 50);
 
     $lastPaper = null;
-    foreach ($assessments as $x) {
+    foreach ($attempts as $x) {
         if ($x['kind'] === 'paper') {
             $lastPaper = $x;
             break;
@@ -221,17 +221,31 @@ function render_subject(Store $store, array $subject): string
         : '';
 
     $assessHtml = '';
-    if ($assessments) {
-        foreach ($assessments as $x) {
+    if ($attempts) {
+        foreach ($attempts as $x) {
             $outcome = $x['kind'] === 'check'
-                ? round(($x['score'] / $x['max']) * 100) . '% · no grade'
+                ? round(($x['score'] / max((float) $x['max'], 1)) * 100) . '% · no grade'
                 : '≈ grade ' . h(gradeFor($subject, (float) $x['score'], (float) $x['max'], (string) $x['tier']));
             $meta = h($x['date']) . ' · tier ' . h($x['tier']);
             if ($x['blanks'] !== null) {
                 $meta .= ' · ' . (int) $x['blanks'] . ' blank' . ((int) $x['blanks'] === 1 ? '' : 's');
             }
+            // Papers are listed under the attempt they belong to; the grade
+            // sits on the attempt because that is the only level it means
+            // anything at.
+            $papers = '';
+            foreach ($x['papers'] as $paper) {
+                $nq = count($store->listQuestions((int) $paper['id']));
+                $papers .= '<div><small><b class="mono">' . h($paper['code']) . '</b> '
+                    . num($paper['score']) . '/' . num($paper['max'])
+                    . ($paper['blanks'] !== null ? ' · ' . (int) $paper['blanks'] . ' blank' : '')
+                    . ($nq ? ' · ' . $nq . ' questions recorded' : '')
+                    . ($paper['note'] ? ' — ' . h($paper['note']) : '')
+                    . '</small></div>';
+            }
             $assessHtml .= '<div class="item"><div class="grow"><strong>' . h($x['name']) . '</strong>'
                 . '<div><small>' . $meta . '</small></div>'
+                . $papers
                 . ($x['note'] ? '<div><small>' . h($x['note']) . '</small></div>' : '')
                 . '</div><div class="num"><strong class="mono">' . num($x['score']) . '/' . num($x['max']) . '</strong>'
                 . '<div><small>' . $outcome . '</small></div></div></div>';
@@ -240,14 +254,39 @@ function render_subject(Store $store, array $subject): string
         $assessHtml = '<p><small>Nothing logged yet.</small></p>';
     }
 
-    $sessions    = $store->listSessions($subject['slug'], 5);
+    // Grouped by ISO week so the page reads as a timeline of what actually
+    // happened, with the status changes each session produced underneath it.
+    $sessions    = $store->listSessions($subject['slug'], 40);
     $sessionHtml = '';
     if ($sessions) {
-        foreach ($sessions as $s) {
-            $sessionHtml .= '<div class="item"><div class="grow"><strong>' . h($s['date']) . '</strong>'
-                . '<div><small>' . h($s['summary']) . '</small></div>'
-                . ($s['next_steps'] ? '<div><small><em>Next: ' . h($s['next_steps']) . '</em></small></div>' : '')
-                . '</div></div>';
+        $weeks = [];
+        foreach ($sessions as $x) {
+            $w = Store::weekOf($x['date']);
+            $weeks[$w['label']]['monday'] = $w['monday'];
+            $weeks[$w['label']]['rows'][] = $x;
+        }
+        krsort($weeks);
+        foreach ($weeks as $label => $wk) {
+            $sessionHtml .= '<h3 class="kicker mono" style="margin:1rem 0 0">' . h($label)
+                . ' · week of ' . h($wk['monday']) . '</h3>';
+            foreach ($wk['rows'] as $x) {
+                $changes = $store->changesForSession((int) $x['id']);
+                $moved   = '';
+                foreach ($changes as $c) {
+                    $from = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+                    $to   = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+                    $moved .= '<div><small><b class="mono">' . h($c['ref']) . '</b> '
+                        . h($from) . ' → ' . h($to) . ' — ' . h($c['evidence']) . '</small></div>';
+                }
+                $void = $x['void_reason'] ?? null;
+                $sessionHtml .= '<div class="item"><div class="grow"><strong>' . h($x['date']) . '</strong>'
+                    . ($void ? ' <b style="color:#b91c1c">VOID</b>' : '')
+                    . '<div><small>' . h($x['summary']) . '</small></div>'
+                    . ($void ? '<div><small>Voided: ' . h($void) . '</small></div>' : '')
+                    . $moved
+                    . ($x['next_steps'] ? '<div><small><em>Next: ' . h($x['next_steps']) . '</em></small></div>' : '')
+                    . '</div></div>';
+            }
         }
     } else {
         $sessionHtml = '<p><small>No sessions logged yet.</small></p>';
@@ -305,7 +344,7 @@ function render_subject(Store $store, array $subject): string
 
 <h2>Papers &amp; checks</h2>{$assessHtml}
 
-<h2>Recent sessions</h2>{$sessionHtml}
+<h2>Sessions, by week</h2>{$sessionHtml}
 
 <footer>Generated live from the tracker database at {$when} UTC.
   {$notes}</footer>

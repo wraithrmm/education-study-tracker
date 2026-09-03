@@ -276,9 +276,10 @@ if (preg_match('#^/api/subjects/([^/]+)$#', $path, $m)) {
     send_json([
         'subject'     => $subject,
         'topics'      => $store->listTopics($slug),
-        'assessments' => $store->listAssessments($slug),
+        'attempts'    => $store->listAttempts($slug, 50),
         'sessions'    => $store->listSessions($slug),
-        'changes'     => $store->listChanges($slug, 25),
+        'changes'     => $store->listChanges($slug, 100),
+        'resources'   => $store->listResources($slug),
     ]);
 }
 

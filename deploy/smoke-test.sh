@@ -11,7 +11,7 @@
 # breaks.
 #
 # --remote runs only the checks that read: the write tools would otherwise log
-# fictional sessions and assessments into the real record, and the OAuth flow
+# fictional sessions and attempts into the real record, and the OAuth flow
 # would leave a registered client behind on every deploy.
 set -uo pipefail
 
@@ -27,7 +27,10 @@ FAILURES=0
 # means the job itself, so the script passed every check and then took the job
 # down with it on the way out.
 cleanup() {
-    [ -n "${APP_PID:-}" ] && kill "$APP_PID" 2>/dev/null
+    if [ -n "${APP_PID:-}" ]; then
+        kill "$APP_PID" 2>/dev/null
+        wait "$APP_PID" 2>/dev/null
+    fi
     rm -rf "$WORK"
     return 0
 }
@@ -57,7 +60,10 @@ TRACKER_PASSWORD=$PASSWORD
 DASHBOARD_PUBLIC=true
 DB_PATH=$WORK/tracker-shared/data/tracker.db
 EOF
-  ( cd "$WORK/site" && php -S "127.0.0.1:$PORT" index.php > "$WORK/php.log" 2>&1 ) &
+  # exec, so APP_PID is the php process itself. Without it the trap kills the
+  # subshell and leaves the server holding the port, and the next run gets
+  # "address already in use" and then 500s on every single check.
+  ( cd "$WORK/site" && exec php -S "127.0.0.1:$PORT" index.php > "$WORK/php.log" 2>&1 ) &
   APP_PID=$!
   for _ in $(seq 1 40); do
     "${CURL[@]}" -o /dev/null "$BASE/healthz" && break
@@ -75,6 +81,19 @@ code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/")"
 check "dashboard index renders" "$code" "200"
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths")"
 check "maths dashboard renders" "$code" "200"
+
+# The dashboard is the human-readable face of the audit trail, so the trail
+# has to reach it and not just the tools. The headings render unconditionally,
+# so they are safe to assert against the live record too; the seeded content
+# below them is only asserted locally, where the record is known.
+body="$("${CURL[@]}" "$BASE/s/maths")"
+contains "the dashboard groups sessions by week" "$body" "Sessions, by week"
+contains "the dashboard has an attempts section" "$body" "Papers &amp; checks"
+if [ "$REMOTE" = 0 ]; then
+  contains "the dashboard shows what each session changed" "$body" "A17"
+  contains "the dashboard lists attempts" "$body" "8300/2F Jun-22"
+  contains "the dashboard shows the per-paper breakdown" "$body" "10 questions recorded"
+fi
 
 echo
 echo "== discovery =="
@@ -181,8 +200,9 @@ contains "initialize advertises tools" "$body" '"tools"'
 
 body="$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')"
 for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
-            tracker_list_assessments tracker_export_markdown tracker_update_topic \
-            tracker_log_session tracker_log_assessment tracker_create_subject \
+            tracker_list_attempts tracker_get_attempt tracker_history \
+            tracker_export_markdown tracker_update_topic tracker_log_session \
+            tracker_amend_session tracker_log_attempt tracker_create_subject \
             tracker_list_resources tracker_add_resource tracker_remove_resource; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
@@ -194,10 +214,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 12 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 15 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 12 of 12)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 15 of 15)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -215,12 +235,14 @@ contains "tracker_get_state filters by status" "$body" "Gap"
 body="$(call tracker_review_queue '{"subject":"maths"}')"
 contains "tracker_review_queue groups the work" "$body" "Priority gaps"
 
-body="$(call tracker_list_assessments '{"subject":"maths"}')"
-contains "tracker_list_assessments converts paper grades" "$body" "grade"
+body="$(call tracker_list_attempts '{"subject":"maths"}')"
+contains "tracker_list_attempts converts paper grades" "$body" "grade"
 contains "topic checks are never grade-converted" "$body" "no grade"
 
 body="$(call tracker_export_markdown '{"subject":"maths"}')"
 contains "tracker_export_markdown renders the document" "$body" "topic state"
+contains "the export carries the attempts" "$body" "## Attempts"
+contains "the export carries the session log" "$body" "## Session log"
 
 body="$(call tracker_update_topic '{"subject":"maths","ref":"A17","status":"examready","evidence":"smoke test: spaced retest 5/5 three weeks after securing"}')"
 contains "tracker_update_topic moves a topic" "$body" "Exam-ready"
@@ -232,15 +254,95 @@ body="$(call tracker_update_topic '{"subject":"maths","ref":"NOPE","evidence":"a
 contains "an unknown topic reference is reported" "$body" "No topic"
 
 body="$(call tracker_log_session '{"subject":"maths","summary":"Smoke test session covering algebra retrieval.","updates":[{"ref":"A4","status":"examready","evidence":"smoke test: 6x2+8x factorisation correct first time"}]}')"
-contains "tracker_log_session applies its updates" "$body" "Session logged"
+contains "tracker_log_session applies its updates" "$body" "logged for GCSE Mathematics"
 contains "tracker_log_session reports what moved" "$body" "A4"
 
-body="$(call tracker_log_assessment '{"subject":"maths","name":"Smoke paper","kind":"paper","score":60,"max":80,"tier":"F","blanks":2}')"
-contains "tracker_log_assessment grades a paper" "$body" "grade"
-body="$(call tracker_log_assessment '{"subject":"maths","name":"Smoke check","kind":"check","score":9,"max":10}')"
-contains "tracker_log_assessment refuses to grade a check" "$body" "not grade-converted"
-body="$(call tracker_log_assessment '{"subject":"maths","name":"Impossible","score":90,"max":80}')"
-contains "a score above the maximum is refused" "$body" "exceeds the maximum"
+echo
+echo "== attempts, papers and questions =="
+
+# An attempt is one sitting. A three-paper mock is one attempt with three
+# papers and a single grade across the lot, which is the whole point of the
+# shape: one paper of three does not carry a grade.
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke three-paper mock","kind":"paper","tier":"F","date":"2026-08-28","papers":[{"code":"8300/1F","score":40,"max":80,"blanks":2},{"code":"8300/2F","score":50,"max":80},{"code":"8300/3F","score":45,"max":80}]}')"
+contains "tracker_log_attempt takes several papers as one attempt" "$body" "3 papers"
+contains "the grade is computed across the whole attempt" "$body" "135/240"
+contains "tracker_log_attempt grades a paper attempt" "$body" "grade"
+contains "an attempt without questions says what is missing" "$body" "No question breakdown recorded"
+mock_id="$(printf '%s' "$body" | sed -n 's/.*as attempt \([0-9]*\).*/\1/p' | head -1)"
+if [ -n "$mock_id" ]; then pass "the attempt reports its id"; else fail "the attempt reports its id"; fi
+
+# Questions carry the marks, the answer given and the topic tested, which is
+# what later turns a score into teaching information.
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke marked paper","kind":"paper","tier":"F","date":"2026-08-29","papers":[{"code":"8300/1F Nov-22","score":6,"max":10,"blanks":1,"note":"marked question by question","questions":[{"number":"1","score":3,"max":3,"topic_ref":"A17","question":"Solve 3x + 4 = 19","answer":"x = 5","note":"clean"},{"number":"2a","score":3,"max":4,"topic_ref":"A4","answer":"2x(3x+4)","note":"factor not fully taken out"},{"number":"2b","score":0,"max":3,"topic_ref":"A4","answer":"","note":"left blank"}]}]}')"
+contains "questions are accepted alongside the paper" "$body" "3 questions recorded"
+marked_id="$(printf '%s' "$body" | sed -n 's/.*as attempt \([0-9]*\).*/\1/p' | head -1)"
+
+body="$(call tracker_get_attempt "{\"subject\":\"maths\",\"attempt_id\":$marked_id}")"
+contains "tracker_get_attempt groups questions under their paper" "$body" "8300/1F Nov-22"
+contains "the answer given is kept" "$body" "2x(3x+4)"
+contains "the marker note is kept" "$body" "factor not fully taken out"
+contains "tracker_get_attempt breaks the marks down by topic" "$body" "Marks by topic"
+contains "the topic that lost the marks is named" "$body" "A4"
+
+body="$(call tracker_get_attempt "{\"subject\":\"maths\",\"attempt_id\":$mock_id}")"
+contains "an attempt with no questions still lists its papers" "$body" "8300/2F"
+contains "and says the breakdown is missing" "$body" "No question breakdown recorded for this paper"
+
+# A breakdown that does not reconcile with the paper total would make the
+# per-topic analysis lie, so it is refused rather than stored.
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke mismatch","papers":[{"code":"X1","score":10,"max":20,"questions":[{"number":"1","score":4,"max":20}]}]}')"
+contains "questions that do not add up to the paper are refused" "$body" "does not reconcile"
+
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Smoke check","kind":"check","papers":[{"code":"Phase check","score":9,"max":10}]}')"
+contains "tracker_log_attempt refuses to grade a check" "$body" "not grade-converted"
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Impossible","papers":[{"code":"X","score":90,"max":80}]}')"
+contains "a score above the maximum is refused" "$body" "Check the figures"
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Impossible question","papers":[{"code":"X","score":5,"max":10,"questions":[{"number":"1","score":9,"max":5}]}]}')"
+contains "a question scoring above its own maximum is refused" "$body" "Question 1 on X"
+body="$(call tracker_log_attempt '{"subject":"maths","name":"Orphan ref","papers":[{"code":"X","score":2,"max":2,"questions":[{"number":"1","score":2,"max":2,"topic_ref":"NOPE"}]}]}')"
+contains "an unknown question topic ref is flagged" "$body" "no topic with reference NOPE"
+
+body="$(call tracker_get_attempt '{"subject":"maths","attempt_id":99999}')"
+contains "an unknown attempt id is reported" "$body" "No attempt 99999"
+
+echo
+echo "== history and amendment =="
+
+# The trail has to show what a session actually changed, or it records that
+# something happened without recording what.
+body="$(call tracker_history '{"subject":"maths","weeks":260}')"
+contains "tracker_history groups the trail by ISO week" "$body" "week of"
+contains "tracker_history lists sessions" "$body" "Session"
+contains "tracker_history carries the evidence recorded at the time" "$body" "6x2+8x factorisation correct first time"
+contains "a change is attributed to the session that made it" "$body" "(session "
+contains "a standalone topic update says so" "$body" "(standalone update)"
+
+body="$(call tracker_history '{"subject":"maths","weeks":260,"ref":"A17"}')"
+contains "tracker_history follows one topic" "$body" "A17"
+if printf '%s' "$body" | grep -qF '6x2+8x factorisation correct first time'; then
+  fail "a single-topic history excludes other topics' changes"
+else
+  pass "a single-topic history excludes other topics' changes"
+fi
+
+sess_id="$(printf '%s' "$(call tracker_history '{"subject":"maths","weeks":260}')" | sed -n 's/.*Session \([0-9]*\)\**.*/\1/p' | head -1)"
+body="$(call tracker_amend_session "{\"subject\":\"maths\",\"session_id\":$sess_id,\"summary\":\"Amended: algebra retrieval, corrected record.\"}")"
+contains "tracker_amend_session corrects a session" "$body" "amended"
+body="$(call tracker_history '{"subject":"maths","weeks":260}')"
+contains "the amendment shows in the trail" "$body" "corrected record"
+
+body="$(call tracker_amend_session "{\"subject\":\"maths\",\"session_id\":$sess_id,\"void_reason\":\"logged against the wrong subject\"}")"
+contains "a session can be voided with a reason" "$body" "voided"
+body="$(call tracker_history '{"subject":"maths","weeks":260}')"
+contains "a voided session stays in the trail, marked" "$body" "VOID: logged against the wrong subject"
+
+body="$(call tracker_amend_session "{\"subject\":\"maths\",\"session_id\":$sess_id,\"void_reason\":null}")"
+contains "voiding can be undone" "$body" "un-voided"
+
+body="$(call tracker_amend_session '{"subject":"maths","session_id":99999,"summary":"no such session at all"}')"
+contains "amending an unknown session is reported" "$body" "No session 99999"
+body="$(call tracker_amend_session "{\"subject\":\"maths\",\"session_id\":$sess_id}")"
+contains "an amendment with nothing to change is refused" "$body" "at least one of"
 
 echo
 echo "== resources =="
@@ -265,6 +367,11 @@ contains "an unknown topic ref is flagged but still stored" "$body" "no topic wi
 # The queue is what a session opens with, so the materials have to reach it.
 body="$(call tracker_review_queue '{"subject":"maths"}')"
 contains "the review queue carries subject-wide resources" "$body" "Resources for the whole subject"
+
+if [ "$REMOTE" = 0 ]; then
+  body="$("${CURL[@]}" "$BASE/s/maths")"
+  contains "the dashboard lists resources once there are some" "$body" "AQA 8300 specification"
+fi
 
 body="$(call tracker_export_markdown '{"subject":"maths"}')"
 contains "the export includes a resources section" "$body" "## Resources"
