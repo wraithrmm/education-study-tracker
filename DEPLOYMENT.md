@@ -69,6 +69,14 @@ HTTPS is not optional: Claude.ai custom connectors refuse an origin without a
 publicly valid certificate, and the OAuth issuer in `PUBLIC_URL` must match the
 scheme it is reached on.
 
+Then, under **Manage Users**, check that `edtrackerpaige` is a **Shell user
+(SSH)** and not an SFTP user. The deploy does not merely copy files: it runs
+`npm ci` and restarts Passenger on the box, and rsync itself spawns a login
+shell. An SFTP-only account fails this in the least helpful way possible —
+sshd answers every command with `internal-sftp`, which exits 0 having done
+nothing, so remote commands appear to succeed while changing nothing. The
+"Probe the SSH account" step exists to catch exactly that and name it.
+
 ### 2. GitHub repository secrets
 
 Settings → Secrets and variables → Actions → **Secrets**:
@@ -117,6 +125,12 @@ secret blank — the server registers Claude dynamically. Enter
 The deploy job fails loudly rather than reporting a copy as a success. Work
 through it in this order:
 
+- **"The SSH account … cannot run remote commands".** The account is SFTP-only.
+  DreamHost panel → Manage Users → the deploy user → set the type to **Shell
+  user (SSH)**, then re-run the workflow. Nothing else in the deploy can work
+  until this is right, and it fails quietly rather than loudly: `internal-sftp`
+  exits 0 for every command it is handed, so `mkdir` and `npm ci` alike report
+  success and change nothing.
 - **`/healthz` times out, or the browser shows a directory listing or a
   DreamHost placeholder.** Passenger is not enabled on the domain, or the web
   directory is not `…/public`. Fix it in the panel (step 1) and re-run the
