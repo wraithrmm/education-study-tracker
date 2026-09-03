@@ -56,10 +56,17 @@ So `node_modules` is installed on the CI runner and rsynced whole. Nothing
 needs compiling at either end: `better-sqlite3` carries prebuilt binaries for
 every platform inside its own package, and the deploy prunes them to the one
 it targets. The tree that runs in production is therefore byte-for-byte the
-tree the smoke test exercised. `remote-setup.sh` still loads the native module
-under the server's own Node before restarting Passenger, because a prebuilt
-binary can still meet a glibc it doesn't like — better a readable error at
-deploy time than a blank 502 afterwards.
+tree the smoke test exercised.
+
+`remote-setup.sh` still tries to load the native module under the server's own
+Node, but treats the result as information rather than a verdict. The same
+ENOMEM shows up for any script large enough to trigger V8's baseline compiler,
+including a five-line one that opens an in-memory database — so a failure there
+does not distinguish a broken binary from a shell session capped below what
+V8's JIT needs. The script therefore retries with `--jitless`, which needs no
+executable memory at all: if that succeeds where the default failed, the binary
+is sound and the cap is the story. Either way the deploy continues, and the
+live health check gives the verdict.
 
 ### What lives where on the server
 
@@ -172,12 +179,18 @@ through it in this order:
   login shell, so it needs `~/bin` on the PATH. `deploy/remote-setup.sh` adds
   that to `~/.bash_profile`; confirm the line is there and that
   `~/bin/node -v` works.
-- **`better-sqlite3` fails to load.** The deploy's own check reports this
-  before Passenger ever sees it. If the error mentions `GLIBC_2.x not found`,
-  the box is older than the prebuilt binary requires; the fix is to build the
-  module on a matching base image in CI and ship that, not to install it on the
-  server. If it mentions the Node ABI, `.nvmrc` and the server's Node have
-  drifted apart — re-run the workflow.
+- **`Check failed: 12 == (*__errno_location ())` in `OS::SetPermissions`.**
+  errno 12 is `ENOMEM`: V8 could not allocate executable memory. Read the
+  `ulimit -v` the deploy prints just above it. From an SSH session this is
+  expected on this host and is not fatal — the deploy carries on. If Passenger
+  hits it too, the app will not boot and the health check will fail; the fix
+  then is to give Node less to JIT, not more memory: run it with `--jitless`,
+  which the deploy already proves the module tolerates.
+- **`better-sqlite3` fails to load even with `--jitless`.** Now it is the
+  binary. If the error mentions `GLIBC_2.x not found`, the box is older than
+  the prebuild requires; build the module on a matching base image in CI and
+  ship that, rather than installing it on the server. If it mentions the Node
+  ABI, `.nvmrc` and the server's Node have drifted — re-run the workflow.
 - **The deploy is healthy but Claude says it "couldn't reach the MCP server".**
   Check `PUBLIC_URL` matches the origin exactly, with no trailing slash, and
   that `curl -si -X POST https://education.rmmann.co.uk/mcp -H
