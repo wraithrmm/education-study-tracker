@@ -16,46 +16,22 @@ There's one human user, so "log in" is a single shared password on the consent s
 
 ## Where it runs
 
-Production is <https://education.rmmann.co.uk>, deployed
-automatically on every merge into `main`. See [DEPLOYMENT.md](DEPLOYMENT.md) for
-the pipeline, the one-time DreamHost panel setup, the repository secrets it
-needs, and what to check when a deploy goes red.
+Production is <https://education.rmmann.co.uk>, deployed automatically on every
+merge into `main`. It is a PHP application served per request by Apache — no
+build step, no daemon, no process manager. See [DEPLOYMENT.md](DEPLOYMENT.md)
+for the pipeline, the repository secrets it needs, why it is PHP rather than
+the Node service it began as, and what to check when a deploy goes red.
 
-The Docker setup below is for running it locally or on a box you control.
-
-## Running it locally
-
-```bash
-cp .env.example .env
-# edit .env: set PUBLIC_URL and TRACKER_PASSWORD
-openssl rand -base64 24        # a decent password
-docker compose up -d --build
-```
-
-On first start it seeds the maths subject from `03-TOPIC-STATE.md` v1.1. Seeding only runs when the database has no subjects, so restarts and rebuilds never overwrite real progress. Data lives in the `tracker-data` volume.
+To run it locally, `bash deploy/smoke-test.sh` boots it against a throwaway
+database and exercises every endpoint; DEPLOYMENT.md has the recipe for poking
+at it by hand.
 
 | Variable | Purpose |
 |---|---|
 | `PUBLIC_URL` | The exact public HTTPS origin, no trailing slash. Used as the OAuth issuer and the `resource` value, so a mismatch breaks the handshake. |
-| `TRACKER_PASSWORD` | Consent-screen password. Required; the server refuses to start without it. |
+| `TRACKER_PASSWORD` | Consent-screen password. Required; the service refuses to serve without it. |
 | `DASHBOARD_PUBLIC` | `true` (default) leaves the dashboard readable to anyone with the link. `false` puts it behind the same token as the API. |
-| `DB_PATH` | Defaults to `/data/tracker.db`. |
-
-## Getting a local instance on the internet
-
-Production already has a public hostname and a certificate; this section is for
-an instance you're running yourself. Compose binds to `127.0.0.1` deliberately — the box shouldn't be listening on the LAN. Put a tunnel in front so you get HTTPS and a stable hostname without opening a port:
-
-```bash
-cloudflared tunnel --url http://localhost:8080          # quick test, random hostname
-```
-
-For anything lasting, use a named tunnel on a domain you own, or Tailscale Funnel. Two constraints matter:
-
-- **HTTPS is required** and the certificate must be publicly valid. A self-signed cert will fail the connector handshake.
-- **`/.well-known/*` must be reachable at the origin root**, not just your MCP path. The discovery documents live there.
-
-If you firewall the tunnel origin, Anthropic's outbound traffic comes from `160.79.104.0/21`.
+| `DB_PATH` | Defaults to `../tracker-shared/data/tracker.db`, outside the document root. |
 
 ## Connecting Claude
 
@@ -98,17 +74,12 @@ Grade boundaries are per-subject. `boundary_max` is the total the boundaries are
 
 ## Backups
 
-```bash
-docker compose exec tracker \
-  node -e "new (require('better-sqlite3'))('/data/tracker.db').backup('/data/backup.db')"
-docker compose cp tracker:/data/backup.db ./tracker-backup-$(date +%F).db
-```
-
-Worth a weekly cron. It's a single file and it's the only copy of the record.
+The database is a single file and it is the only copy of the record; see
+[DEPLOYMENT.md](DEPLOYMENT.md#backups). Worth a weekly cron.
 
 ## Known limits
 
 - One password, one tenant. Fine for a household; don't hand the URL to a class.
-- Stateless MCP: no server-initiated notifications or streaming. Tools are request/response, which is all these need.
+- Stateless MCP: no server-initiated notifications or streaming. Tools are request/response, which is all these need — and all a per-request PHP process could offer anyway.
 - Access tokens live an hour and refresh tokens don't expire until used. Revoking means deleting rows from `oauth_tokens`.
 - The seed maps vague dates in the source document (`Jun 26`, `Aug 26`) to concrete ones so the ageing rule can compute. Topics with no recorded date stay null and the review queue says so rather than inventing one.

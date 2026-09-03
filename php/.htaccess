@@ -1,0 +1,30 @@
+# The tracker is a front-controller app: every request goes to index.php, which
+# owns the routing table. Nothing else in this directory is servable, so lib/
+# and the deploy metadata cannot be fetched even by exact URL.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Apache does not pass the Authorization header to PHP under CGI/FastCGI,
+    # and this service is bearer-authenticated. Copy it into the environment so
+    # oauth_bearer() can find it; mod_rewrite may present it with a REDIRECT_
+    # prefix, which oauth_bearer() also checks.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Unconditional: no -f test, so an existing file is never served directly.
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+# Belt and braces for a server without mod_rewrite: never serve the database,
+# the environment file, or anything else that is not meant to leave the box.
+<FilesMatch "\.(db|db-wal|db-shm|db-journal|sqlite|env|log|md|json|lock)$">
+    Require all denied
+</FilesMatch>
+
+DirectoryIndex index.php
+Options -Indexes
