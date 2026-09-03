@@ -6,6 +6,8 @@ A small self-hosted service that holds GCSE topic state for any number of subjec
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
+It holds the syllabus too: strands, every topic with its spec reference and tier, and the teaching materials attached to each — BBC Bitesize pages, videos, worksheets, past papers. The review queue hands those back alongside the topics that need work, so a session can be planned from one call.
+
 The database is the source of truth. Markdown topic-state files become an *export* (`tracker_export_markdown`), not a thing you hand-edit.
 
 ## Why it speaks OAuth
@@ -16,46 +18,22 @@ There's one human user, so "log in" is a single shared password on the consent s
 
 ## Where it runs
 
-Production is <https://education.rmmann.co.uk>, deployed
-automatically on every merge into `main`. See [DEPLOYMENT.md](DEPLOYMENT.md) for
-the pipeline, the one-time DreamHost panel setup, the repository secrets it
-needs, and what to check when a deploy goes red.
+Production is <https://education.rmmann.co.uk>, deployed automatically on every
+merge into `main`. It is a PHP application served per request by Apache — no
+build step, no daemon, no process manager. See [DEPLOYMENT.md](DEPLOYMENT.md)
+for the pipeline, the repository secrets it needs, why it is PHP rather than
+the Node service it began as, and what to check when a deploy goes red.
 
-The Docker setup below is for running it locally or on a box you control.
-
-## Running it locally
-
-```bash
-cp .env.example .env
-# edit .env: set PUBLIC_URL and TRACKER_PASSWORD
-openssl rand -base64 24        # a decent password
-docker compose up -d --build
-```
-
-On first start it seeds the maths subject from `03-TOPIC-STATE.md` v1.1. Seeding only runs when the database has no subjects, so restarts and rebuilds never overwrite real progress. Data lives in the `tracker-data` volume.
+To run it locally, `bash deploy/smoke-test.sh` boots it against a throwaway
+database and exercises every endpoint; DEPLOYMENT.md has the recipe for poking
+at it by hand.
 
 | Variable | Purpose |
 |---|---|
 | `PUBLIC_URL` | The exact public HTTPS origin, no trailing slash. Used as the OAuth issuer and the `resource` value, so a mismatch breaks the handshake. |
-| `TRACKER_PASSWORD` | Consent-screen password. Required; the server refuses to start without it. |
+| `TRACKER_PASSWORD` | Consent-screen password. Required; the service refuses to serve without it. |
 | `DASHBOARD_PUBLIC` | `true` (default) leaves the dashboard readable to anyone with the link. `false` puts it behind the same token as the API. |
-| `DB_PATH` | Defaults to `/data/tracker.db`. |
-
-## Getting a local instance on the internet
-
-Production already has a public hostname and a certificate; this section is for
-an instance you're running yourself. Compose binds to `127.0.0.1` deliberately — the box shouldn't be listening on the LAN. Put a tunnel in front so you get HTTPS and a stable hostname without opening a port:
-
-```bash
-cloudflared tunnel --url http://localhost:8080          # quick test, random hostname
-```
-
-For anything lasting, use a named tunnel on a domain you own, or Tailscale Funnel. Two constraints matter:
-
-- **HTTPS is required** and the certificate must be publicly valid. A self-signed cert will fail the connector handshake.
-- **`/.well-known/*` must be reachable at the origin root**, not just your MCP path. The discovery documents live there.
-
-If you firewall the tunnel origin, Anthropic's outbound traffic comes from `160.79.104.0/21`.
+| `DB_PATH` | Defaults to `../tracker-shared/data/tracker.db`, outside the document root. |
 
 ## Connecting Claude
 
@@ -79,16 +57,50 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | Tool | Purpose |
 |---|---|
 | `tracker_list_subjects` | Every subject with a coverage percentage. |
+| `tracker_list_resources` | The materials stored for a topic or subject. |
 | `tracker_get_state` | Full topic state, filterable by status or strand. Consult before teaching. |
 | `tracker_review_queue` | Ageing secures, loose ends, priority gaps. Use this to open a session. |
-| `tracker_list_assessments` | Papers and checks with grade conversions. |
+| `tracker_list_attempts` | Every sitting, with its papers and the grade for the attempt as a whole. |
+| `tracker_get_attempt` | One attempt question by question, with marks lost per topic. |
+| `tracker_history` | The audit trail week by week: sessions, and every change each one made. |
 | `tracker_export_markdown` | Renders the whole state as a markdown document. |
 | `tracker_update_topic` | Change one topic. Evidence is mandatory. |
 | `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. |
-| `tracker_log_assessment` | Record a paper or check. |
+| `tracker_amend_session` | Correct or void a session already logged. |
+| `tracker_log_attempt` | Record a sitting: its papers, and the questions, answers and marks behind them. |
+| `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
+| `tracker_remove_resource` | Delete one stored resource by title. |
 | `tracker_create_subject` | Add a subject, or extend one. Never resets existing topic statuses. |
 
-Two rules are enforced in the schema rather than left to good intentions. Every status change requires an evidence string of at least ten characters, so the audit trail in `topic_changes` can't be empty. And topic checks are never grade-converted — only full papers are scaled against boundaries — so a good result on seven topics can't quietly become a projected grade.
+Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
+
+Three rules are enforced rather than left to good intentions. Every status change requires an evidence string of at least ten characters, so the audit trail in `topic_changes` can't be empty. Topic checks are never grade-converted — only full papers are scaled against boundaries — so a good result on seven topics can't quietly become a projected grade. And a question breakdown that doesn't add up to the paper total is refused outright: one of the two figures is wrong, and keeping both would make the per-topic analysis lie.
+
+## The audit trail
+
+The record is meant to be readable backwards, not just forwards.
+
+**Sessions.** Every status change is stamped with the session that made it, so
+the trail says not only that a topic moved but which sitting moved it and on
+what evidence. `tracker_history` groups all of it by ISO week, so a term reads
+as a timeline. A session logged wrongly is corrected with
+`tracker_amend_session` or voided with a reason — the row and the reason stay,
+because a trail that can lose entries isn't one. A topic status is never
+rewritten; correcting it means another change with evidence saying so, which
+appends to the trail.
+
+**Attempts.** One sitting is one *attempt*, and an attempt holds however many
+papers were sat together. A three-paper mock is one attempt with three papers
+and a single grade computed across all of them, because one paper of three
+doesn't carry a grade. Under each paper sit its questions: the number, the
+marks, the answer given, the marker's note, and the spec reference the question
+tests. Those references are what turn a score into teaching information —
+`tracker_get_attempt` adds up marks lost per topic and names the topics to
+reteach.
+
+Databases written before this shape existed are migrated on first open: each
+old assessment becomes an attempt with one paper. The original `assessments`
+table is left untouched as the fallback copy.
 
 ## Adding a subject
 
@@ -98,17 +110,12 @@ Grade boundaries are per-subject. `boundary_max` is the total the boundaries are
 
 ## Backups
 
-```bash
-docker compose exec tracker \
-  node -e "new (require('better-sqlite3'))('/data/tracker.db').backup('/data/backup.db')"
-docker compose cp tracker:/data/backup.db ./tracker-backup-$(date +%F).db
-```
-
-Worth a weekly cron. It's a single file and it's the only copy of the record.
+The database is a single file and it is the only copy of the record; see
+[DEPLOYMENT.md](DEPLOYMENT.md#backups). Worth a weekly cron.
 
 ## Known limits
 
 - One password, one tenant. Fine for a household; don't hand the URL to a class.
-- Stateless MCP: no server-initiated notifications or streaming. Tools are request/response, which is all these need.
+- Stateless MCP: no server-initiated notifications or streaming. Tools are request/response, which is all these need — and all a per-request PHP process could offer anyway.
 - Access tokens live an hour and refresh tokens don't expire until used. Revoking means deleting rows from `oauth_tokens`.
 - The seed maps vague dates in the source document (`Jun 26`, `Aug 26`) to concrete ones so the ageing rule can compute. Topics with no recorded date stay null and the review queue says so rather than inventing one.

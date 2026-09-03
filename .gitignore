@@ -14,4 +14,3 @@ data/
 
 *.log
 .DS_Store
-release/

@@ -1,7 +1,7 @@
 name: Deploy
 
-# Merging into main is the release. workflow_dispatch is there for the first
-# run and for re-deploying without an empty commit.
+# Merging into main is the release. workflow_dispatch is there for a re-deploy
+# without an empty commit.
 on:
   push:
     branches: [main]
@@ -16,55 +16,31 @@ concurrency:
 env:
   DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education.rmmann.co.uk' }}
   DEPLOY_USER: ${{ vars.DEPLOY_USER || 'edtrackerpaige' }}
-  # Relative to the SSH user's home. On DreamHost this is the directory the
-  # panel points the domain at, with Passenger serving <dir>/public.
+  # The domain's document root, relative to the SSH user's home. This is where
+  # DreamHost points the domain by default; the service is a front-controller
+  # PHP app, so it needs no separate public/ directory and no Passenger.
   DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'education.rmmann.co.uk' }}
   SHARED_DIR: ${{ vars.SHARED_DIR || 'tracker-shared' }}
   PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://education.rmmann.co.uk' }}
   DASHBOARD_PUBLIC: ${{ vars.DASHBOARD_PUBLIC || 'true' }}
-  NODE_MAJOR: '22'
 
 jobs:
   deploy:
-    name: Build, ship and verify
+    name: Verify, ship and confirm
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci
-
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Build
-        run: npm run build
-
-      - name: Assemble release
-        run: bash deploy/build-release.sh
-
-      - name: Install production dependencies into the release
-        working-directory: release
-        run: npm ci --omit=dev --no-audit --no-fund
-
-      # better-sqlite3 ships prebuilt binaries for eight platforms inside its
-      # package. Only the one this deploy targets is worth 2 MB of rsync, and
-      # the smoke test below runs against the pruned tree, so a bad prune fails
-      # here rather than on the server.
-      - name: Prune native binaries for platforms we do not deploy to
+      - name: Lint every PHP file
         run: |
           set -euo pipefail
-          before=$(du -sm release/node_modules | cut -f1)
-          find release/node_modules -path '*/prebuilds/*' -name '*.node' \
-            ! -name 'linux-x64.node' -delete
-          echo "node_modules: ${before}M -> $(du -sm release/node_modules | cut -f1)M"
+          php -v | head -1
+          find php -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Smoke test the release
+      # Boots the service on PHP's own server and walks the full connector
+      # handshake and every MCP tool. A broken build never reaches the server.
+      - name: Smoke test
         run: bash deploy/smoke-test.sh
 
       - name: Check required secrets are present
@@ -83,128 +59,47 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get update && sudo apt-get install -y sshpass
 
-      - name: Render the server .env
-        env:
-          TRACKER_PASSWORD: ${{ secrets.TRACKER_PASSWORD }}
-        run: |
-          umask 077
-          # printf rather than a heredoc: a password containing a backslash
-          # would be mangled by heredoc escape processing.
-          {
-            printf 'PUBLIC_URL=%s\n' "$PUBLIC_URL"
-            printf 'TRACKER_PASSWORD=%s\n' "$TRACKER_PASSWORD"
-            printf 'DASHBOARD_PUBLIC=%s\n' "$DASHBOARD_PUBLIC"
-            printf 'NODE_ENV=production\n'
-          } > "$RUNNER_TEMP/tracker.env"
-          # DB_PATH is appended server-side by remote-setup.sh, which is the
-          # only place that knows the account's real home directory.
-
-      # Everything after this point needs a real login shell on the server:
-      # rsync spawns one, and npm and the Passenger restart run in one. An
-      # SFTP-only account fails all of that in the least helpful way possible —
-      # sshd answers with internal-sftp, which reads SFTP protocol from stdin,
-      # finds a command instead, and exits 0 having printed nothing. Every
-      # remote command then "succeeds" and does nothing. Prove the shell works
-      # before trusting a single remote exit code.
-      - name: Probe the SSH account
-        env:
-          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
-        run: |
-          set -uo pipefail
-          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
-          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
-
-          probe="$($SSH "$TARGET" 'printf "HOME=%s\nSHELL=%s\n" "$HOME" "$SHELL"' 2>"$RUNNER_TEMP/probe.err")"
-          rc=$?
-          echo "remote exit code: $rc"
-          echo "--- stdout ---"
-          printf '%s\n' "$probe"
-          echo "--- stderr ---"
-          cat "$RUNNER_TEMP/probe.err" || true
-          echo "--------------"
-
-          REMOTE_HOME="$(printf '%s\n' "$probe" | sed -n 's/^HOME=//p')"
-          case "$REMOTE_HOME" in
-            /*)
-              echo "shell access confirmed; remote home: $REMOTE_HOME"
-              echo "REMOTE_HOME=$REMOTE_HOME" >> "$GITHUB_ENV"
-              ;;
-            *)
-              echo "::error::The SSH account '$DEPLOY_USER' cannot run remote commands: asking it to print \$HOME returned nothing and exited $rc. That is the signature of an SFTP-only account — file copies work, but rsync, npm and the Passenger restart all need a login shell. Fix it in the DreamHost panel under Manage Users → $DEPLOY_USER → set the user type to Shell user (SSH), then re-run this workflow. See DEPLOYMENT.md, 'When the health check fails'." >&2
-              exit 1
-              ;;
-          esac
-
       - name: Ship the release
         env:
           SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
-        run: |
-          set -euo pipefail
-          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
-          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+          TRACKER_PASSWORD: ${{ secrets.TRACKER_PASSWORD }}
+        run: bash deploy/ship.sh
 
-          # The shared directory holds the password file and the database, and
-          # must exist — and be private — before anything is written into it.
-          $SSH "$TARGET" "mkdir -p '$REMOTE_HOME/$SHARED_DIR/data' '$REMOTE_HOME/$DEPLOY_DIR/public' '$REMOTE_HOME/$DEPLOY_DIR/tmp' && chmod 700 '$REMOTE_HOME/$SHARED_DIR'"
-
-          # Written through the login shell rather than scp: it uses the same
-          # path resolution as the mkdir above, leaves no temp file behind, and
-          # never puts the password on a command line where another user on a
-          # shared host could read it out of ps. sshpass passes stdin through.
-          $SSH "$TARGET" "umask 077 && cat > '$REMOTE_HOME/$SHARED_DIR/.env'" \
-            < "$RUNNER_TEMP/tracker.env"
-
-          # --delete keeps the server free of files removed from the repo.
-          # tmp and public are server-owned and stay out of it. node_modules is
-          # shipped: npm cannot run on this host (see deploy/remote-setup.sh),
-          # so the runner's tree — the one the smoke test just exercised — is
-          # the tree that runs in production.
-          rsync -rlptz --delete \
-            --exclude 'tmp/' \
-            --exclude 'public/' \
-            -e "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \
-            release/ "$TARGET:$REMOTE_HOME/$DEPLOY_DIR/"
-
-      - name: Install dependencies and restart Passenger
-        env:
-          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
-        run: |
-          set -euo pipefail
-          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$REMOTE_HOME/$DEPLOY_DIR' SHARED_PATH='$REMOTE_HOME/$SHARED_DIR' NODE_VERSION='$NODE_MAJOR' bash '$REMOTE_HOME/$DEPLOY_DIR/deploy/remote-setup.sh'"
-
-      # The deploy is not finished until the public URL actually answers.
-      # Passenger boots lazily on the first request, and the first ever deploy
-      # also compiles better-sqlite3, so this is given room before it gives up.
+      # PHP is served per request, so there is no process to restart and no
+      # warm-up: the very next request runs the new code.
       - name: Verify the live service
         run: |
           set -euo pipefail
           BODY="$RUNNER_TEMP/health.body"
-          for attempt in $(seq 1 30); do
-            # The status code is the whole diagnosis: 502 means Passenger found
-            # the app and it would not boot, 200-with-HTML means Passenger is
-            # not in the request path at all, 000 means nothing answered.
+          for attempt in $(seq 1 12); do
             code="$(curl -s -o "$BODY" -w '%{http_code}' --max-time 30 "$PUBLIC_URL/healthz" || echo 000)"
             if [ "$code" = 200 ] && grep -q '"ok":true' "$BODY"; then
               echo "healthz: $(cat "$BODY")"
-              echo "### Deployed to [$PUBLIC_URL]($PUBLIC_URL)" >> "$GITHUB_STEP_SUMMARY"
-              echo "\`healthz\` → \`$(cat "$BODY")\`" >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo "### Deployed to [$PUBLIC_URL]($PUBLIC_URL)"
+                echo ''
+                echo "\`healthz\` → \`$(cat "$BODY")\`"
+              } >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            echo "attempt $attempt/30: HTTP $code"
+            echo "attempt $attempt/12: HTTP $code"
+            if [ "$attempt" -ge 3 ] && grep -qE 'has not yet uploaded their website|is almost here' "$BODY"; then
+              echo "--- response body (first 400 bytes) ---"; head -c 400 "$BODY"; echo
+              echo "::error::The domain is serving the DreamHost placeholder, so the deploy landed somewhere the web server does not read. Check DEPLOY_DIR against the domain's web directory in the panel." >&2
+              exit 1
+            fi
             sleep 10
           done
-          echo "--- last response body (first 800 bytes) ---"
-          head -c 800 "$BODY" || true
-          echo
-          echo "::error::$PUBLIC_URL/healthz never returned ok — see DEPLOYMENT.md, 'When the health check fails'" >&2
+          echo "--- last response body (first 800 bytes) ---"; head -c 800 "$BODY"; echo
+          echo "::error::$PUBLIC_URL/healthz never returned ok — see DEPLOYMENT.md, 'When a deploy fails'" >&2
           exit 1
 
-      # Runs only when the health check gave up. Everything here is read-only
-      # and exists to answer one question from the server's own side: is
-      # Passenger not in the request path, or is it failing to boot the app?
-      - name: Diagnose a failed health check
+      # The live handshake, read-only: discovery documents, the dashboards, and
+      # the 401 challenge Claude needs to find the authorisation server.
+      - name: Verify the connector handshake against production
+        run: BASE="$PUBLIC_URL" bash deploy/smoke-test.sh --remote
+
+      - name: Diagnose a failed deploy
         if: failure()
         env:
           SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
@@ -218,49 +113,12 @@ jobs:
             echo "--- GET $PUBLIC_URL$path"
             curl -s -o "$RUNNER_TEMP/d.body" -D "$RUNNER_TEMP/d.head" -w 'status %{http_code}\n' \
               --max-time 30 "$PUBLIC_URL$path" || echo "request failed"
-            grep -iE '^(HTTP/|server:|x-powered-by:|content-type:|location:)' "$RUNNER_TEMP/d.head" || true
+            grep -iE '^(HTTP/|server:|content-type:|location:)' "$RUNNER_TEMP/d.head" || true
             head -c 400 "$RUNNER_TEMP/d.body"; echo
           done
 
-          echo "=============== the app directory ==============="
-          $SSH "$TARGET" "
-            ls -la '$REMOTE_HOME/$DEPLOY_DIR' 2>&1 | head -20
-            echo '--- public/'; ls -la '$REMOTE_HOME/$DEPLOY_DIR/public' 2>&1 | head
-            echo '--- shell limits'; ulimit -v; ulimit -m
-          " 2>&1 || true
+          echo "=============== the deploy directory ==============="
+          $SSH "$TARGET" "ls -la \"\$HOME/$DEPLOY_DIR\" 2>&1 | head -20; echo '--- php'; php -v 2>&1 | head -1" || true
 
-          echo "=============== passenger / apache logs ==============="
-          # DreamHost puts per-domain logs under ~/logs; Passenger may also
-          # write beside the app. Take whichever exist.
-          $SSH "$TARGET" "
-            for f in \
-              '$REMOTE_HOME/logs/$DEPLOY_DIR/https/error.log' \
-              '$REMOTE_HOME/logs/$DEPLOY_DIR/http/error.log' \
-              '$REMOTE_HOME/$DEPLOY_DIR/log/passenger.log' ; do
-              if [ -f \"\$f\" ]; then echo \"--- tail \$f\"; tail -40 \"\$f\"; fi
-            done
-            ls '$REMOTE_HOME/logs' 2>/dev/null | head
-          " 2>&1 || true
-
-          echo "=============== can the app boot at all? ==============="
-          # Foreground boot against a throwaway database, so this never touches
-          # the real one. 'timeout' returning 124 means it started and stayed
-          # up, which is the result we want to see.
-          $SSH "$TARGET" "
-            cd '$REMOTE_HOME/$DEPLOY_DIR' &&
-            DB_PATH=/tmp/deploy-probe-\$\$.db PORT=18099 timeout 20 node app.js 2>&1 | head -40
-            echo \"exit: \${PIPESTATUS[0]}\"
-            rm -f /tmp/deploy-probe-*.db
-          " 2>&1 || true
-
-      - name: Verify the MCP handshake is discoverable
-        run: |
-          set -euo pipefail
-          headers="$(curl -sS -o /dev/null -D - -X POST "$PUBLIC_URL/mcp" \
-            -H 'content-type: application/json' -d '{}')"
-          printf '%s' "$headers" | grep -qi 'www-authenticate: Bearer resource_metadata=' || {
-            echo "::error::/mcp did not return the WWW-Authenticate challenge Claude needs to discover the auth server" >&2
-            printf '%s\n' "$headers" >&2
-            exit 1
-          }
-          echo "MCP discovery challenge present"
+          echo "=============== apache log ==============="
+          $SSH "$TARGET" "tail -30 \"\$HOME/logs/$DEPLOY_DIR/https/error.log\" 2>/dev/null" || true

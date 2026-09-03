@@ -1,0 +1,88 @@
+name: Branch deploy
+
+# Deploys a working branch to the live host and verifies it there.
+#
+# This exists because the agent sandbox cannot reach the server at all — SSH is
+# blocked by egress policy — so a CI runner is the only shell available to it,
+# and waiting for a merge to find out whether something works costs a round
+# trip per question. The release path is still deploy.yml on main; this runs
+# the identical ship script, so the two cannot drift.
+#
+# Delete this workflow once the service is settled.
+on:
+  push:
+    branches: ['claude/**']
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education.rmmann.co.uk' }}
+  DEPLOY_USER: ${{ vars.DEPLOY_USER || 'edtrackerpaige' }}
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'education.rmmann.co.uk' }}
+  SHARED_DIR: ${{ vars.SHARED_DIR || 'tracker-shared' }}
+  PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://education.rmmann.co.uk' }}
+  DASHBOARD_PUBLIC: ${{ vars.DASHBOARD_PUBLIC || 'true' }}
+
+jobs:
+  deploy:
+    name: Deploy this branch and verify it live
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint every PHP file
+        run: |
+          set -euo pipefail
+          php -v | head -1
+          find php -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Smoke test
+        run: bash deploy/smoke-test.sh
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Ship
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          TRACKER_PASSWORD: ${{ secrets.TRACKER_PASSWORD }}
+        run: bash deploy/ship.sh
+
+      - name: Verify the live service
+        run: |
+          set -euo pipefail
+          BODY="$RUNNER_TEMP/health.body"
+          for attempt in $(seq 1 12); do
+            code="$(curl -s -o "$BODY" -w '%{http_code}' --max-time 30 "$PUBLIC_URL/healthz" || echo 000)"
+            if [ "$code" = 200 ] && grep -q '"ok":true' "$BODY"; then
+              echo "healthz: $(cat "$BODY")"
+              exit 0
+            fi
+            echo "attempt $attempt/12: HTTP $code"
+            sleep 10
+          done
+          echo "--- last response body ---"; head -c 800 "$BODY"; echo
+          exit 1
+
+      - name: Verify the connector handshake against production
+        run: BASE="$PUBLIC_URL" bash deploy/smoke-test.sh --remote
+
+      - name: Diagnose a failure
+        if: failure()
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -uo pipefail
+          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
+          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+          for path in /healthz /; do
+            echo "--- GET $PUBLIC_URL$path"
+            curl -s -o "$RUNNER_TEMP/d.body" -D "$RUNNER_TEMP/d.head" -w 'status %{http_code}\n' \
+              --max-time 30 "$PUBLIC_URL$path" || true
+            grep -iE '^(HTTP/|server:|content-type:)' "$RUNNER_TEMP/d.head" || true
+            head -c 500 "$RUNNER_TEMP/d.body"; echo
+          done
+          echo "=============== apache log ==============="
+          $SSH "$TARGET" "tail -40 \"\$HOME/logs/$DEPLOY_DIR/https/error.log\" 2>/dev/null" || true
