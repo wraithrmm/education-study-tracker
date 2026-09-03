@@ -32,3 +32,16 @@ jobs:
           sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' < deploy/probe-remote.sh 2>&1
           echo "sweep exit: $?"
+
+          echo
+          echo "########## fetching the PHP probes over HTTPS"
+          for path in /probe-php.php /probe-route/hello; do
+            echo "--- GET https://$DEPLOY_HOST$path"
+            curl -s -o /tmp/p.body -w 'status %{http_code}\n' --max-time 30 "https://$DEPLOY_HOST$path"
+            head -c 400 /tmp/p.body; echo
+          done
+
+          echo
+          echo "########## cleaning the probe files off the server"
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new "$DEPLOY_USER@$DEPLOY_HOST" \
+            "rm -f ~/education.rmmann.co.uk/probe-php.php ~/education.rmmann.co.uk/probe-router.php ~/education.rmmann.co.uk/.htaccess && echo removed"
