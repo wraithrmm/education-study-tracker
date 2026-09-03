@@ -305,4 +305,47 @@ if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
     send_html(render_subject($store, $subject));
 }
 
+// Drill-downs. Everything the tools can report, the page can now show: one
+// sitting question by question, one session and what it changed, and one
+// topic's whole history. A missing id falls back to the subject page rather
+// than a dead end.
+if (preg_match('#^/s/([^/]+)/a/(\d+)$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    $attempt = $store->getAttempt($subject['slug'], (int) $m[2]);
+    if (!$attempt) {
+        send_html(render_subject($store, $subject), 404);
+    }
+    send_html(render_attempt($store, $subject, $attempt));
+}
+
+if (preg_match('#^/s/([^/]+)/session/(\d+)$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    $session = $store->getSession($subject['slug'], (int) $m[2]);
+    if (!$session) {
+        send_html(render_subject($store, $subject), 404);
+    }
+    send_html(render_session($store, $subject, $session));
+}
+
+if (preg_match('#^/s/([^/]+)/t/([^/]+)$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    $topic = $store->getTopic($subject['slug'], urldecode($m[2]));
+    if (!$topic) {
+        send_html(render_subject($store, $subject), 404);
+    }
+    send_html(render_topic_history($store, $subject, $topic));
+}
+
 send_json(['error' => 'not_found', 'error_description' => "No route for $path"], 404);

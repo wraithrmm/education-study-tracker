@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS attempt_papers (
   max           REAL NOT NULL,
   blanks        INTEGER,
   note          TEXT,
+  -- Papers of one sitting are not always sat on one day at home. Null means
+  -- "the same day as the attempt".
+  sat_on        TEXT,
   sort_order    INTEGER NOT NULL DEFAULT 0
 );
 
@@ -216,31 +219,58 @@ final class Store
     }
 
     /**
-     * Schema changes that CREATE TABLE IF NOT EXISTS cannot express, applied
-     * once and guarded so they are safe on every request. This runs against a
-     * live database holding the only copy of the record, so each step checks
-     * the current shape rather than assuming it.
+     * Schema and data changes that CREATE TABLE IF NOT EXISTS cannot express.
+     *
+     * A version ladder rather than one marker, because there will be more of
+     * these: each step runs once, in order, and the stored version says where
+     * a database got to. This runs against a live database holding the only
+     * copy of the record, so every step checks the current shape rather than
+     * assuming it.
      */
+    private const SCHEMA_VERSION = 2;
+
     private function migrate(): void
     {
-        // Fast path: the marker is set, so there is nothing to do and no lock
-        // to take. This runs on every single request.
-        if ($this->meta('schema_attempts') !== null) {
+        // Fast path, taken on every request but the first after a deploy.
+        if ($this->schemaVersion() >= self::SCHEMA_VERSION) {
             return;
         }
 
         // BEGIN IMMEDIATE takes the write lock before anything is read, so two
-        // requests arriving together cannot both decide the migration is still
-        // pending and run it twice. Everything below is one transaction: on a
-        // database holding the only copy of the record, a half-applied
-        // migration is worse than a failed one.
-        $this->db->exec('BEGIN IMMEDIATE');
-        try {
-            if ($this->meta('schema_attempts') !== null) {
+        // requests arriving together cannot both decide a step is still pending
+        // and run it twice. Each step commits on its own: a step that fails
+        // rolls back without discarding the ones already applied.
+        for ($v = $this->schemaVersion() + 1; $v <= self::SCHEMA_VERSION; $v++) {
+            $this->db->exec('BEGIN IMMEDIATE');
+            try {
+                if ($this->schemaVersion() >= $v) {
+                    $this->db->exec('COMMIT');
+                    continue;
+                }
+                $this->migrateStep($v);
+                $this->setMeta('schema_version', (string) $v);
                 $this->db->exec('COMMIT');
-                return;
+            } catch (Throwable $e) {
+                $this->db->exec('ROLLBACK');
+                throw $e;
             }
+        }
+    }
 
+    private function schemaVersion(): int
+    {
+        $v = $this->meta('schema_version');
+        if ($v !== null) {
+            return (int) $v;
+        }
+        // Databases migrated by the first build carry the original marker
+        // instead of a version number. That marker is exactly version 1.
+        return $this->meta('schema_attempts') !== null ? 1 : 0;
+    }
+
+    private function migrateStep(int $v): void
+    {
+        if ($v === 1) {
             // Attributes a topic change to the session that produced it, so the
             // history can show what each session actually moved. Changes made
             // by tracker_update_topic alone keep a null session_id.
@@ -273,13 +303,96 @@ final class Store
                 // The old rows carried no paper code, only the assessment name.
                 $st->execute([$attemptId, $a['name'], $a['score'], $a['max'], $a['blanks']]);
             }
-
-            $this->setMeta('schema_attempts', gmdate('c'));
-            $this->db->exec('COMMIT');
-        } catch (Throwable $e) {
-            $this->db->exec('ROLLBACK');
-            throw $e;
+            return;
         }
+
+        if ($v === 2) {
+            // Papers of one sitting are not always sat on one day at home.
+            if (!$this->hasColumn('attempt_papers', 'sat_on')) {
+                $this->db->exec('ALTER TABLE attempt_papers ADD COLUMN sat_on TEXT');
+            }
+            $this->mergeSeededMathsPapers();
+            return;
+        }
+    }
+
+    /**
+     * The three AQA 8300 Jun-22 foundation papers were one sitting, but the
+     * pre-attempts record held them as three separate assessments, so step 1
+     * turned them into three one-paper attempts. Three 80-mark papers were then
+     * each scaled against the 240-mark boundary table on their own, showing
+     * three grades for one exam.
+     *
+     * Narrowly guarded: it fires only on exactly the shape step 1 produces —
+     * three single-paper attempts, matching names, none carrying questions —
+     * so a database where these have already been corrected, edited or built
+     * on is left alone.
+     */
+    private function mergeSeededMathsPapers(): void
+    {
+        $rows = $this->all(
+            "SELECT a.id, a.date, a.name, a.tier, a.subject_slug
+             FROM attempts a
+             WHERE a.kind = 'paper' AND a.name LIKE '8300/_F Jun-22%'
+             ORDER BY a.date, a.id"
+        );
+        if (count($rows) !== 3) {
+            return;
+        }
+        $ids = array_map(static fn($r) => (int) $r['id'], $rows);
+        $in  = implode(',', $ids);
+
+        // Every one of them must still be the single-paper, no-questions shape
+        // step 1 created, and they must all belong to one subject.
+        if (count(array_unique(array_column($rows, 'subject_slug'))) !== 1) {
+            return;
+        }
+        $papers = $this->all(
+            "SELECT p.* FROM attempt_papers p WHERE p.attempt_id IN ($in) ORDER BY p.attempt_id"
+        );
+        if (count($papers) !== 3) {
+            return;
+        }
+        $paperIds = implode(',', array_map(static fn($p) => (int) $p['id'], $papers));
+        $q        = $this->one("SELECT COUNT(*) AS n FROM attempt_questions WHERE paper_id IN ($paperIds)");
+        if ((int) ($q['n'] ?? 0) !== 0) {
+            return;
+        }
+
+        // Keep the earliest attempt as the sitting and hang the other two
+        // papers off it, each keeping the date it was actually sat.
+        $keep  = $rows[0];
+        $byId  = [];
+        foreach ($rows as $r) {
+            $byId[(int) $r['id']] = $r;
+        }
+        $order = 0;
+        foreach ($papers as $p) {
+            $src  = $byId[(int) $p['attempt_id']];
+            // Paper 1 first, then 2, then 3, whatever order they were sat in.
+            $code = preg_match('#(8300/\dF)#', (string) $src['name'], $m) ? $m[1] : (string) $p['code'];
+            $st   = $this->db->prepare(
+                'UPDATE attempt_papers SET attempt_id = ?, code = ?, sat_on = ?, sort_order = ? WHERE id = ?'
+            );
+            $st->execute([(int) $keep['id'], $code, $src['date'], $order++, (int) $p['id']]);
+        }
+        // Re-sort by paper number now the codes are known.
+        $this->db->exec(
+            "UPDATE attempt_papers SET sort_order = CAST(substr(code, 6, 1) AS INTEGER)
+             WHERE attempt_id = " . (int) $keep['id'] . " AND code LIKE '8300/_F'"
+        );
+
+        $st = $this->db->prepare(
+            'UPDATE attempts SET name = ?, note = ? WHERE id = ?'
+        );
+        $st->execute([
+            'AQA 8300 Foundation, June 2022',
+            'All three papers of one sitting, sat across several weeks; each paper keeps its own date.',
+            (int) $keep['id'],
+        ]);
+
+        $gone = implode(',', array_slice($ids, 1));
+        $this->db->exec("DELETE FROM attempts WHERE id IN ($gone)");
     }
 
     private function hasColumn(string $table, string $column): bool
@@ -606,12 +719,13 @@ final class Store
 
             foreach (array_values($a['papers'] ?? []) as $i => $paper) {
                 $st = $this->db->prepare(
-                    'INSERT INTO attempt_papers (attempt_id, code, score, max, blanks, note, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    'INSERT INTO attempt_papers
+                       (attempt_id, code, score, max, blanks, note, sat_on, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
                 );
                 $st->execute([
                     $attemptId, $paper['code'], $paper['score'], $paper['max'],
-                    $paper['blanks'] ?? null, $paper['note'] ?? null, $i,
+                    $paper['blanks'] ?? null, $paper['note'] ?? null, $paper['sat_on'] ?? null, $i,
                 ]);
                 $paperId = (int) $this->db->lastInsertId();
 
@@ -699,6 +813,24 @@ final class Store
         $changes = $this->all($sql, $params);
 
         return ['sessions' => $sessions, 'changes' => $changes];
+    }
+
+    /**
+     * Every marked question recorded against one topic, newest first, with the
+     * paper and attempt it came from. This is the other half of a topic's
+     * history: not just what we decided about it, but how it actually examined.
+     */
+    public function questionsForTopic(string $slug, string $ref): array
+    {
+        return $this->all(
+            'SELECT q.*, p.code, a.id AS attempt_id, a.name AS attempt_name, a.date
+             FROM attempt_questions q
+             JOIN attempt_papers p ON p.id = q.paper_id
+             JOIN attempts a ON a.id = p.attempt_id
+             WHERE a.subject_slug = ? AND q.topic_ref = ?
+             ORDER BY a.date DESC, p.sort_order, q.sort_order',
+            [$slug, $ref]
+        );
     }
 
     /** ISO week label for a date, e.g. 2026-W36, plus the Monday it starts. */
