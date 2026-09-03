@@ -193,6 +193,17 @@ jobs:
               exit 0
             fi
             echo "attempt $attempt/30: HTTP $code"
+
+            # Passenger boots lazily, so give it a few attempts before reading
+            # anything into the response. After that, an Apache-served page is
+            # not a slow start — it means Passenger is not in the request path
+            # at all, and no amount of waiting will change it.
+            if [ "$attempt" -ge 3 ] && grep -qE 'has not yet uploaded their website|is almost here|The requested URL was not found on this server' "$BODY"; then
+              echo "--- response body (first 400 bytes) ---"
+              head -c 400 "$BODY"; echo
+              echo "::error::Apache is serving this domain directly — Passenger never saw the request. In the DreamHost panel, Manage Websites → $DEPLOY_HOST → Edit: set the web directory to '$DEPLOY_DIR/public' and tick 'Passenger (Ruby/NodeJS/Python apps only)'. See DEPLOYMENT.md." >&2
+              exit 1
+            fi
             sleep 10
           done
           echo "--- last response body (first 800 bytes) ---"

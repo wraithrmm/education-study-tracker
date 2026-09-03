@@ -162,10 +162,24 @@ through it in this order:
   until this is right, and it fails quietly rather than loudly: `internal-sftp`
   exits 0 for every command it is handed, so `mkdir` and everything after it
   report success and change nothing.
-- **`/healthz` times out, or the browser shows a directory listing or a
-  DreamHost placeholder.** Passenger is not enabled on the domain, or the web
-  directory is not `…/public`. Fix it in the panel (step 1) and re-run the
-  workflow.
+- **"Apache is serving this domain directly".** Passenger is not enabled on the
+  domain, or the web directory is not `…/public`. The deploy stops as soon as
+  it recognises the DreamHost placeholder or an Apache 404 rather than waiting
+  out the full five minutes. Fix it in the panel (step 1) and re-run.
+
+  To confirm which of the two it is, read the document root out of Apache's own
+  log. A denied request logs the path it resolved to:
+
+  ```
+  AH01630: client denied by server configuration:
+    /home/edtrackerpaige/education.rmmann.co.uk/.env
+  ```
+
+  That is the app root, so the web directory is set one level too high; it
+  should resolve under `…/education.rmmann.co.uk/public/`. While it is wrong,
+  the deployed source and `node_modules` are also publicly readable — no
+  secrets live there (`.env` and the database are in `~/tracker-shared`), but
+  it is another reason to fix it.
 - **502 / "Web application could not be started".** Passenger found the app but
   Node failed. SSH in and read the reason:
   ```bash
