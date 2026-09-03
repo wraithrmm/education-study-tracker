@@ -182,9 +182,23 @@ contains "initialize advertises tools" "$body" '"tools"'
 body="$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')"
 for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_list_assessments tracker_export_markdown tracker_update_topic \
-            tracker_log_session tracker_log_assessment tracker_create_subject; do
+            tracker_log_session tracker_log_assessment tracker_create_subject \
+            tracker_list_resources tracker_add_resource tracker_remove_resource; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
+
+# Every tool leads with a USE WHEN line naming the situations that should
+# trigger it. Without that the model has to infer relevance from a description
+# of mechanics, which is exactly what it gets wrong.
+# grep -c counts matching lines, and tools/list is one long line — count the
+# occurrences instead.
+triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
+tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 12 ]; then
+  pass "all $tools tool descriptions lead with a USE WHEN trigger"
+else
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 12 of 12)"
+fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
 
@@ -228,6 +242,40 @@ contains "tracker_log_assessment refuses to grade a check" "$body" "not grade-co
 body="$(call tracker_log_assessment '{"subject":"maths","name":"Impossible","score":90,"max":80}')"
 contains "a score above the maximum is refused" "$body" "exceeds the maximum"
 
+echo
+echo "== resources =="
+body="$(call tracker_list_resources '{"subject":"maths"}')"
+contains "an empty resource list says so" "$body" "No resources stored"
+
+body="$(call tracker_add_resource '{"subject":"maths","resources":[{"ref":"A17","title":"BBC Bitesize: Solving linear equations","url":"https://www.bbc.co.uk/bitesize/guides/zt8sgdm/revision/1","kind":"notes","note":"read then do the test"},{"title":"AQA 8300 specification","url":"https://filestore.aqa.org.uk/resources/mathematics/specifications/AQA-8300-SP-2015.PDF","kind":"book"}]}')"
+contains "tracker_add_resource stores materials" "$body" "Stored 2 resources"
+
+body="$(call tracker_list_resources '{"subject":"maths","ref":"A17"}')"
+contains "a topic lookup returns its resource" "$body" "BBC Bitesize"
+contains "a topic lookup includes subject-wide materials" "$body" "AQA 8300 specification"
+
+body="$(call tracker_add_resource '{"subject":"maths","resources":[{"ref":"A17","title":"BBC Bitesize: Solving linear equations","url":"https://example.com/moved","kind":"notes"}]}')"
+contains "re-adding the same title updates rather than duplicates" "$body" "Stored 1 resource"
+body="$(call tracker_list_resources '{"subject":"maths","ref":"A17"}')"
+contains "the updated url replaced the old one" "$body" "example.com/moved"
+
+body="$(call tracker_add_resource '{"subject":"maths","resources":[{"ref":"NOPE","title":"Orphan","kind":"video"}]}')"
+contains "an unknown topic ref is flagged but still stored" "$body" "no topic with reference NOPE"
+
+# The queue is what a session opens with, so the materials have to reach it.
+body="$(call tracker_review_queue '{"subject":"maths"}')"
+contains "the review queue carries subject-wide resources" "$body" "Resources for the whole subject"
+
+body="$(call tracker_export_markdown '{"subject":"maths"}')"
+contains "the export includes a resources section" "$body" "## Resources"
+
+body="$(call tracker_remove_resource '{"subject":"maths","ref":"A17","title":"BBC Bitesize: Solving linear equations"}')"
+contains "tracker_remove_resource deletes one" "$body" "Removed"
+body="$(call tracker_remove_resource '{"subject":"maths","ref":"A17","title":"BBC Bitesize: Solving linear equations"}')"
+contains "removing a missing resource reports it" "$body" "No resource titled"
+
+echo
+echo "== subjects =="
 body="$(call tracker_create_subject '{"slug":"smoke-science","name":"Smoke Science","strands":{"B":"Biology"},"topics":[{"ref":"B1","name":"Cells","strand":"B"}]}')"
 contains "tracker_create_subject creates a subject" "$body" "Created Smoke Science"
 body="$(call tracker_create_subject '{"slug":"smoke-science","name":"Smoke Science","strands":{"B":"Biology"},"topics":[{"ref":"B1","name":"Cells","strand":"B"},{"ref":"B2","name":"Enzymes","strand":"B"}]}')"

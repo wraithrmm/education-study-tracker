@@ -128,6 +128,8 @@ function render_subject(Store $store, array $subject): string
         }
     }
 
+    $withResources = $store->refsWithResources($subject['slug']);
+
     $strandRows = '';
     $chipGroups = '';
     foreach ($subject['strands'] as $key => $label) {
@@ -152,11 +154,42 @@ function render_subject(Store $store, array $subject): string
                 . '<span class="dot" style="background:' . (STATUS_COLOUR[$t['status']] ?? '#d6d3d1') . '"></span>'
                 . '<b class="mono">' . h($t['ref']) . '</b> ' . h($t['name'])
                 . ($t['watch'] ? '<b style="color:#d97706">!</b>' : '')
+                . (in_array($t['ref'], $withResources, true) ? '<b style="color:#0ea5e9" title="has resources">&#9633;</b>' : '')
                 . ($t['tier'] === 'H' ? '<b style="color:#a8a29e">H</b>' : '')
                 . '</span>';
         }
         $chipGroups .= '<h3 class="kicker mono" style="margin:1rem 0 0">' . h($label) . '</h3>'
             . '<div class="chips">' . $chips . '</div>';
+    }
+
+    $resourceHtml = '';
+    $allResources = $store->listResources($subject['slug']);
+    if ($allResources) {
+        $byRef = [];
+        foreach ($allResources as $r) {
+            $byRef[$r['ref']][] = $r;
+        }
+        $topicName = [];
+        foreach ($topics as $t) {
+            $topicName[$t['ref']] = $t['name'];
+        }
+        ksort($byRef);
+        $resourceHtml = '<h2>Resources</h2>';
+        foreach ($byRef as $ref => $rows) {
+            $heading = $ref === ''
+                ? 'For the whole subject'
+                : h($ref) . ' · ' . h($topicName[$ref] ?? 'unknown topic');
+            $items = '';
+            foreach ($rows as $r) {
+                $label = $r['url']
+                    ? '<a href="' . h($r['url']) . '" rel="noopener noreferrer">' . h($r['title']) . '</a>'
+                    : h($r['title']);
+                $items .= '<div><small><b class="mono">' . h($r['kind']) . '</b> ' . $label
+                    . ($r['note'] ? ' — ' . h($r['note']) : '') . '</small></div>';
+            }
+            $resourceHtml .= '<div class="item"><div class="grow"><strong>' . $heading . '</strong>'
+                . $items . '</div></div>';
+        }
     }
 
     $loose     = array_values(array_filter($topics, static fn($t) => (bool) $t['watch']));
@@ -267,6 +300,8 @@ function render_subject(Store $store, array $subject): string
 <h2>Every topic</h2>{$chipGroups}
 
 {$looseHtml}
+
+{$resourceHtml}
 
 <h2>Papers &amp; checks</h2>{$assessHtml}
 

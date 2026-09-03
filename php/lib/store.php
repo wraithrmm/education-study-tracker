@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS topic_changes (
   changed_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Teaching materials, either for one topic or for the whole subject.
+-- ref = '' means subject-wide; SQLite treats NULLs as distinct in a UNIQUE
+-- index, so an empty string is what makes "add the same thing twice" a no-op.
+CREATE TABLE IF NOT EXISTS resources (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  subject_slug  TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
+  ref           TEXT NOT NULL DEFAULT '',
+  title         TEXT NOT NULL,
+  url           TEXT,
+  kind          TEXT NOT NULL DEFAULT 'other',
+  note          TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (subject_slug, ref, title)
+);
+
 CREATE TABLE IF NOT EXISTS oauth_clients (
   client_id      TEXT PRIMARY KEY,
   client_secret  TEXT,
@@ -122,7 +138,11 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 CREATE INDEX IF NOT EXISTS idx_topics_subject ON topics(subject_slug, sort_order);
 CREATE INDEX IF NOT EXISTS idx_assessments_subject ON assessments(subject_slug, date);
 CREATE INDEX IF NOT EXISTS idx_changes_subject ON topic_changes(subject_slug, changed_at);
+CREATE INDEX IF NOT EXISTS idx_resources_subject ON resources(subject_slug, ref, sort_order);
 SQL;
+
+/** What a resource is for, used to sort and label it. */
+const RESOURCE_KINDS = ['video', 'notes', 'practice', 'paper', 'book', 'other'];
 
 final class Store
 {
@@ -358,6 +378,82 @@ final class Store
             'SELECT * FROM sessions WHERE subject_slug = ? ORDER BY date DESC, id DESC LIMIT ?',
             [$slug, $limit]
         );
+    }
+
+    // ---- resources ------------------------------------------------------
+
+    /**
+     * @param string|null $ref null for everything in the subject, '' for the
+     *                         subject-wide ones only, or a topic reference.
+     */
+    public function listResources(string $slug, ?string $ref = null): array
+    {
+        if ($ref === null) {
+            return $this->all(
+                'SELECT * FROM resources WHERE subject_slug = ? ORDER BY ref, sort_order, id',
+                [$slug]
+            );
+        }
+        return $this->all(
+            'SELECT * FROM resources WHERE subject_slug = ? AND ref = ? ORDER BY sort_order, id',
+            [$slug, $ref]
+        );
+    }
+
+    /**
+     * Resources for a topic, plus the subject-wide ones — what you want when
+     * asking "what should we use to teach this?".
+     */
+    public function resourcesForTopic(string $slug, string $ref): array
+    {
+        return $this->all(
+            "SELECT * FROM resources WHERE subject_slug = ? AND ref IN (?, '')
+             ORDER BY CASE WHEN ref = '' THEN 1 ELSE 0 END, sort_order, id",
+            [$slug, $ref]
+        );
+    }
+
+    /** Every topic ref in a subject that has at least one resource. */
+    public function refsWithResources(string $slug): array
+    {
+        $rows = $this->all(
+            "SELECT DISTINCT ref FROM resources WHERE subject_slug = ? AND ref <> ''",
+            [$slug]
+        );
+        return array_column($rows, 'ref');
+    }
+
+    /** Adding the same title against the same topic twice updates it. */
+    public function upsertResource(array $r): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO resources (subject_slug, ref, title, url, kind, note, sort_order)
+             VALUES (:subject_slug, :ref, :title, :url, :kind, :note, :sort_order)
+             ON CONFLICT(subject_slug, ref, title) DO UPDATE SET
+               url = excluded.url,
+               kind = excluded.kind,
+               note = COALESCE(excluded.note, resources.note),
+               sort_order = excluded.sort_order'
+        );
+        $st->execute([
+            ':subject_slug' => $r['subject_slug'],
+            ':ref'          => $r['ref'] ?? '',
+            ':title'        => $r['title'],
+            ':url'          => $r['url'] ?? null,
+            ':kind'         => $r['kind'] ?? 'other',
+            ':note'         => $r['note'] ?? null,
+            ':sort_order'   => $r['sort_order'] ?? 0,
+        ]);
+    }
+
+    /** Returns how many rows went. */
+    public function deleteResource(string $slug, string $ref, string $title): int
+    {
+        $st = $this->db->prepare(
+            'DELETE FROM resources WHERE subject_slug = ? AND ref = ? AND title = ?'
+        );
+        $st->execute([$slug, $ref, $title]);
+        return $st->rowCount();
     }
 
     public function addSession(array $s): int

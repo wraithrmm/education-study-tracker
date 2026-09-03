@@ -6,6 +6,8 @@ A small self-hosted service that holds GCSE topic state for any number of subjec
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
+It holds the syllabus too: strands, every topic with its spec reference and tier, and the teaching materials attached to each — BBC Bitesize pages, videos, worksheets, past papers. The review queue hands those back alongside the topics that need work, so a session can be planned from one call.
+
 The database is the source of truth. Markdown topic-state files become an *export* (`tracker_export_markdown`), not a thing you hand-edit.
 
 ## Why it speaks OAuth
@@ -55,6 +57,7 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | Tool | Purpose |
 |---|---|
 | `tracker_list_subjects` | Every subject with a coverage percentage. |
+| `tracker_list_resources` | The materials stored for a topic or subject. |
 | `tracker_get_state` | Full topic state, filterable by status or strand. Consult before teaching. |
 | `tracker_review_queue` | Ageing secures, loose ends, priority gaps. Use this to open a session. |
 | `tracker_list_assessments` | Papers and checks with grade conversions. |
@@ -62,7 +65,11 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_update_topic` | Change one topic. Evidence is mandatory. |
 | `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. |
 | `tracker_log_assessment` | Record a paper or check. |
+| `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
+| `tracker_remove_resource` | Delete one stored resource by title. |
 | `tracker_create_subject` | Add a subject, or extend one. Never resets existing topic statuses. |
+
+Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
 Two rules are enforced in the schema rather than left to good intentions. Every status change requires an evidence string of at least ten characters, so the audit trail in `topic_changes` can't be empty. And topic checks are never grade-converted — only full papers are scaled against boundaries — so a good result on seven topics can't quietly become a projected grade.
 

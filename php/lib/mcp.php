@@ -6,10 +6,13 @@
  * costs less than it sounds — initialize, tools/list, tools/call, ping — and
  * removes the last reason to need a JIT on this host.
  *
- * The tool set, descriptions and validation rules are ported from src/mcp.ts
- * unchanged, including the two rules the schema enforces rather than leaving to
- * good intentions: evidence of at least ten characters on every status change,
- * and topic checks never being grade-converted.
+ * Two rules live in the schema rather than in good intentions: every status
+ * change needs an evidence string of at least ten characters, and topic checks
+ * are never grade-converted.
+ *
+ * Tool descriptions lead with a USE WHEN line naming the situations that should
+ * trigger them, because a description that only says what a tool does leaves the
+ * model to guess when it matters.
  */
 declare(strict_types=1);
 
@@ -37,6 +40,22 @@ function mcp_topic_line(array $t): string
         . ' | ' . (STATUS_LABEL[$t['status']] ?? $t['status'])
         . ' | ' . ($t['last_touched'] ?? '—')
         . ' | ' . ($t['watch'] ? str_replace('|', '/', $t['watch']) : '') . ' |';
+}
+
+/** One resource as a bullet: kind, title, link, and how to use it. */
+function mcp_resource_line(array $r, bool $showRef = false): string
+{
+    $bits = '- [' . $r['kind'] . '] **' . $r['title'] . '**';
+    if ($showRef && $r['ref'] !== '') {
+        $bits .= ' (' . $r['ref'] . ')';
+    }
+    if ($r['url']) {
+        $bits .= ' — ' . $r['url'];
+    }
+    if ($r['note']) {
+        $bits .= ' — ' . $r['note'];
+    }
+    return $bits;
 }
 
 /** Shared subject lookup and its error message. */
@@ -141,30 +160,38 @@ function mcp_tools(): array
     ];
     $statusEnum = ['type' => 'string', 'enum' => STATUS_ORDER];
     $isoDate    = ['type' => 'string', 'pattern' => '^\\d{4}-\\d{2}-\\d{2}$', 'description' => 'YYYY-MM-DD'];
+    $subjectArg = ['type' => 'string', 'minLength' => 1, 'description' => "Subject slug, e.g. 'maths'"];
 
     return [
         [
             'name'  => 'tracker_list_subjects',
             'title' => 'List tracked subjects',
-            'description' => "List every subject in the study tracker with a one-line progress summary.\n\n"
-                . "Call this first when you do not already know the subject slug. Returns, per subject: slug, display name, spec code, tier, exam date, topic count, and the percentage of the specification covered (weighted: developing = 1, secure = 2, exam-ready = 3, out of 3 per topic).\n\n"
-                . 'Takes no arguments. Read-only.',
+            'description' =>
+                "Every subject in the tracker, with its slug, spec code, tier, exam date, topic count and coverage percentage.\n\n"
+                . "USE WHEN: you need a subject slug and do not already know one, or you are asked what is being tracked. "
+                . "Call this before any other tracker tool if the slug is uncertain — the others need an exact slug.\n\n"
+                . 'No arguments. Read-only.',
             'inputSchema' => ['type' => 'object', 'properties' => (object) [], 'required' => []],
             'annotations' => $readOnly,
         ],
         [
             'name'  => 'tracker_get_state',
             'title' => 'Get topic state for a subject',
-            'description' => "Return the current RAG state of every topic in a subject — the authoritative record of what has been learned.\n\n"
-                . "Consult this before teaching anything, so you do not reteach secure material or teach a topic whose prerequisite is still a gap.\n\n"
-                . "Args:\n  - subject (string): subject slug, e.g. \"maths\"\n  - status (array, optional): filter to these statuses only\n  - strand (string, optional): filter to one strand key, e.g. \"A\" for Algebra\n\n"
-                . 'Returns a markdown table of Ref, Topic, Strand, Tier, Status, Last touched, Loose end, preceded by a status count summary. Read-only.',
+            'description' =>
+                "The authoritative record of what has and has not been learned: every topic with its status, tier, last-touched date and any loose end.\n\n"
+                . "USE WHEN: teaching, explaining, planning, setting practice, or answering anything about progress in a tracked subject — "
+                . "\"what do we know\", \"what's left\", \"how is she doing\", \"is X secure yet\". "
+                . "Consult it BEFORE teaching so you neither reteach secure material nor teach a topic whose prerequisite is still a gap. "
+                . "Do not rely on memory or on what was said earlier in the conversation; this tool is the source of truth.\n\n"
+                . "Args: subject (slug). Optional status (array) and strand to filter.\n"
+                . 'Read-only.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject' => ['type' => 'string', 'minLength' => 1, 'description' => "Subject slug, e.g. 'maths'"],
-                    'status'  => ['type' => 'array', 'items' => $statusEnum, 'description' => 'Optional status filter'],
-                    'strand'  => ['type' => 'string', 'description' => "Optional strand key, e.g. 'A'"],
+                    'subject' => $subjectArg,
+                    'status'  => ['type' => 'array', 'items' => $statusEnum,
+                        'description' => 'Only these statuses, e.g. ["gap","developing"]'],
+                    'strand'  => ['type' => 'string', 'description' => "Only this strand key, e.g. 'A' for Algebra"],
                 ],
                 'required'   => ['subject'],
             ],
@@ -173,17 +200,17 @@ function mcp_tools(): array
         [
             'name'  => 'tracker_review_queue',
             'title' => 'What to work on next',
-            'description' => "Build a prioritised review queue for a subject. Use this to open a session.\n\n"
-                . "Three groups are returned:\n"
-                . "  1. AGEING — topics marked secure or exam-ready that have not been touched for the ageing threshold. These belong in a retrieval starter; if one fails there, demote it to developing.\n"
-                . "  2. LOOSE ENDS — topics that are secure but carry a specific unresolved note. Feed these into starters rather than reteaching the whole topic.\n"
-                . "  3. PRIORITY GAPS — topics marked gap, lower tier first, since a foundation gap outranks a higher-tier one.\n\n"
-                . "Args:\n  - subject (string): subject slug\n  - ageing_weeks (number, optional, default 8): weeks after which a secure topic is considered due for a retrieval check\n\n"
+            'description' =>
+                "The prioritised queue for a subject, in three groups: ageing secures due a retrieval check, loose ends on otherwise-secure topics, and priority gaps (lower tier first). "
+                . "Each entry lists the teaching resources attached to it, so this alone is enough to plan a session.\n\n"
+                . "USE WHEN: opening a study or tutoring session, or asked \"what should we do today\", \"what next\", \"what needs work\". "
+                . "Call this FIRST in any session, before deciding what to teach.\n\n"
+                . "Args: subject (slug). Optional ageing_weeks (default 8).\n"
                 . 'Read-only.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject'      => ['type' => 'string', 'minLength' => 1, 'description' => 'Subject slug'],
+                    'subject'      => $subjectArg,
                     'ageing_weeks' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 52, 'default' => 8,
                         'description' => 'Weeks before a secure topic is due a check'],
                 ],
@@ -192,16 +219,39 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
         [
-            'name'  => 'tracker_list_assessments',
-            'title' => 'List papers and checks',
-            'description' => "List logged assessments for a subject, newest first, with grade conversions.\n\n"
-                . "Full papers are scaled to the subject's boundary maximum and converted using its stored grade boundaries. Topic checks return a percentage only and are never grade-converted — a check on a handful of topics cannot stand in for a whole paper.\n\n"
-                . "Args:\n  - subject (string): subject slug\n  - limit (number, optional, default 20)\n\n"
-                . 'Also reports the most recent blank count, where recorded. Read-only.',
+            'name'  => 'tracker_list_resources',
+            'title' => 'Get the materials for a topic or subject',
+            'description' =>
+                "The stored teaching materials — BBC Bitesize pages, Corbettmaths videos, worksheets, textbooks, past papers — either for one topic or for the whole subject.\n\n"
+                . "USE WHEN: about to teach or revise something and you want the materials already chosen for it, or asked \"what should we use for X\", "
+                . "\"what resources do we have\". Prefer these over suggesting arbitrary links: they are the ones this household has picked. "
+                . "Omit ref to see everything in the subject.\n\n"
+                . "Args: subject (slug). Optional ref for one topic, e.g. 'A17' — subject-wide materials are always included.\n"
+                . 'Read-only.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject' => ['type' => 'string', 'minLength' => 1, 'description' => 'Subject slug'],
+                    'subject' => $subjectArg,
+                    'ref'     => ['type' => 'string', 'description' => "Topic reference, e.g. 'A17'. Omit for the whole subject."],
+                ],
+                'required'   => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_list_assessments',
+            'title' => 'List papers and checks',
+            'description' =>
+                "Logged assessments for a subject, newest first, with grade conversions.\n\n"
+                . "USE WHEN: asked about marks, grades, mocks, past papers, or \"what grade is she on\".\n\n"
+                . "Full papers are scaled to the subject's boundary maximum and converted using its stored boundaries. "
+                . "Topic checks report a percentage only and are never grade-converted — a check on a handful of topics cannot stand in for a whole paper.\n\n"
+                . "Args: subject (slug). Optional limit (default 20).\n"
+                . 'Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
                     'limit'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20],
                 ],
                 'required'   => ['subject'],
@@ -210,13 +260,16 @@ function mcp_tools(): array
         ],
         [
             'name'  => 'tracker_export_markdown',
-            'title' => 'Export topic state as markdown',
-            'description' => "Render the whole current state of a subject as a markdown document, in the same shape as a hand-maintained topic-state file.\n\n"
-                . "Use this when someone wants a document to file, print, or paste into project knowledge. The database is the source of truth; this export is generated from it, so never edit the export and expect the tracker to follow.\n\n"
-                . "Args:\n  - subject (string): subject slug\n\nRead-only.",
+            'title' => 'Export the whole subject as markdown',
+            'description' =>
+                "The entire state of a subject as one markdown document: topics by strand, resources, and the assessment log.\n\n"
+                . "USE WHEN: asked for a document to file, print, share or paste into project knowledge — a progress report, a topic-state file, \"write up where we are\".\n\n"
+                . "The database is the source of truth and this is generated from it, so editing the export changes nothing.\n\n"
+                . "Args: subject (slug).\n"
+                . 'Read-only.',
             'inputSchema' => [
                 'type'       => 'object',
-                'properties' => ['subject' => ['type' => 'string', 'minLength' => 1, 'description' => 'Subject slug']],
+                'properties' => ['subject' => $subjectArg],
                 'required'   => ['subject'],
             ],
             'annotations' => $readOnly,
@@ -224,19 +277,23 @@ function mcp_tools(): array
         [
             'name'  => 'tracker_update_topic',
             'title' => "Update one topic's status",
-            'description' => "Change a single topic's status, loose-end note, or last-touched date, recording the evidence for the change.\n\n"
-                . "Evidence is mandatory and should say what was done, how it scored, and when — for example \"harder independent retest 4/4, 13 Aug\". A status change without evidence is not auditable, so the tool refuses one.\n\n"
-                . "Args:\n  - subject (string): subject slug\n  - ref (string): topic reference, e.g. \"A17\"\n  - status (optional): new status. Omit to record evidence or a note without changing status.\n  - evidence (string): what justifies this update (10-500 characters)\n  - watch (string or null, optional): a specific loose end to carry forward, or null to clear it\n  - last_touched (optional): YYYY-MM-DD, defaults to today\n\n"
-                . 'Returns the previous and new status. To update several topics at once, use tracker_log_session instead.',
+            'description' =>
+                "Change one topic's status, loose-end note or last-touched date, recording why.\n\n"
+                . "USE WHEN: a single topic moved and you are not logging a whole session — a starter question passed or failed, a topic was secured, a gap closed. "
+                . "For several topics at once use tracker_log_session instead.\n\n"
+                . "Evidence is mandatory (10-500 chars) and should say what was done, how it scored and when: "
+                . "\"harder independent retest 4/4, 13 Aug\". A status change without evidence is refused.\n\n"
+                . 'Args: subject, ref, evidence. Optional status (omit to record evidence without moving it), watch (null clears the loose end), last_touched.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject'      => ['type' => 'string', 'minLength' => 1],
+                    'subject'      => $subjectArg,
                     'ref'          => ['type' => 'string', 'minLength' => 1, 'description' => "Topic reference, e.g. 'A17'"],
                     'status'       => $statusEnum,
                     'evidence'     => ['type' => 'string', 'minLength' => 10, 'maxLength' => 500,
-                        'description' => 'Evidence must say what was done and how it went'],
-                    'watch'        => ['type' => ['string', 'null'], 'maxLength' => 500],
+                        'description' => 'What was done and how it went. Required.'],
+                    'watch'        => ['type' => ['string', 'null'], 'maxLength' => 500,
+                        'description' => 'A loose end to carry forward, or null to clear it'],
                     'last_touched' => $isoDate,
                 ],
                 'required'   => ['subject', 'ref', 'evidence'],
@@ -246,20 +303,25 @@ function mcp_tools(): array
         [
             'name'  => 'tracker_log_session',
             'title' => 'Log a session and its topic updates',
-            'description' => "Record a teaching session and apply any status changes it produced, in one call. This is the normal way to close a session.\n\n"
-                . "Args:\n  - subject (string): subject slug\n  - date (optional): YYYY-MM-DD, defaults to today\n  - summary (string): what was covered and how it went\n  - next_steps (string, optional): what the next session should open with\n  - updates (array, optional): topic updates, each { ref, status?, evidence, watch? }\n\n"
-                . "Each update carries its own evidence. Topics that do not exist are reported back rather than silently skipped, so a typo in a reference is visible.\n\n"
-                . 'Returns a confirmation listing each topic that moved.',
+            'description' =>
+                "Records a teaching session and applies all its status changes in one call.\n\n"
+                . "USE WHEN: closing a study or tutoring session. This is the normal way to end one — do it before the conversation finishes, "
+                . "or the work is not in the record. Also use when told what was covered in a past session.\n\n"
+                . "Each update carries its own evidence (10-500 chars). Unknown topic references are reported back rather than silently skipped, so a typo is visible.\n\n"
+                . 'Args: subject, summary. Optional date (defaults today), next_steps, updates[] of { ref, status?, evidence, watch? }.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject'    => ['type' => 'string', 'minLength' => 1],
+                    'subject'    => $subjectArg,
                     'date'       => $isoDate,
-                    'summary'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 2000],
-                    'next_steps' => ['type' => 'string', 'maxLength' => 1000],
+                    'summary'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 2000,
+                        'description' => 'What was covered and how it went'],
+                    'next_steps' => ['type' => 'string', 'maxLength' => 1000,
+                        'description' => 'What the next session should open with'],
                     'updates'    => [
                         'type'     => 'array',
                         'maxItems' => 50,
+                        'description' => 'Topic status changes this session produced',
                         'items'    => [
                             'type'       => 'object',
                             'properties' => [
@@ -279,20 +341,25 @@ function mcp_tools(): array
         [
             'name'  => 'tracker_log_assessment',
             'title' => 'Log a paper or topic check',
-            'description' => "Record an assessment result.\n\n"
-                . "Args:\n  - subject (string): subject slug\n  - name (string): what was sat, e.g. \"8300/1H Jun-23\"\n  - kind ('paper' | 'check'): a full past paper, or a topic check. Only papers are grade-converted.\n  - score (number), max (number)\n  - tier (string, optional, default 'F')\n  - date (optional): YYYY-MM-DD, defaults to today\n  - blanks (number, optional): questions left blank — worth logging every time, since a blank scores nothing while working earns method marks\n  - note (string, optional)\n\n"
-                . 'Returns the stored entry with its grade conversion where applicable.',
+            'description' =>
+                "Records an assessment result and converts it to a grade where that is meaningful.\n\n"
+                . "USE WHEN: a past paper, mock or topic check has been marked. Log it as soon as you have the score, including when you marked it yourself.\n\n"
+                . "kind 'paper' is grade-converted against the subject's boundaries; kind 'check' returns a percentage only and is never grade-converted. "
+                . "Log blanks every time you know it — a blank scores nothing while working earns method marks, so the count is worth watching.\n\n"
+                . 'Args: subject, name, score, max. Optional kind (paper|check, default paper), tier, date, blanks, note.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'subject' => ['type' => 'string', 'minLength' => 1],
-                    'name'    => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200],
-                    'kind'    => ['type' => 'string', 'enum' => ['paper', 'check'], 'default' => 'paper'],
+                    'subject' => $subjectArg,
+                    'name'    => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200,
+                        'description' => "What was sat, e.g. '8300/1H Jun-23'"],
+                    'kind'    => ['type' => 'string', 'enum' => ['paper', 'check'], 'default' => 'paper',
+                        'description' => 'A full past paper, or a topic check. Only papers are grade-converted.'],
                     'score'   => ['type' => 'number', 'minimum' => 0],
                     'max'     => ['type' => 'number', 'minimum' => 1],
                     'tier'    => ['type' => 'string', 'maxLength' => 4, 'default' => 'F'],
                     'date'    => $isoDate,
-                    'blanks'  => ['type' => 'integer', 'minimum' => 0],
+                    'blanks'  => ['type' => 'integer', 'minimum' => 0, 'description' => 'Questions left blank'],
                     'note'    => ['type' => 'string', 'maxLength' => 1000],
                 ],
                 'required'   => ['subject', 'name', 'score', 'max'],
@@ -300,28 +367,95 @@ function mcp_tools(): array
             'annotations' => $write,
         ],
         [
+            'name'  => 'tracker_add_resource',
+            'title' => 'Attach teaching materials to a topic or subject',
+            'description' =>
+                "Stores materials against a topic, or against the whole subject when ref is omitted: BBC Bitesize pages, Corbettmaths or Sparx videos, worksheets, textbooks, past papers.\n\n"
+                . "USE WHEN: someone shares a link or names a resource to use, or asks you to set up the materials for a subject or topic. "
+                . "Add them as they come up rather than keeping them in the conversation — they are then available in every future session.\n\n"
+                . "Re-adding the same title against the same topic updates it instead of duplicating, so this is safe to repeat.\n\n"
+                . 'Args: subject, resources[] of { title, ref?, url?, kind?, note? }. kind is one of ' . implode(', ', RESOURCE_KINDS) . '.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject'   => $subjectArg,
+                    'resources' => [
+                        'type'     => 'array',
+                        'minItems' => 1,
+                        'maxItems' => 200,
+                        'items'    => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200,
+                                    'description' => "e.g. 'BBC Bitesize: Solving linear equations'"],
+                                'ref'   => ['type' => 'string', 'maxLength' => 40,
+                                    'description' => "Topic reference, e.g. 'A17'. Omit for a subject-wide resource."],
+                                'url'   => ['type' => 'string', 'maxLength' => 500],
+                                'kind'  => ['type' => 'string', 'enum' => RESOURCE_KINDS, 'default' => 'other'],
+                                'note'  => ['type' => 'string', 'maxLength' => 500,
+                                    'description' => 'How to use it, e.g. "questions 4-9 only"'],
+                            ],
+                            'required'   => ['title'],
+                        ],
+                    ],
+                ],
+                'required'   => ['subject', 'resources'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_remove_resource',
+            'title' => 'Remove a stored resource',
+            'description' =>
+                "Deletes one stored resource by its exact title.\n\n"
+                . "USE WHEN: a link is dead, superseded, or was added by mistake.\n\n"
+                . "Args: subject, title. Optional ref — omit it only if the resource is subject-wide, since the same title can exist against different topics.\n"
+                . 'Removes the material, never the topic or its progress.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'title'   => ['type' => 'string', 'minLength' => 1, 'description' => 'Exact stored title'],
+                    'ref'     => ['type' => 'string', 'maxLength' => 40,
+                        'description' => 'Topic it is attached to. Omit for a subject-wide resource.'],
+                ],
+                'required'   => ['subject', 'title'],
+            ],
+            'annotations' => [
+                'readOnlyHint'    => false,
+                'destructiveHint' => true,
+                'idempotentHint'  => true,
+                'openWorldHint'   => false,
+            ],
+        ],
+        [
             'name'  => 'tracker_create_subject',
-            'title' => 'Create or update a subject',
-            'description' => "Create a new subject with its strands, grade boundaries and topic list, or update an existing one.\n\n"
-                . "Re-running this for an existing subject updates the subject metadata and adds any new topics, but never resets the status of a topic that already exists — progress is not lost by re-seeding.\n\n"
-                . "Args:\n  - slug (string): url-safe key, e.g. \"english-language\"\n  - name (string): display name\n  - spec_code, tier, exam_date, notes (optional)\n  - strands (object): strand key to display name, e.g. { \"N\": \"Number\", \"A\": \"Algebra\" }\n  - boundary_max (number, optional, default 240): total marks the boundaries are expressed against\n  - boundaries (object, optional): tier to [[grade, mark], ...], e.g. { \"H\": [[7,164],[6,130]] }\n  - topics (array): each { ref, name, strand, tier?, status?, watch? }\n\n"
-                . 'Returns a summary of what was created or added.',
+            'title' => 'Create a subject, or extend its syllabus',
+            'description' =>
+                "Sets up a subject with its strands, grade boundaries and full topic list — the syllabus.\n\n"
+                . "USE WHEN: asked to start tracking a new subject, or to add topics to an existing one.\n\n"
+                . "Re-running it for an existing subject updates the metadata and adds new topics, but NEVER resets the status of a topic that already exists — "
+                . "progress cannot be lost by re-seeding, so extending a syllabus is safe.\n\n"
+                . "Args: slug, name, strands (key to display name), topics[] of { ref, name, strand, tier?, status?, watch? }. "
+                . 'Optional spec_code, tier, exam_date, notes, boundary_max (default 240), boundaries (tier to [[grade, mark], …]).',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'slug'         => ['type' => 'string', 'pattern' => '^[a-z0-9-]+$', 'maxLength' => 60,
-                        'description' => 'Lowercase letters, numbers and hyphens only'],
+                        'description' => "URL-safe key, e.g. 'english-language'. Lowercase, numbers and hyphens only."],
                     'name'         => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
-                    'spec_code'    => ['type' => 'string', 'maxLength' => 60],
+                    'spec_code'    => ['type' => 'string', 'maxLength' => 60, 'description' => "e.g. 'AQA 8300'"],
                     'tier'         => ['type' => 'string', 'maxLength' => 30],
                     'exam_date'    => $isoDate,
                     'notes'        => ['type' => 'string', 'maxLength' => 2000],
-                    'strands'      => ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
-                    'boundary_max' => ['type' => 'integer', 'minimum' => 1, 'default' => 240],
+                    'strands'      => ['type' => 'object', 'additionalProperties' => ['type' => 'string'],
+                        'description' => 'Strand key to display name, e.g. { "N": "Number", "A": "Algebra" }'],
+                    'boundary_max' => ['type' => 'integer', 'minimum' => 1, 'default' => 240,
+                        'description' => 'Total marks the boundaries are expressed against'],
                     'boundaries'   => ['type' => 'object', 'additionalProperties' => [
                         'type'  => 'array',
                         'items' => ['type' => 'array', 'items' => ['type' => 'number'], 'minItems' => 2, 'maxItems' => 2],
-                    ]],
+                    ], 'description' => 'Tier to [[grade, mark], …], e.g. { "H": [[7,164],[6,130]] }'],
                     'topics'       => [
                         'type'     => 'array',
                         'minItems' => 1,
@@ -329,9 +463,9 @@ function mcp_tools(): array
                         'items'    => [
                             'type'       => 'object',
                             'properties' => [
-                                'ref'    => ['type' => 'string', 'minLength' => 1],
+                                'ref'    => ['type' => 'string', 'minLength' => 1, 'description' => "Spec reference, e.g. 'A17'"],
                                 'name'   => ['type' => 'string', 'minLength' => 1],
-                                'strand' => ['type' => 'string', 'minLength' => 1],
+                                'strand' => ['type' => 'string', 'minLength' => 1, 'description' => 'A key from strands'],
                                 'tier'   => ['type' => 'string', 'maxLength' => 4, 'default' => 'F'],
                                 'status' => array_merge($statusEnum, ['default' => 'notstarted']),
                                 'watch'  => ['type' => 'string', 'maxLength' => 500],
@@ -428,10 +562,26 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
             $parts = ['**Review queue — ' . $s['name'] . '**'];
 
+            // Resources are indented under the topic they belong to, so the
+            // queue alone is enough to plan a session without a second call.
+            $withResources = static function (string $line, string $ref) use ($store, $slug): string {
+                $res = $store->listResources($slug, $ref);
+                if (!$res) {
+                    return $line;
+                }
+                return $line . "\n" . implode("\n", array_map(
+                    static fn($r) => '  ' . mcp_resource_line($r),
+                    $res
+                ));
+            };
+
             if ($ageing) {
                 $lines = array_map(
-                    static fn($x) => '- **' . $x['t']['ref'] . '** ' . $x['t']['name'] . ' — '
-                        . ($x['w'] === null ? 'no date recorded' : $x['w'] . ' weeks since last touched'),
+                    static fn($x) => $withResources(
+                        '- **' . $x['t']['ref'] . '** ' . $x['t']['name'] . ' — '
+                            . ($x['w'] === null ? 'no date recorded' : $x['w'] . ' weeks since last touched'),
+                        $x['t']['ref']
+                    ),
                     $ageing
                 );
                 $parts[] = "\n### Ageing ({$weeks}+ weeks, put in a starter)\n" . implode("\n", $lines);
@@ -451,12 +601,21 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
             if ($gaps) {
                 $lines = array_map(
-                    static fn($t) => '- **' . $t['ref'] . '** ' . $t['name'] . ' (' . $t['strand'] . ', tier ' . $t['tier'] . ')',
+                    static fn($t) => $withResources(
+                        '- **' . $t['ref'] . '** ' . $t['name'] . ' (' . $t['strand'] . ', tier ' . $t['tier'] . ')',
+                        $t['ref']
+                    ),
                     $gaps
                 );
                 $parts[] = "\n### Priority gaps (lower tier first)\n" . implode("\n", $lines);
             } else {
                 $parts[] = "\n### Priority gaps\nNone — no topic is marked as a gap.";
+            }
+
+            $general = $store->listResources($slug, '');
+            if ($general) {
+                $parts[] = "\n### Resources for the whole subject\n"
+                    . implode("\n", array_map(static fn($r) => mcp_resource_line($r), $general));
             }
 
             $sessions = $store->listSessions($slug, 1);
@@ -518,6 +677,24 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 $parts[] = implode("\n", array_map('mcp_topic_line', $rows));
                 $parts[] = '';
             }
+            $resources = $store->listResources($slug);
+            if ($resources) {
+                $parts[] = '## Resources';
+                $parts[] = '';
+                $general = array_values(array_filter($resources, static fn($r) => $r['ref'] === ''));
+                $perTopic = array_values(array_filter($resources, static fn($r) => $r['ref'] !== ''));
+                if ($general) {
+                    $parts[] = '### For the whole subject';
+                    $parts[] = implode("\n", array_map(static fn($r) => mcp_resource_line($r), $general));
+                    $parts[] = '';
+                }
+                if ($perTopic) {
+                    $parts[] = '### By topic';
+                    $parts[] = implode("\n", array_map(static fn($r) => mcp_resource_line($r, true), $perTopic));
+                    $parts[] = '';
+                }
+            }
+
             $assessments = $store->listAssessments($slug);
             if ($assessments) {
                 $rows = array_map(
@@ -675,6 +852,107 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 ? ' No blank count recorded — worth counting next time.'
                 : " $blanks blank" . ($blanks === 1 ? '' : 's') . '.';
             return mcp_text("Logged $name ($when): " . num($score) . '/' . num($max) . ", $outcome." . $blankNote);
+        }
+
+        case 'tracker_list_resources': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $ref = mcp_str($a, 'ref', false, 0, 40);
+
+            // A topic lookup includes the subject-wide materials, because those
+            // apply to it too and a caller asking "what do we use for A17"
+            // wants the textbook as well as the Bitesize page.
+            $rows = $ref === null
+                ? $store->listResources($slug)
+                : $store->resourcesForTopic($slug, $ref);
+
+            if (!$rows) {
+                return mcp_text($ref === null
+                    ? "No resources stored for $slug yet. Add some with tracker_add_resource."
+                    : "No resources for $ref, and none stored for $slug as a whole. Add some with tracker_add_resource.");
+            }
+            $head = $ref === null
+                ? '**Resources — ' . $r['subject']['name'] . '**'
+                : '**Resources for ' . $ref . '** (including subject-wide materials)';
+            return mcp_text($head . "\n" . implode("\n", array_map(
+                static fn($x) => mcp_resource_line($x, $ref === null),
+                $rows
+            )));
+        }
+
+        case 'tracker_add_resource': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $items = is_array($a['resources'] ?? null) ? $a['resources'] : [];
+            if (!$items) {
+                throw new McpError('resources must be a non-empty array of { title, ref?, url?, kind?, note? }.');
+            }
+            if (count($items) > 200) {
+                throw new McpError('resources may contain at most 200 entries.');
+            }
+
+            $added   = [];
+            $unknown = [];
+            $existing = array_column($store->listTopics($slug), 'ref');
+
+            foreach (array_values($items) as $i => $item) {
+                if (!is_array($item)) {
+                    throw new McpError('each resource must be an object.');
+                }
+                $title = mcp_str($item, 'title', true, 1, 200);
+                $ref   = mcp_str($item, 'ref', false, 0, 40, '');
+                $kind  = $item['kind'] ?? 'other';
+                if (!in_array($kind, RESOURCE_KINDS, true)) {
+                    throw new McpError('kind must be one of: ' . implode(', ', RESOURCE_KINDS) . '.');
+                }
+                // An unknown ref is reported rather than refused: the resource
+                // is still stored, so a typo costs a correction, not the work.
+                if ($ref !== '' && !in_array($ref, $existing, true)) {
+                    $unknown[] = $ref;
+                }
+                $store->upsertResource([
+                    'subject_slug' => $slug,
+                    'ref'          => $ref,
+                    'title'        => $title,
+                    'url'          => mcp_str($item, 'url', false, 0, 500),
+                    'kind'         => $kind,
+                    'note'         => mcp_str($item, 'note', false, 0, 500),
+                    'sort_order'   => $i,
+                ]);
+                $added[] = $ref === '' ? $title : "$title → $ref";
+            }
+
+            $lines = ['Stored ' . count($added) . ' resource' . (count($added) === 1 ? '' : 's')
+                . ' for ' . $r['subject']['name'] . ': ' . implode('; ', $added) . '.'];
+            if ($unknown) {
+                $lines[] = 'Note: no topic with reference ' . implode(', ', array_unique($unknown))
+                    . ' exists in this subject. The resource is stored, but it will not appear against a topic'
+                    . ' until the reference matches — check it with tracker_get_state.';
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_remove_resource': {
+            $slug  = mcp_str($a, 'subject', true, 1);
+            $title = mcp_str($a, 'title', true, 1, 200);
+            $ref   = mcp_str($a, 'ref', false, 0, 40, '');
+            $r     = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $gone = $store->deleteResource($slug, $ref, $title);
+            if (!$gone) {
+                $where = $ref === '' ? 'the subject-wide resources' : "topic $ref";
+                return mcp_text("No resource titled \"$title\" against $where in $slug. "
+                    . 'Call tracker_list_resources to see the exact titles.');
+            }
+            return mcp_text("Removed \"$title\"" . ($ref === '' ? '' : " from $ref") . '.');
         }
 
         case 'tracker_create_subject': {
