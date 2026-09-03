@@ -93,6 +93,42 @@ jobs:
           # DB_PATH is appended server-side by remote-setup.sh, which is the
           # only place that knows the account's real home directory.
 
+      # Everything after this point needs a real login shell on the server:
+      # rsync spawns one, and npm and the Passenger restart run in one. An
+      # SFTP-only account fails all of that in the least helpful way possible —
+      # sshd answers with internal-sftp, which reads SFTP protocol from stdin,
+      # finds a command instead, and exits 0 having printed nothing. Every
+      # remote command then "succeeds" and does nothing. Prove the shell works
+      # before trusting a single remote exit code.
+      - name: Probe the SSH account
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -uo pipefail
+          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
+          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+
+          probe="$($SSH "$TARGET" 'printf "HOME=%s\nSHELL=%s\n" "$HOME" "$SHELL"' 2>"$RUNNER_TEMP/probe.err")"
+          rc=$?
+          echo "remote exit code: $rc"
+          echo "--- stdout ---"
+          printf '%s\n' "$probe"
+          echo "--- stderr ---"
+          cat "$RUNNER_TEMP/probe.err" || true
+          echo "--------------"
+
+          REMOTE_HOME="$(printf '%s\n' "$probe" | sed -n 's/^HOME=//p')"
+          case "$REMOTE_HOME" in
+            /*)
+              echo "shell access confirmed; remote home: $REMOTE_HOME"
+              echo "REMOTE_HOME=$REMOTE_HOME" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::The SSH account '$DEPLOY_USER' cannot run remote commands: asking it to print \$HOME returned nothing and exited $rc. That is the signature of an SFTP-only account — file copies work, but rsync, npm and the Passenger restart all need a login shell. Fix it in the DreamHost panel under Manage Users → $DEPLOY_USER → set the user type to Shell user (SSH), then re-run this workflow. See DEPLOYMENT.md, 'When the health check fails'." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Ship the release
         env:
           SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
@@ -100,19 +136,6 @@ jobs:
           set -euo pipefail
           SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
           TARGET="$DEPLOY_USER@$DEPLOY_HOST"
-
-          # Resolve the account's home once and address everything absolutely.
-          # Relative remote paths are not reliable here: this host's SFTP
-          # transport does not start in the home directory, so the first deploy
-          # created ~/tracker-shared over the shell and then failed to write
-          # into it over scp.
-          REMOTE_HOME="$($SSH "$TARGET" 'printf %s "$HOME"')"
-          case "$REMOTE_HOME" in
-            /*) ;;
-            *) echo "::error::could not resolve the remote home directory (got '$REMOTE_HOME')" >&2; exit 1 ;;
-          esac
-          echo "remote home: $REMOTE_HOME"
-          echo "REMOTE_HOME=$REMOTE_HOME" >> "$GITHUB_ENV"
 
           # The shared directory holds the password file and the database, and
           # must exist — and be private — before anything is written into it.
