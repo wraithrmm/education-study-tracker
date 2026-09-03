@@ -76,6 +76,14 @@ echo
 echo "== service =="
 body="$("${CURL[@]}" "$BASE/healthz")"
 contains "/healthz reports ok" "$body" '"ok":true'
+# Row counts, so a deploy whose migration produced nothing cannot pass as
+# healthy just because the process boots.
+contains "/healthz reports the topic count" "$body" '"topics"'
+if printf '%s' "$body" | grep -qE '"attempts":[1-9]'; then
+  pass "the record holds attempts"
+else
+  fail "the record holds no attempts: $body"
+fi
 
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/")"
 check "dashboard index renders" "$code" "200"

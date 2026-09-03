@@ -162,7 +162,13 @@ $dashboardGuard = static function () use ($dashboardPublic, $store, $publicUrl):
 // ---- routes -------------------------------------------------------------
 
 if ($path === '/healthz') {
-    send_json(['ok' => true, 'subjects' => count($store->listSubjects())]);
+    // Counts, not just "ok": a deploy that boots against a database whose
+    // migration silently produced nothing would otherwise look healthy.
+    send_json([
+        'ok'       => true,
+        'subjects' => count($store->listSubjects()),
+        'counts'   => $store->counts(),
+    ]);
 }
 
 // RFC 9728. Claude probes the path-suffixed form first, then the bare form.

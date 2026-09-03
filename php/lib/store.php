@@ -495,6 +495,18 @@ final class Store
         );
     }
 
+    /** Row counts for /healthz, so a deploy can be checked from outside. */
+    public function counts(): array
+    {
+        $out = [];
+        foreach (['topics', 'attempts', 'attempt_papers', 'attempt_questions',
+                  'sessions', 'topic_changes', 'resources'] as $t) {
+            $row     = $this->one("SELECT COUNT(*) AS n FROM $t");
+            $out[$t] = (int) ($row['n'] ?? 0);
+        }
+        return $out;
+    }
+
     // ---- sessions --------------------------------------------------------
 
     /**
