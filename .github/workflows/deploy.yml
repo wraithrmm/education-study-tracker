@@ -180,19 +180,78 @@ jobs:
       - name: Verify the live service
         run: |
           set -euo pipefail
+          BODY="$RUNNER_TEMP/health.body"
           for attempt in $(seq 1 30); do
-            body="$(curl -fsS --max-time 30 "$PUBLIC_URL/healthz" 2>/dev/null || true)"
-            if printf '%s' "$body" | grep -q '"ok":true'; then
-              echo "healthz: $body"
+            # The status code is the whole diagnosis: 502 means Passenger found
+            # the app and it would not boot, 200-with-HTML means Passenger is
+            # not in the request path at all, 000 means nothing answered.
+            code="$(curl -s -o "$BODY" -w '%{http_code}' --max-time 30 "$PUBLIC_URL/healthz" || echo 000)"
+            if [ "$code" = 200 ] && grep -q '"ok":true' "$BODY"; then
+              echo "healthz: $(cat "$BODY")"
               echo "### Deployed to [$PUBLIC_URL]($PUBLIC_URL)" >> "$GITHUB_STEP_SUMMARY"
-              echo "\`healthz\` → \`$body\`" >> "$GITHUB_STEP_SUMMARY"
+              echo "\`healthz\` → \`$(cat "$BODY")\`" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            echo "attempt $attempt/30: not healthy yet"
+            echo "attempt $attempt/30: HTTP $code"
             sleep 10
           done
+          echo "--- last response body (first 800 bytes) ---"
+          head -c 800 "$BODY" || true
+          echo
           echo "::error::$PUBLIC_URL/healthz never returned ok — see DEPLOYMENT.md, 'When the health check fails'" >&2
           exit 1
+
+      # Runs only when the health check gave up. Everything here is read-only
+      # and exists to answer one question from the server's own side: is
+      # Passenger not in the request path, or is it failing to boot the app?
+      - name: Diagnose a failed health check
+        if: failure()
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -uo pipefail
+          SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
+          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+
+          echo "=============== what the origin serves ==============="
+          for path in /healthz /; do
+            echo "--- GET $PUBLIC_URL$path"
+            curl -s -o "$RUNNER_TEMP/d.body" -D "$RUNNER_TEMP/d.head" -w 'status %{http_code}\n' \
+              --max-time 30 "$PUBLIC_URL$path" || echo "request failed"
+            grep -iE '^(HTTP/|server:|x-powered-by:|content-type:|location:)' "$RUNNER_TEMP/d.head" || true
+            head -c 400 "$RUNNER_TEMP/d.body"; echo
+          done
+
+          echo "=============== the app directory ==============="
+          $SSH "$TARGET" "
+            ls -la '$REMOTE_HOME/$DEPLOY_DIR' 2>&1 | head -20
+            echo '--- public/'; ls -la '$REMOTE_HOME/$DEPLOY_DIR/public' 2>&1 | head
+            echo '--- shell limits'; ulimit -v; ulimit -m
+          " 2>&1 || true
+
+          echo "=============== passenger / apache logs ==============="
+          # DreamHost puts per-domain logs under ~/logs; Passenger may also
+          # write beside the app. Take whichever exist.
+          $SSH "$TARGET" "
+            for f in \
+              '$REMOTE_HOME/logs/$DEPLOY_DIR/https/error.log' \
+              '$REMOTE_HOME/logs/$DEPLOY_DIR/http/error.log' \
+              '$REMOTE_HOME/$DEPLOY_DIR/log/passenger.log' ; do
+              if [ -f \"\$f\" ]; then echo \"--- tail \$f\"; tail -40 \"\$f\"; fi
+            done
+            ls '$REMOTE_HOME/logs' 2>/dev/null | head
+          " 2>&1 || true
+
+          echo "=============== can the app boot at all? ==============="
+          # Foreground boot against a throwaway database, so this never touches
+          # the real one. 'timeout' returning 124 means it started and stayed
+          # up, which is the result we want to see.
+          $SSH "$TARGET" "
+            cd '$REMOTE_HOME/$DEPLOY_DIR' &&
+            DB_PATH=/tmp/deploy-probe-\$\$.db PORT=18099 timeout 20 node app.js 2>&1 | head -40
+            echo \"exit: \${PIPESTATUS[0]}\"
+            rm -f /tmp/deploy-probe-*.db
+          " 2>&1 || true
 
       - name: Verify the MCP handshake is discoverable
         run: |

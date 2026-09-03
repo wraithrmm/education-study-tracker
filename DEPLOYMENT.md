@@ -182,10 +182,16 @@ through it in this order:
 - **`Check failed: 12 == (*__errno_location ())` in `OS::SetPermissions`.**
   errno 12 is `ENOMEM`: V8 could not allocate executable memory. Read the
   `ulimit -v` the deploy prints just above it. From an SSH session this is
-  expected on this host and is not fatal — the deploy carries on. If Passenger
-  hits it too, the app will not boot and the health check will fail; the fix
-  then is to give Node less to JIT, not more memory: run it with `--jitless`,
-  which the deploy already proves the module tolerates.
+  expected on this host and is not fatal — the deploy carries on, and the
+  `--jitless` retry beside it proves the binary itself is sound.
+
+  **`--jitless` is not a fix for the app.** It loads the native module and the
+  service does start under it, but Node's built-in `fetch` is undici, and
+  undici's HTTP parser is WebAssembly, which `--jitless` removes. The service
+  dies with `ReferenceError: WebAssembly is not defined` the moment anything
+  touches `fetch`. If Passenger turns out to hit the same cap, the answer is to
+  shrink V8's appetite for executable memory some other way, or to host the
+  service somewhere without the cap — not to disable the JIT wholesale.
 - **`better-sqlite3` fails to load even with `--jitless`.** Now it is the
   binary. If the error mentions `GLIBC_2.x not found`, the box is older than
   the prebuild requires; build the module on a matching base image in CI and
