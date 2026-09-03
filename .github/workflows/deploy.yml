@@ -101,22 +101,39 @@ jobs:
           SSH='sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30'
           TARGET="$DEPLOY_USER@$DEPLOY_HOST"
 
-          # The shared directory holds the password file and the database, and
-          # must exist before anything is copied into it.
-          $SSH "$TARGET" "mkdir -p '$SHARED_DIR/data' '$DEPLOY_DIR/public' '$DEPLOY_DIR/tmp'"
+          # Resolve the account's home once and address everything absolutely.
+          # Relative remote paths are not reliable here: this host's SFTP
+          # transport does not start in the home directory, so the first deploy
+          # created ~/tracker-shared over the shell and then failed to write
+          # into it over scp.
+          REMOTE_HOME="$($SSH "$TARGET" 'printf %s "$HOME"')"
+          case "$REMOTE_HOME" in
+            /*) ;;
+            *) echo "::error::could not resolve the remote home directory (got '$REMOTE_HOME')" >&2; exit 1 ;;
+          esac
+          echo "remote home: $REMOTE_HOME"
+          echo "REMOTE_HOME=$REMOTE_HOME" >> "$GITHUB_ENV"
 
-          sshpass -e scp -o StrictHostKeyChecking=accept-new \
-            "$RUNNER_TEMP/tracker.env" "$TARGET:$SHARED_DIR/.env"
-          $SSH "$TARGET" "chmod 600 '$SHARED_DIR/.env'"
+          # The shared directory holds the password file and the database, and
+          # must exist — and be private — before anything is written into it.
+          $SSH "$TARGET" "mkdir -p '$REMOTE_HOME/$SHARED_DIR/data' '$REMOTE_HOME/$DEPLOY_DIR/public' '$REMOTE_HOME/$DEPLOY_DIR/tmp' && chmod 700 '$REMOTE_HOME/$SHARED_DIR'"
+
+          # Written through the login shell rather than scp: it uses the same
+          # path resolution as the mkdir above, leaves no temp file behind, and
+          # never puts the password on a command line where another user on a
+          # shared host could read it out of ps. sshpass passes stdin through.
+          $SSH "$TARGET" "umask 077 && cat > '$REMOTE_HOME/$SHARED_DIR/.env'" \
+            < "$RUNNER_TEMP/tracker.env"
 
           # --delete keeps the server free of files removed from the repo.
           # node_modules, tmp and public are server-owned and stay out of it.
+          # rsync runs over the shell, not SFTP, so it was never affected.
           rsync -rlptz --delete \
             --exclude 'node_modules/' \
             --exclude 'tmp/' \
             --exclude 'public/' \
             -e "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \
-            release/ "$TARGET:$DEPLOY_DIR/"
+            release/ "$TARGET:$REMOTE_HOME/$DEPLOY_DIR/"
 
       - name: Install dependencies and restart Passenger
         env:
@@ -125,7 +142,7 @@ jobs:
           set -euo pipefail
           sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH=\"\$HOME/$DEPLOY_DIR\" SHARED_PATH=\"\$HOME/$SHARED_DIR\" NODE_VERSION='$NODE_MAJOR' bash \"\$HOME/$DEPLOY_DIR/deploy/remote-setup.sh\""
+            "DEPLOY_PATH='$REMOTE_HOME/$DEPLOY_DIR' SHARED_PATH='$REMOTE_HOME/$SHARED_DIR' NODE_VERSION='$NODE_MAJOR' bash '$REMOTE_HOME/$DEPLOY_DIR/deploy/remote-setup.sh'"
 
       # The deploy is not finished until the public URL actually answers.
       # Passenger boots lazily on the first request, and the first ever deploy
