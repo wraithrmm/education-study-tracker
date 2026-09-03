@@ -14,13 +14,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education-tracker.dreamhosters.com' }}
+  DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'education.rmmann.co.uk' }}
   DEPLOY_USER: ${{ vars.DEPLOY_USER || 'edtrackerpaige' }}
   # Relative to the SSH user's home. On DreamHost this is the directory the
   # panel points the domain at, with Passenger serving <dir>/public.
-  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'education-tracker.dreamhosters.com' }}
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'education.rmmann.co.uk' }}
   SHARED_DIR: ${{ vars.SHARED_DIR || 'tracker-shared' }}
-  PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://education-tracker.dreamhosters.com' }}
+  PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://education.rmmann.co.uk' }}
   DASHBOARD_PUBLIC: ${{ vars.DASHBOARD_PUBLIC || 'true' }}
   NODE_MAJOR: '22'
 

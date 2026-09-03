@@ -16,7 +16,7 @@ There's one human user, so "log in" is a single shared password on the consent s
 
 ## Where it runs
 
-Production is <https://education-tracker.dreamhosters.com>, deployed
+Production is <https://education.rmmann.co.uk>, deployed
 automatically on every merge into `main`. See [DEPLOYMENT.md](DEPLOYMENT.md) for
 the pipeline, the one-time DreamHost panel setup, the repository secrets it
 needs, and what to check when a deploy goes red.
@@ -60,7 +60,7 @@ If you firewall the tunnel origin, Anthropic's outbound traffic comes from `160.
 ## Connecting Claude
 
 1. Settings → Connectors → Add custom connector.
-2. URL: `https://education-tracker.dreamhosters.com/mcp` — exactly matching
+2. URL: `https://education.rmmann.co.uk/mcp` — exactly matching
    `PUBLIC_URL` plus `/mcp`.
 3. Leave the OAuth client ID and secret blank. The server registers Claude dynamically.
 4. Claude opens the consent screen; enter `TRACKER_PASSWORD` and allow access.
@@ -68,8 +68,8 @@ If you firewall the tunnel origin, Anthropic's outbound traffic comes from `160.
 Verify from the command line first if the connector misbehaves:
 
 ```bash
-curl -s https://your-host/.well-known/oauth-protected-resource | jq
-curl -si -X POST https://your-host/mcp -H 'content-type: application/json' -d '{}' | head -3
+curl -s https://education.rmmann.co.uk/.well-known/oauth-protected-resource | jq
+curl -si -X POST https://education.rmmann.co.uk/mcp -H 'content-type: application/json' -d '{}' | head -3
 ```
 
 The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata="…"` header. If it doesn't, Claude can't discover the authorisation server and you'll get "couldn't reach the MCP server" no matter what else is right.

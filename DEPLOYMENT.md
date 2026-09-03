@@ -1,6 +1,6 @@
 # Deployment
 
-Production is `https://education-tracker.dreamhosters.com`, served by Phusion
+Production is `https://education.rmmann.co.uk`, served by Phusion
 Passenger on DreamHost shared hosting. Merging into `main` deploys.
 
 The `Dockerfile` and `docker-compose.yml` are still the easiest way to run the
@@ -19,10 +19,10 @@ service locally or on a box you control; they are not what production uses.
 3. Throw away the runner's `node_modules` (`better-sqlite3` is native and must
    be built for the server's Node ABI and glibc, not the runner's).
 4. Write `~/tracker-shared/.env` on the server from the repository secrets.
-5. `rsync --delete` the release into `~/education-tracker.dreamhosters.com/`.
+5. `rsync --delete` the release into `~/education.rmmann.co.uk/`.
 6. Run `deploy/remote-setup.sh` on the server: install Node via nvm if it isn't
    there, `npm ci --omit=dev`, `touch tmp/restart.txt`.
-7. Poll `https://education-tracker.dreamhosters.com/healthz` until it answers
+7. Poll `https://education.rmmann.co.uk/healthz` until it answers
    `{"ok":true,…}`, then confirm `/mcp` still returns the discovery challenge.
    **The job fails if the live site does not come up**, so a green deploy means
    a running service, not just a successful copy.
@@ -40,7 +40,7 @@ path.
 ### What lives where on the server
 
 ```
-~/education-tracker.dreamhosters.com/   deploy target (Passenger app root)
+~/education.rmmann.co.uk/   deploy target (Passenger app root)
 ├── app.js          Passenger startup file
 ├── dist/           compiled service
 ├── node_modules/   installed on the server, never rsynced
@@ -59,9 +59,9 @@ that `rsync --delete` on a release can never remove either of them.
 
 ### 1. DreamHost panel (has to be done by hand — there is no API for it)
 
-Websites → **Manage Websites** → `education-tracker.dreamhosters.com` → Edit:
+Websites → **Manage Websites** → `education.rmmann.co.uk` → Edit:
 
-- **Web directory**: `education-tracker.dreamhosters.com/public`
+- **Web directory**: `education.rmmann.co.uk/public`
 - Tick **Passenger (Ruby/NodeJS/Python apps only)**
 - Under **HTTPS/SSL**, add the free Let's Encrypt certificate.
 
@@ -85,6 +85,13 @@ Optional **Variables** (each has a working default, so set one only to change
 it): `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_DIR`, `SHARED_DIR`, `PUBLIC_URL`,
 `DASHBOARD_PUBLIC`.
 
+`DEPLOY_HOST` is the SSH target and `PUBLIC_URL` is what browsers and Claude
+reach; they default to the same hostname but do not have to be. If the DNS for
+`education.rmmann.co.uk` ever points somewhere other than the DreamHost box —
+behind a CDN, say — SSH will fail while the site keeps working. Set
+`DEPLOY_HOST` to a name that resolves straight to DreamHost and leave
+`PUBLIC_URL` alone.
+
 Set `DASHBOARD_PUBLIC` to `false` if you would rather the dashboard needed a
 token as well; the default leaves it readable to anyone with the link, while
 writes still require OAuth.
@@ -101,7 +108,7 @@ the database has no subjects, so later deploys never touch real progress.
 ## Connecting Claude
 
 Settings → Connectors → Add custom connector, URL
-`https://education-tracker.dreamhosters.com/mcp`. Leave the client ID and
+`https://education.rmmann.co.uk/mcp`. Leave the client ID and
 secret blank — the server registers Claude dynamically. Enter
 `TRACKER_PASSWORD` on the consent screen.
 
@@ -117,9 +124,9 @@ through it in this order:
 - **502 / "Web application could not be started".** Passenger found the app but
   Node failed. SSH in and read the reason:
   ```bash
-  ssh edtrackerpaige@education-tracker.dreamhosters.com
-  cat ~/education-tracker.dreamhosters.com/log/passenger.log 2>/dev/null
-  cd ~/education-tracker.dreamhosters.com && node -e "require('./app.js')"
+  ssh edtrackerpaige@education.rmmann.co.uk
+  cat ~/education.rmmann.co.uk/log/passenger.log 2>/dev/null
+  cd ~/education.rmmann.co.uk && node -e "require('./app.js')"
   ```
   The second command reproduces Passenger's startup in the foreground and
   prints the real stack trace.
@@ -132,7 +139,7 @@ through it in this order:
   reinstalls it against the pinned version in `.nvmrc`.
 - **The deploy is healthy but Claude says it "couldn't reach the MCP server".**
   Check `PUBLIC_URL` matches the origin exactly, with no trailing slash, and
-  that `curl -si -X POST https://education-tracker.dreamhosters.com/mcp -H
+  that `curl -si -X POST https://education.rmmann.co.uk/mcp -H
   'content-type: application/json' -d '{}'` returns `401` with a
   `WWW-Authenticate: Bearer resource_metadata="…"` header.
 
@@ -141,9 +148,9 @@ through it in this order:
 The database is one file and it is the only copy of the record.
 
 ```bash
-ssh edtrackerpaige@education-tracker.dreamhosters.com \
-  'cd ~/education-tracker.dreamhosters.com && node -e "new (require(\"better-sqlite3\"))(process.env.HOME+\"/tracker-shared/data/tracker.db\").backup(process.env.HOME+\"/tracker-shared/data/backup.db\")"'
-scp edtrackerpaige@education-tracker.dreamhosters.com:tracker-shared/data/backup.db \
+ssh edtrackerpaige@education.rmmann.co.uk \
+  'cd ~/education.rmmann.co.uk && node -e "new (require(\"better-sqlite3\"))(process.env.HOME+\"/tracker-shared/data/tracker.db\").backup(process.env.HOME+\"/tracker-shared/data/backup.db\")"'
+scp edtrackerpaige@education.rmmann.co.uk:tracker-shared/data/backup.db \
   ./tracker-backup-$(date +%F).db
 ```
 
