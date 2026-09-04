@@ -1,0 +1,759 @@
+<title>Spanish Practice Redesigns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* ---- review-page tokens (light) ---------------------------------------- */
+:root{
+  --ground:#f2f1ec; --panel:#fbfaf6; --edge:#dcd8cd; --edge-soft:#e8e5db;
+  --ink:#221f1a; --ink-2:#514c42; --muted:#7d7768;
+  --violet:#7c3aed; --gold:#f5a623; --gold-lit:#ffd257;
+  --tape:rgba(240,225,160,.55);
+  --shadow:0 1px 2px rgba(34,31,26,.06), 0 10px 26px -14px rgba(34,31,26,.35);
+  --radius:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+    --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+    --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a;
+    --tape:rgba(240,225,160,.28);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+  --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+  --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a;
+  --tape:rgba(240,225,160,.28);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:16px/1.6 Fraunces,Georgia,"Times New Roman",serif;
+  -webkit-font-smoothing:antialiased}
+.page{max-width:74rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3{text-wrap:balance;margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:4px}
+
+/* ---- masthead ---------------------------------------------------------- */
+.mast{display:grid;gap:.9rem;padding-bottom:1.6rem;border-bottom:1px solid var(--edge)}
+.eyebrow{font:600 .68rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin:0}
+.mast h1{font-size:clamp(2rem,4.4vw,3rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.mast p.lede{margin:0;max-width:62ch;color:var(--ink-2);font-size:1.02rem}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-top:.4rem}
+.brief div{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .85rem}
+.brief b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.brief span{font-size:.9rem;color:var(--ink-2)}
+
+/* ---- sticky variant nav ------------------------------------------------ */
+.jump{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;
+  padding:.6rem 0;margin:0 0 .5rem;background:var(--ground);border-bottom:1px solid var(--edge-soft)}
+.jump span{font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-right:.3rem}
+.jump a{text-decoration:none;font-size:.85rem;padding:.3rem .7rem;border:1px solid var(--edge);
+  border-radius:999px;background:var(--panel);transition:background .15s,border-color .15s}
+.jump a:hover{background:var(--gold-lit);border-color:var(--gold)}
+
+/* ---- variant block ----------------------------------------------------- */
+.variant{margin-top:3rem}
+.vhead{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:baseline;margin-bottom:.2rem}
+.vtag{font:700 .8rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;
+  background:var(--ink);color:var(--ground);padding:.3rem .5rem;border-radius:5px}
+.vhead h2{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.vthesis{margin:.35rem 0 1.1rem;max-width:66ch;color:var(--ink-2)}
+
+/* the "screenshot" bezel around each mock */
+.frame{border:1px solid var(--edge);border-radius:14px;background:var(--panel);
+  box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;
+  border-bottom:1px solid var(--edge-soft);background:var(--panel)}
+.chrome i{width:9px;height:9px;border-radius:999px;background:var(--edge);display:block}
+.chrome code{margin-left:.4rem;font:400 .72rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+
+/* ---- the mock: a faithful copy of the live exercise-book page ---------- */
+.mock{--m-ink:#1c1917;--m-muted:#78716c;--m-line:#d6d3d1;--m-card:#fff;--m-violet:#7c3aed;
+  color:#1c1917;background-color:#fcfcf9;
+  background-image:linear-gradient(rgba(96,140,200,.12) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px);
+  background-size:24px 24px;
+  font:16px/1.5 Georgia,"Times New Roman",serif;padding:1.6rem 1.4rem 2rem}
+.mock .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+.mock header{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;justify-content:space-between;
+  border-bottom:2px solid #292524;padding-bottom:.9rem}
+.mock header h1{font-size:1.7rem;margin:.15rem 0;font-family:Georgia,serif;font-weight:700}
+.mock .kicker{font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#78716c;margin:0}
+.mock small{color:#78716c}
+.mock .panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:12.5px;color:#374151;
+  font-weight:700;margin:1.6rem 0 .55rem}
+.mock .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr));gap:.75rem;margin-top:1.2rem}
+.mock .card{background:#fff;border:1px solid #d6d3d1;border-radius:10px;padding:.85rem 1rem}
+.mock .card p.label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#78716c;margin:0}
+.mock .card p.big{font-size:1.85rem;margin:.2rem 0 0;font-weight:700;font-variant-numeric:tabular-nums}
+.mock table{width:100%;border-collapse:collapse;margin-top:.7rem;background:#fff;border:1px solid #d6d3d1;
+  border-radius:10px;overflow:hidden;font-size:.85rem}
+.mock th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#78716c;
+  font-weight:400;padding:.5rem .6rem;border-bottom:1px solid #d6d3d1}
+.mock td{padding:.5rem .6rem;border-bottom:1px solid #ededea;font-variant-numeric:tabular-nums}
+.mock tr:last-child td{border-bottom:0}
+.mock .tablewrap{overflow-x:auto}
+.mock .chartbox{background:#fff;border:1px solid #d6d3d1;border-radius:10px;padding:.7rem}
+.mock .empty{background:#fff;border:1px dashed #d6d3d1;border-radius:10px;padding:1rem;text-align:center}
+
+/* the old control row, shown once for reference */
+.oldfilters{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin:1rem 0}
+.oldfilters label{display:flex;flex-direction:column;gap:.15rem}
+.oldfilters input,.oldfilters select,.oldfilters button{font:inherit;font-size:.85rem;padding:.3rem .5rem;
+  border:1px solid #d6d3d1;border-radius:6px;background:#fff}
+
+/* ---- filter cards: shared skeleton, per-variant skin ------------------- */
+.picker{margin:1.2rem 0 .2rem}
+.picker>.plabel{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin:0 0 .5rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(11.5rem,1fr));gap:.7rem;
+  list-style:none;padding:0;margin:0}
+.tile{position:relative;isolation:isolate;display:grid;gap:.35rem;width:100%;text-align:left;cursor:pointer;
+  font:inherit;color:inherit;padding:.8rem .9rem;border-radius:12px;border:1px solid #d6d3d1;
+  background:#fff;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+.tile:hover{transform:translateY(-3px);box-shadow:0 8px 18px -10px rgba(28,25,23,.5)}
+.tile[disabled]{cursor:default;opacity:.62;border-style:dashed;background:transparent}
+.tile[disabled]:hover{transform:none;box-shadow:none}
+.tile .tname{display:flex;align-items:center;gap:.45rem;font-weight:700;font-size:.95rem}
+.tile .tname svg{flex:none}
+.tile .tnum{font:600 1.5rem/1 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tile .tsub{font-size:.74rem;color:#78716c}
+.meter{height:6px;border-radius:999px;background:#eceae5;overflow:hidden}
+.meter i{display:block;height:100%;background:#7c3aed;border-radius:999px}
+
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.65rem 0 0;padding:0;list-style:none}
+.chip{font:inherit;font-size:.8rem;cursor:pointer;padding:.28rem .7rem;border-radius:999px;
+  border:1px solid #d6d3d1;background:#fff;color:#1c1917;transition:background .15s,border-color .15s}
+.chip:hover{border-color:#a8a29e}
+.chip[aria-pressed="true"]{background:#1c1917;border-color:#1c1917;color:#fcfcf9}
+.custom{display:none;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:.6rem}
+.custom.open{display:flex}
+.custom label{display:flex;flex-direction:column;gap:.15rem;font-size:.72rem;color:#78716c}
+.custom input{font:inherit;font-size:.85rem;padding:.3rem .5rem;border:1px solid #d6d3d1;border-radius:6px;background:#fff}
+
+/* --- A: sticker sheet --- */
+.vA .tile{box-shadow:0 1px 0 #e7e5e0}
+.vA .tile:nth-child(2){transform:rotate(-.5deg)}
+.vA .tile:nth-child(3){transform:rotate(.4deg)}
+.vA .tile:nth-child(2):hover{transform:rotate(-.5deg) translateY(-3px)}
+.vA .tile:nth-child(3):hover{transform:rotate(.4deg) translateY(-3px)}
+.vA .tile[aria-pressed="true"]{border-color:#1c1917;border-width:2px;padding:calc(.8rem - 1px) calc(.9rem - 1px)}
+.vA .tile[aria-pressed="true"] .tname{position:relative;z-index:1}
+.vA .tile[aria-pressed="true"] .tname::before{content:"";position:absolute;z-index:-1;inset:-.15em -.3em -.1em -.3em;
+  background:#fde68a;border-radius:3px;transform:rotate(-.7deg)}
+
+/* --- B: constellation tiles --- */
+.vB .tiles{background:#171a3d;border-radius:14px;padding:.7rem;gap:.6rem}
+.vB .plabel{color:#78716c}
+.vB .tile{background:#20244f;border-color:#333a72;color:#eef1ff}
+.vB .tile .tsub{color:#a3aad6}
+.vB .tile .meter{background:#2c3163}
+.vB .tile .meter i{background:#ffd257}
+.vB .tile[aria-pressed="true"]{background:#2b3170;border-color:#ffd257;
+  box-shadow:0 0 0 1px #ffd257,0 0 22px -4px rgba(255,210,87,.55)}
+.vB .tile[disabled]{background:transparent;border-color:#333a72;color:#a3aad6}
+
+/* --- C: quest cards --- */
+.vC .tile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"ring name" "ring num" "ring sub";
+  column-gap:.75rem;align-items:center;border-width:1px}
+.vC .tile .ring{grid-area:ring}
+.vC .tile .tname{grid-area:name}
+.vC .tile .tnum{grid-area:num;font-size:1.25rem}
+.vC .tile .tsub{grid-area:sub}
+.vC .tile[aria-pressed="true"]{border-color:#7c3aed;box-shadow:inset 4px 0 0 #7c3aed,0 8px 18px -12px rgba(124,58,237,.7)}
+
+/* ---- notes under each mock -------------------------------------------- */
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.8rem;margin-top:1rem}
+.note{padding:.85rem .95rem;border-radius:10px;border:1px solid var(--edge-soft);background:var(--panel)}
+.note b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+.note p{margin:0;font-size:.9rem;color:var(--ink-2)}
+.note.cost{border-left:3px solid var(--violet)}
+
+/* ---- verdict ----------------------------------------------------------- */
+.verdict{margin-top:3.5rem;padding-top:1.6rem;border-top:1px solid var(--edge)}
+.verdict h2{font-size:1.4rem;margin-bottom:.8rem}
+.cmp{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:.9rem;
+  background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;overflow:hidden}
+.cmp th{text-align:left;font:600 .66rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);padding:.6rem .7rem;border-bottom:1px solid var(--edge-soft)}
+.cmp td{padding:.6rem .7rem;border-bottom:1px solid var(--edge-soft);color:var(--ink-2);vertical-align:top}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+.rec{margin-top:1.1rem;padding:1rem 1.1rem;border-radius:10px;background:var(--panel);
+  border:1px solid var(--edge-soft);border-left:3px solid var(--gold)}
+.rec p{margin:0;color:var(--ink-2)}
+.rec p+p{margin-top:.6rem}
+footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--edge-soft);
+  font-size:.78rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+</style>
+
+<div class="page">
+
+  <div class="mast">
+    <p class="eyebrow">education.rmmann.co.uk · /s/spanish/practice</p>
+    <h1>Spanish Practice Redesigns</h1>
+    <p class="lede">Three ways to make the practice board worth opening. The squared-paper grid, the
+      exercise-book type and the panel order all stay put — what changes is the filter row and the
+      score chart, the two places the page currently asks for effort and gives nothing back.</p>
+    <div class="brief">
+      <div><b>Stays</b><span>Grid paper ground, Georgia, the four stat tiles, the recent-games table, the panel order.</span></div>
+      <div><b>Changes · filters</b><span>The dropdown-and-two-date-boxes row becomes cards that already show the answer before you click.</span></div>
+      <div><b>Changes · chart</b><span>The flat violet polyline becomes something with stars, a record to beat, and a reason to look.</span></div>
+    </div>
+  </div>
+
+  <nav class="jump" aria-label="Jump to a design">
+    <span>Designs</span>
+    <a href="#today">Today</a>
+    <a href="#va">A · Sticker Sheet</a>
+    <a href="#vb">B · Night Sky</a>
+    <a href="#vc">C · Star Ladder</a>
+    <a href="#verdict">Verdict</a>
+  </nav>
+
+  <!-- ============================ TODAY ================================ -->
+  <section class="variant" id="today">
+    <div class="vhead"><p class="vtag">NOW</p><h2>What's there today</h2></div>
+    <p class="vthesis">For comparison. Four form controls that tell you nothing until you submit them,
+      and a four-point line whose only decoration is the value labels.</p>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>/s/spanish/practice</code></div>
+      <div class="mock">
+        <header><div>
+          <p class="kicker">← GCSE Spanish</p>
+          <h1>Practice</h1>
+          <p><small>Games and sessions logged against GCSE Spanish.</small></p>
+        </div></header>
+        <form class="oldfilters" onsubmit="return false">
+          <label><small>Activity</small><select><option>Every activity</option><option>Shooting Gallery</option><option>Flashcards</option><option>AI Conversation</option></select></label>
+          <label><small>From</small><input type="date"></label>
+          <label><small>To</small><input type="date"></label>
+          <label><small>Topic</small><input type="text" size="6" placeholder="G14"></label>
+          <button type="submit">Filter</button>
+        </form>
+        <div class="stats">
+          <div class="card"><p class="label">Total games</p><p class="big mono">4</p><p><small>all time</small></p></div>
+          <div class="card"><p class="label">Best score</p><p class="big mono">56</p><p><small>all time</small></p></div>
+          <div class="card"><p class="label">Accuracy</p><p class="big mono">76.8%</p><p><small>last 10 runs, pooled</small></p></div>
+          <div class="card"><p class="label">Top speed</p><p class="big mono">8.4</p><p><small>all time</small></p></div>
+        </div>
+        <p class="panel-title">Score trend</p>
+        <div class="chartbox">
+          <svg viewBox="0 0 600 200" width="100%" style="max-height:200px" role="img">
+            <title>Score trend — Correct across the last 4 runs</title>
+            <polyline points="45,60 215,113.57 385,45 555,137.14" fill="none" stroke="#7c3aed" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <circle cx="45" cy="60" r="5" fill="#7c3aed"/><text x="45" y="46" text-anchor="middle" font-size="15" font-weight="700" fill="#4b5563">49</text>
+            <circle cx="215" cy="113.57" r="5" fill="#7c3aed"/><text x="215" y="99.57" text-anchor="middle" font-size="15" font-weight="700" fill="#4b5563">24</text>
+            <circle cx="385" cy="45" r="5" fill="#7c3aed"/><text x="385" y="31" text-anchor="middle" font-size="15" font-weight="700" fill="#4b5563">56</text>
+            <circle cx="555" cy="137.14" r="5" fill="#7c3aed"/><text x="555" y="123.14" text-anchor="middle" font-size="15" font-weight="700" fill="#4b5563">13</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== A ================================== -->
+  <section class="variant vA" id="va" data-variant="A">
+    <div class="vhead"><p class="vtag">A</p><h2>Sticker Sheet</h2></div>
+    <p class="vthesis">The smallest change that fixes both complaints. Filters become paper stickers,
+      each already showing its run count and accuracy, selected with a highlighter swipe. The line
+      keeps its shape — the same numbers, the same reading order — but every run becomes a star sized
+      by the score, on a violet wash, with the personal best crowned and annotated in pencil.</p>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>/s/spanish/practice — variant A</code></div>
+      <div class="mock">
+        <header><div>
+          <p class="kicker">← GCSE Spanish</p>
+          <h1>Practice</h1>
+          <p><small>Games and sessions logged against GCSE Spanish.</small></p>
+        </div></header>
+        <div class="picker">
+          <p class="plabel">Pick an activity</p>
+          <div class="tiles" data-tiles role="group" aria-label="Filter by activity"></div>
+          <ul class="chips" data-chips aria-label="Filter by date"></ul>
+          <div class="custom" data-custom>
+            <label>From<input type="date" value="2026-08-01"></label>
+            <label>To<input type="date" value="2026-09-04"></label>
+            <label>Topic<input type="text" size="8" placeholder="G14"></label>
+          </div>
+        </div>
+        <div class="stats" data-stats></div>
+        <p class="panel-title">Score trend</p>
+        <div class="chartbox" data-chart></div>
+        <p class="panel-title">Recent games</p>
+        <div class="tablewrap"><table data-table></table></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><b>Why it works</b><p>Nothing to read before you can act: the count and the accuracy bar are on the card, so the click confirms rather than reveals. Activities she has not tried are dashed and invite rather than filter to nothing.</p></div>
+      <div class="note"><b>The chart</b><p>Star size encodes the score twice — position and area — so a good run is visibly bigger, not just higher. The gold record star and the dashed "56 to beat" give the next game a target.</p></div>
+      <div class="note cost"><b>Cost to build</b><p>Small. <code>practice_filter_form()</code> gains a counts query; <code>practice_line_svg()</code> gains a star path and a max marker. The pinned geometry survives — same viewBox, same x/y maths.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================== B ================================== -->
+  <section class="variant vB" id="vb" data-variant="B">
+    <div class="vhead"><p class="vtag">B</p><h2>Night Sky</h2></div>
+    <p class="vthesis">The chart stops being a chart and becomes a piece of sky taped into the workbook.
+      Each run is a star whose brightness is its accuracy and whose height is its score; a trail joins
+      them in order; the personal best throws a shooting star. Score belts across the sky give the
+      numbers meaning without an axis. The activity cards borrow the same night palette so the two
+      halves of the page read as one idea.</p>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>/s/spanish/practice — variant B</code></div>
+      <div class="mock">
+        <header><div>
+          <p class="kicker">← GCSE Spanish</p>
+          <h1>Practice</h1>
+          <p><small>Games and sessions logged against GCSE Spanish.</small></p>
+        </div></header>
+        <div class="picker">
+          <p class="plabel">Pick an activity</p>
+          <div class="tiles" data-tiles role="group" aria-label="Filter by activity"></div>
+          <ul class="chips" data-chips aria-label="Filter by date"></ul>
+          <div class="custom" data-custom>
+            <label>From<input type="date" value="2026-08-01"></label>
+            <label>To<input type="date" value="2026-09-04"></label>
+            <label>Topic<input type="text" size="8" placeholder="G14"></label>
+          </div>
+        </div>
+        <div class="stats" data-stats></div>
+        <p class="panel-title">Score trend</p>
+        <div data-chart></div>
+        <p class="panel-title">Recent games</p>
+        <div class="tablewrap"><table data-table></table></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><b>Why it works</b><p>One inverted panel on a page of squared paper is the most memorable thing on the site — the page gets an identity, not just a coat of paint. The belts turn a raw score into a rank she can aim at.</p></div>
+      <div class="note"><b>The risk</b><p>It is the boldest of the three and the least like the rest of the tracker. If the maths board inherits it too, the whole service changes character; if it does not, Spanish looks special on purpose.</p></div>
+      <div class="note cost"><b>Cost to build</b><p>Medium. New SVG renderer with a gradient, a glow filter and a deterministic star field, plus a dark skin for the cards. The golden snapshot needs re-pinning for the Spanish chart.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================== C ================================== -->
+  <section class="variant vC" id="vc" data-variant="C">
+    <div class="vhead"><p class="vtag">C</p><h2>Star Ladder</h2></div>
+    <p class="vthesis">Drop the line entirely. Each game is a column drawn straight onto the grid squares,
+      and three star tiers cut across it — one star at 20, two at 35, three at 50. A run is no longer
+      a dot on a trend, it is a score that did or did not earn its third star, and the whole chart
+      answers "how do I get better" without anyone explaining the y-axis. The cards carry the same
+      tier ring.</p>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>/s/spanish/practice — variant C</code></div>
+      <div class="mock">
+        <header><div>
+          <p class="kicker">← GCSE Spanish</p>
+          <h1>Practice</h1>
+          <p><small>Games and sessions logged against GCSE Spanish.</small></p>
+        </div></header>
+        <div class="picker">
+          <p class="plabel">Pick an activity</p>
+          <div class="tiles" data-tiles role="group" aria-label="Filter by activity"></div>
+          <ul class="chips" data-chips aria-label="Filter by date"></ul>
+          <div class="custom" data-custom>
+            <label>From<input type="date" value="2026-08-01"></label>
+            <label>To<input type="date" value="2026-09-04"></label>
+            <label>Topic<input type="text" size="8" placeholder="G14"></label>
+          </div>
+        </div>
+        <div class="stats" data-stats></div>
+        <p class="panel-title">Score trend</p>
+        <div class="chartbox" data-chart></div>
+        <p class="panel-title">Recent games</p>
+        <div class="tablewrap"><table data-table></table></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><b>Why it works</b><p>Stars are earned, not decorative. Because the tiers are fixed, a short 17-question game and a 69-question one are honestly not the same achievement — and the chart says so.</p></div>
+      <div class="note"><b>Watch out</b><p>Fixed tiers reward long games. If she plays a quick five-minute set, the third star is out of reach through no fault of her own — the tiers may need to scale with questions attempted, or sit on accuracy instead.</p></div>
+      <div class="note cost"><b>Cost to build</b><p>Medium. A new <code>bars</code> panel type beside <code>line</code>, with the tier thresholds as panel configuration so maths can set its own. No change to the storage model.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================ VERDICT ============================== -->
+  <section class="verdict" id="verdict">
+    <h2>Picking one</h2>
+    <table class="cmp">
+      <thead><tr><th>Design</th><th>Best at</th><th>Weakest at</th><th>Build</th></tr></thead>
+      <tbody>
+        <tr><td>A · Sticker Sheet</td><td>Fitting the existing page perfectly; readable at a glance by a parent as well as a student.</td><td>The most conservative — it is a nicer version of what is there, not a new reason to visit.</td><td>Small</td></tr>
+        <tr><td>B · Night Sky</td><td>Being memorable. This is the screenshot she would show someone.</td><td>Only the chart gets the treatment; the tables below still look like homework.</td><td>Medium</td></tr>
+        <tr><td>C · Star Ladder</td><td>Telling her what to do next. Stars are a goal, not a report.</td><td>Fixed tiers punish short games until the thresholds scale with questions attempted.</td><td>Medium</td></tr>
+      </tbody>
+    </table>
+    <div class="rec">
+      <p><b>Recommendation: A's filter cards with C's chart.</b> The sticker cards are the right answer
+        for the controls in any of the three — they are cheap, they show the answer before the click,
+        and they degrade gracefully as more activities appear. The star ladder is the right answer for
+        the chart, because it is the only one of the three that gives her something to aim at rather
+        than something to look at.</p>
+      <p>Take B if the goal is that she opens the page for its own sake. Its shooting star is the only
+        element here that rewards a personal best in the moment it happens.</p>
+    </div>
+  </section>
+
+  <footer>
+    Mocks run on the four real Shooting Gallery runs on the board today — 49, 24, 56 and 13 correct,
+    76.8% pooled accuracy, top speed 8.4. Activity cards, date chips and the charts are live; click them.
+  </footer>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------- *
+ * Real data from the board: four Shooting Gallery runs.                    *
+ * ---------------------------------------------------------------------- */
+var RUNS = [
+  {date:'2026-08-13', label:'Set 1 Sports', source:'gallery', attempted:69, correct:49, incorrect:20, speed:8.3},
+  {date:'2026-08-18', label:'Set 1 Sports', source:'gallery', attempted:30, correct:24, incorrect:6,  speed:8.1},
+  {date:'2026-08-18', label:'Set 1 Sports', source:'gallery', attempted:69, correct:56, incorrect:13, speed:8.4},
+  {date:'2026-09-04', label:'Set 1 Sports', source:'gallery', attempted:17, correct:13, incorrect:4,  speed:7.2}
+];
+var TODAY = new Date('2026-09-04T00:00:00Z');
+
+var ICONS = {
+  all:'<circle cx="9" cy="9" r="7.2"/><path d="M9 4.4v9.2M4.4 9h9.2"/>',
+  gallery:'<circle cx="9" cy="9" r="7.2"/><circle cx="9" cy="9" r="3.6"/><circle cx="9" cy="9" r=".9" fill="currentColor" stroke="none"/>',
+  flash:'<rect x="2.2" y="4.6" width="11" height="8.4" rx="1.6"/><path d="M5.4 3.2h8.2a1.6 1.6 0 0 1 1.6 1.6v7"/>',
+  chat:'<path d="M2.6 4.4h12.8v7.4H8.4L5 14.6v-2.8H2.6z"/>'
+};
+var SOURCES = [
+  {key:'all',     name:'Everything',      icon:'all'},
+  {key:'gallery', name:'Shooting Gallery',icon:'gallery'},
+  {key:'flash',   name:'Flashcards',      icon:'flash'},
+  {key:'chat',    name:'AI Conversation', icon:'chat'}
+];
+var RANGES = [
+  {key:'all',  name:'All time',     days:null},
+  {key:'30',   name:'Last 30 days', days:30},
+  {key:'7',    name:'Last 7 days',  days:7},
+  {key:'pick', name:'Pick dates…',  days:null}
+];
+
+function icon(name){
+  return '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" '+
+         'stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">'+ICONS[name]+'</svg>';
+}
+function pct(n){ return (n*100).toFixed(1)+'%'; }
+function nice(d){
+  var p = d.split('-');
+  return p[2].replace(/^0/,'') + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]-1];
+}
+function forSource(k){ return k==='all' ? RUNS.slice() : RUNS.filter(function(r){ return r.source===k; }); }
+function inRange(rows, days){
+  if(!days) return rows;
+  var cut = new Date(TODAY.getTime() - days*864e5);
+  return rows.filter(function(r){ return new Date(r.date+'T00:00:00Z') >= cut; });
+}
+function pooled(rows){
+  var a=0,c=0; rows.forEach(function(r){ a+=r.attempted; c+=r.correct; });
+  return a ? c/a : null;
+}
+
+/* ---- star geometry ---------------------------------------------------- */
+function starPath(cx, cy, outer, points, innerRatio){
+  var d='', step = Math.PI/points, a = -Math.PI/2;
+  for(var i=0;i<points*2;i++){
+    var r = i%2 ? outer*innerRatio : outer;
+    d += (i?'L':'M') + (cx + Math.cos(a)*r).toFixed(2) + ' ' + (cy + Math.sin(a)*r).toFixed(2) + ' ';
+    a += step;
+  }
+  return d + 'Z';
+}
+function tiersFor(score){ return score>=50 ? 3 : score>=35 ? 2 : score>=20 ? 1 : 0; }
+
+/* ---- chart renderers -------------------------------------------------- */
+var W=600, PADX=62, TOP=52, BASE=192, SPAN=132;
+
+function xs(n, pad){
+  var p = pad || PADX;
+  return function(i){ return n===1 ? W/2 : p + i*((W-p*2)/(n-1)); };
+}
+
+/* A — sticker sheet: violet wash, a star per run, gold record star */
+function chartA(rows){
+  var n = rows.length;
+  if(n < 2) return oneRun(rows);
+  var max = 60, x = xs(n);
+  var pts = rows.map(function(r,i){ return [x(i), BASE - (r.correct/max)*SPAN]; });
+  var best = rows.reduce(function(m,r){ return r.correct>m.correct ? r : m; }, rows[0]);
+  var bestY = BASE - (best.correct/max)*SPAN;
+  var line = pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+  var area = 'M'+pts[0][0].toFixed(1)+' '+BASE+' L'+line.replace(/ /g,' L').replace(/,/g,' ')+' L'+pts[n-1][0].toFixed(1)+' '+BASE+' Z';
+
+  var s = '<svg viewBox="0 0 600 232" width="100%" role="img" style="display:block">'+
+    '<title>Score trend — correct answers across the last '+n+' runs, best 56</title>'+
+    '<defs><linearGradient id="aWash" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="#7c3aed" stop-opacity=".22"/>'+
+      '<stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient>'+
+    '<linearGradient id="aGold" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="#ffd257"/><stop offset="1" stop-color="#f5a623"/></linearGradient></defs>';
+
+  /* record line */
+  s += '<line x1="34" y1="'+bestY.toFixed(1)+'" x2="566" y2="'+bestY.toFixed(1)+'" stroke="#f5a623" '+
+       'stroke-width="1.5" stroke-dasharray="5 5"/>'+
+       '<text x="566" y="'+(bestY-8).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" '+
+       'fill="#b45309" font-family="IBM Plex Mono, monospace">'+best.correct+' TO BEAT</text>';
+
+  s += '<path d="'+area+'" fill="url(#aWash)"/>'+
+       '<polyline points="'+line+'" fill="none" stroke="#7c3aed" stroke-width="3" '+
+       'stroke-linejoin="round" stroke-linecap="round"/>';
+
+  rows.forEach(function(r,i){
+    var p = pts[i], isBest = r.correct===best.correct, size = 8 + (r.correct/max)*8;
+    if(isBest){
+      s += '<path d="'+starPath(p[0], p[1], size+7, 5, .38)+'" fill="#fde68a" opacity=".55"/>';
+    }
+    s += '<path d="'+starPath(p[0], p[1], size, 5, .45)+'" fill="'+(isBest?'url(#aGold)':'#7c3aed')+
+         '" stroke="#1c1917" stroke-width="1" stroke-linejoin="round"/>';
+    s += '<text x="'+p[0].toFixed(1)+'" y="'+(p[1]-size-9).toFixed(1)+'" text-anchor="middle" '+
+         'font-size="15" font-weight="700" fill="#3f3a33" font-family="IBM Plex Mono, monospace">'+r.correct+'</text>';
+    s += '<text x="'+p[0].toFixed(1)+'" y="215" text-anchor="middle" font-size="11" fill="#78716c" '+
+         'font-family="Georgia, serif">'+nice(r.date)+'</text>';
+  });
+
+  /* the one hand annotation */
+  var bi = rows.indexOf(best), bp = pts[bi];
+  var side = bp[0] > W/2 ? -1 : 1;
+  s += '<text x="'+(bp[0]+side*34).toFixed(1)+'" y="'+(bp[1]+26).toFixed(1)+'" text-anchor="'+
+       (side>0?'start':'end')+'" font-family="Caveat, cursive" font-size="21" fill="#b45309" '+
+       'stroke="#fff" stroke-width="4.5" paint-order="stroke" stroke-linejoin="round">best yet!</text>';
+  return s + '</svg>';
+}
+
+/* B — night sky: star field, glowing stars, score belts, a shooting star */
+function chartB(rows){
+  var n = rows.length;
+  if(n < 2) return '<div class="chartbox">'+oneRunInner(rows)+'</div>';
+  var max = 60, x = xs(n, 90);
+  var pts = rows.map(function(r,i){ return [x(i), BASE - (r.correct/max)*SPAN]; });
+  var best = rows.reduce(function(m,r){ return r.correct>m.correct ? r : m; }, rows[0]);
+  var bi = rows.indexOf(best);
+
+  var s = '<svg viewBox="0 0 600 232" width="100%" role="img" style="display:block;border-radius:10px">'+
+    '<title>Score trend — correct answers across the last '+n+' runs, best 56</title>'+
+    '<defs><linearGradient id="bSky" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="#12142f"/><stop offset=".72" stop-color="#1d2050"/>'+
+      '<stop offset="1" stop-color="#3a2f63"/></linearGradient>'+
+    '<radialGradient id="bGlow"><stop offset="0" stop-color="#fff6d8" stop-opacity=".9"/>'+
+      '<stop offset="1" stop-color="#ffd257" stop-opacity="0"/></radialGradient>'+
+    '<linearGradient id="bTrail" x1="0" y1="0" x2="1" y2="0">'+
+      '<stop offset="0" stop-color="#8d92d6" stop-opacity=".25"/>'+
+      '<stop offset=".5" stop-color="#cdd2ff" stop-opacity=".8"/>'+
+      '<stop offset="1" stop-color="#8d92d6" stop-opacity=".25"/></linearGradient>'+
+    '<linearGradient id="bShoot" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0" stop-color="#ffd257" stop-opacity="0"/>'+
+      '<stop offset="1" stop-color="#fff6d8"/></linearGradient></defs>'+
+    '<rect width="600" height="232" fill="url(#bSky)"/>';
+
+  /* deterministic star dust — no rng, so the snapshot never churns */
+  for(var i=0;i<62;i++){
+    var sx = ((i*97)%587)+7, sy = ((i*53)%201)+6, r = (i%5)*.22+.5, o = .22+((i*7)%9)/26;
+    s += '<circle cx="'+sx+'" cy="'+sy+'" r="'+r.toFixed(2)+'" fill="#e9ecff" opacity="'+o.toFixed(2)+'"/>';
+  }
+
+  /* score belts */
+  [[20,'1'],[35,'2'],[50,'3']].forEach(function(b){
+    var y = BASE - (b[0]/max)*SPAN;
+    s += '<line x1="0" y1="'+y.toFixed(1)+'" x2="600" y2="'+y.toFixed(1)+'" stroke="#ffd257" '+
+         'stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/>'+
+         '<text x="592" y="'+(y-5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#ffd257" '+
+         'fill-opacity=".7" letter-spacing="1.4" font-family="IBM Plex Mono, monospace">'+
+         b[1]+'\u2605 \u00b7 '+b[0]+'</text>';
+  });
+
+  /* trail */
+  s += '<polyline points="'+pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ')+
+       '" fill="none" stroke="url(#bTrail)" stroke-width="1.6" stroke-dasharray="3 4"/>';
+
+  /* shooting star into the record */
+  var bp = pts[bi], dir = bp[0] > W/2 ? -1 : 1;
+  var sy = Math.max(14, bp[1]-52), run = (bp[1]-sy)*2;
+  s += '<path d="M'+(bp[0]-dir*run).toFixed(1)+' '+sy.toFixed(1)+' L'+(bp[0]-dir*16).toFixed(1)+
+       ' '+(bp[1]-9).toFixed(1)+'" stroke="url(#bShoot)" stroke-width="2.4" stroke-linecap="round" fill="none"/>';
+
+  rows.forEach(function(r,i){
+    var p = pts[i], isBest = i===bi, size = 6.5 + (r.correct/max)*7.5;
+    s += '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(size*2.6).toFixed(1)+'" fill="url(#bGlow)" opacity="'+(isBest?'.95':'.55')+'"/>';
+    s += '<path d="'+starPath(p[0], p[1], size, 4, .3)+'" fill="'+(isBest?'#fff6d8':'#ffe9a8')+'"/>';
+    s += '<text x="'+p[0].toFixed(1)+'" y="'+(p[1]-size-12).toFixed(1)+'" text-anchor="middle" font-size="15" '+
+         'font-weight="600" fill="#fff6d8" font-family="IBM Plex Mono, monospace">'+r.correct+'</text>';
+    s += '<text x="'+p[0].toFixed(1)+'" y="219" text-anchor="middle" font-size="11" fill="#b9bee8" '+
+         'font-family="Georgia, serif">'+nice(r.date)+'</text>';
+  });
+  s += '</svg>';
+
+  /* taped into the workbook */
+  return '<div style="position:relative;padding:6px;background:#fff;border:1px solid #d6d3d1;border-radius:12px">'+
+    '<div style="position:absolute;top:-9px;left:26px;width:56px;height:18px;background:rgba(240,225,160,.75);'+
+      'border:1px solid rgba(200,180,110,.5);transform:rotate(-2.5deg)"></div>'+
+    '<div style="position:absolute;top:-9px;right:26px;width:56px;height:18px;background:rgba(240,225,160,.75);'+
+      'border:1px solid rgba(200,180,110,.5);transform:rotate(2deg)"></div>'+
+    s + '</div>';
+}
+
+/* C — star ladder: columns on the grid, fixed star tiers, record line */
+function chartC(rows){
+  var n = rows.length;
+  if(n < 2) return oneRun(rows);
+  var max = 60, gap = (W - PADX*2) / n, bw = Math.min(52, gap*0.52);
+  var best = rows.reduce(function(m,r){ return r.correct>m.correct ? r : m; }, rows[0]);
+  var bestY = BASE - (best.correct/max)*SPAN;
+
+  var s = '<svg viewBox="0 0 600 246" width="100%" role="img" style="display:block">'+
+    '<title>Score trend — correct answers across the last '+n+' runs against the one, two and three star tiers</title>'+
+    '<defs><linearGradient id="cBar" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>'+
+    '<linearGradient id="cGold" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="#ffd257"/><stop offset="1" stop-color="#f5a623"/></linearGradient></defs>';
+
+  /* tier rules */
+  [[20,1],[35,2],[50,3]].forEach(function(t){
+    var y = BASE - (t[0]/max)*SPAN, stars='';
+    for(var k=0;k<t[1];k++) stars += '<path d="'+starPath(548+k*15, y-4, 5.6, 5, .45)+'" fill="url(#cGold)"/>';
+    s += '<line x1="34" y1="'+y.toFixed(1)+'" x2="532" y2="'+y.toFixed(1)+'" stroke="#c8bfa6" '+
+         'stroke-width="1" stroke-dasharray="4 4"/>'+
+         '<text x="30" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#8a8172" '+
+         'font-family="IBM Plex Mono, monospace">'+t[0]+'</text>' + stars;
+  });
+
+  /* record to beat */
+  s += '<line x1="34" y1="'+bestY.toFixed(1)+'" x2="532" y2="'+bestY.toFixed(1)+'" stroke="#f5a623" stroke-width="2"/>'+
+       '<text x="528" y="'+(bestY-7).toFixed(1)+'" text-anchor="end" font-size="11" font-weight="700" '+
+       'fill="#b45309" letter-spacing="1.2" font-family="IBM Plex Mono, monospace">RECORD '+
+       best.correct+' TO BEAT</text>';
+
+  s += '<line x1="34" y1="'+BASE+'" x2="566" y2="'+BASE+'" stroke="#a8a29e" stroke-width="1.5"/>';
+
+  rows.forEach(function(r,i){
+    var cx = PADX + gap*i + gap/2, y = BASE - (r.correct/max)*SPAN, t = tiersFor(r.correct);
+    var isBest = r.correct===best.correct;
+    s += '<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+
+         '" height="'+(BASE-y).toFixed(1)+'" rx="4" fill="'+(isBest?'url(#cGold)':'url(#cBar)')+'"/>';
+    s += '<text x="'+cx.toFixed(1)+'" y="'+(y-28).toFixed(1)+'" text-anchor="middle" font-size="16" '+
+         'font-weight="700" fill="#3f3a33" font-family="IBM Plex Mono, monospace">'+r.correct+'</text>';
+    /* the stars this run earned, three slots, unearned hollow */
+    for(var k=0;k<3;k++){
+      var sx2 = cx - 16 + k*16, filled = k < t;
+      s += '<path d="'+starPath(sx2, y-13, 6.6, 5, .45)+'" fill="'+(filled?'url(#cGold)':'none')+
+           '" stroke="'+(filled?'#b45309':'#c8bfa6')+'" stroke-width="1.2" stroke-linejoin="round"/>';
+    }
+    s += '<text x="'+cx.toFixed(1)+'" y="211" text-anchor="middle" font-size="11" fill="#78716c" '+
+         'font-family="Georgia, serif">'+nice(r.date)+'</text>';
+    s += '<text x="'+cx.toFixed(1)+'" y="228" text-anchor="middle" font-size="10.5" fill="#8a8172" '+
+         'font-family="IBM Plex Mono, monospace">'+pct(r.correct/r.attempted)+'</text>';
+  });
+  return s + '</svg>';
+}
+
+/* shared empty / single-run states — a real board hits these */
+function oneRunInner(rows){
+  if(!rows.length) return '<p style="margin:0"><small>Nothing logged for that. Try another activity or widen the dates.</small></p>';
+  var r = rows[0];
+  return '<p style="margin:0 0 .3rem;font-size:1.6rem;font-weight:700;font-family:\'IBM Plex Mono\',monospace">'+
+    r.correct+' <span style="font-size:.9rem;font-weight:400;color:#78716c">right out of '+r.attempted+'</span></p>'+
+    '<p style="margin:0"><small>One run is not a trend yet — play once more and the chart appears.</small></p>';
+}
+function oneRun(rows){ return '<div class="empty">'+oneRunInner(rows)+'</div>'; }
+
+/* ---- panel renderers -------------------------------------------------- */
+function renderStats(el, rows){
+  var acc = pooled(rows);
+  var best = rows.length ? Math.max.apply(null, rows.map(function(r){ return r.correct; })) : null;
+  var spd  = rows.length ? Math.max.apply(null, rows.map(function(r){ return r.speed; })) : null;
+  var tiles = [
+    ['Total games', rows.length, 'in view'],
+    ['Best score', best===null?'—':best, 'in view'],
+    ['Accuracy', acc===null?'—':pct(acc), 'pooled'],
+    ['Top speed', spd===null?'—':spd.toFixed(1), 'in view']
+  ];
+  el.innerHTML = tiles.map(function(t){
+    return '<div class="card"><p class="label">'+t[0]+'</p><p class="big mono">'+t[1]+
+           '</p><p><small>'+t[2]+'</small></p></div>';
+  }).join('');
+}
+function renderTable(el, rows){
+  if(!rows.length){
+    el.innerHTML = '<tbody><tr><td><small>No games match that yet.</small></td></tr></tbody>';
+    return;
+  }
+  var body = rows.slice().reverse().map(function(r){
+    return '<tr><td class="mono">'+r.date+'</td><td>'+r.label+'</td><td class="mono">'+r.correct+
+      '</td><td class="mono">'+r.incorrect+'</td><td class="mono">'+pct(r.correct/r.attempted)+
+      '</td><td class="mono">'+r.speed.toFixed(1)+'</td></tr>';
+  }).join('');
+  el.innerHTML = '<thead><tr><th>Date</th><th>Label</th><th>Correct</th><th>Incorrect</th>'+
+    '<th>Accuracy</th><th>Top speed</th></tr></thead><tbody>'+body+'</tbody>';
+}
+
+/* ---- the filter cards, one skin per variant --------------------------- */
+function ring(n){
+  /* C's progress ring: right-first-time accuracy for that activity */
+  var C = 2*Math.PI*15, on = C*n;
+  return '<svg class="ring" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">'+
+    '<circle cx="20" cy="20" r="15" fill="none" stroke="#eceae5" stroke-width="4"/>'+
+    '<circle cx="20" cy="20" r="15" fill="none" stroke="#7c3aed" stroke-width="4" stroke-linecap="round" '+
+    'stroke-dasharray="'+on.toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 20 20)"/></svg>';
+}
+function renderTiles(root, variant, state){
+  var el = root.querySelector('[data-tiles]');
+  el.innerHTML = SOURCES.map(function(src){
+    var rows = forSource(src.key), has = rows.length > 0;
+    var acc = pooled(rows), sel = state.source === src.key;
+    var sub = has ? (acc===null?'':pct(acc)+' right first time') : 'not played yet — give it a go';
+    var num = has ? rows.length + (rows.length===1?' game':' games') : 'new';
+    var inner =
+      (variant==='C' ? ring(has ? acc : 0) : '') +
+      '<span class="tname">'+icon(src.icon)+src.name+'</span>'+
+      '<span class="tnum">'+num+'</span>'+
+      '<span class="tsub">'+sub+'</span>'+
+      (has && variant!=='C' ? '<span class="meter"><i style="width:'+((acc||0)*100).toFixed(0)+'%"></i></span>' : '');
+    return '<button type="button" class="tile" data-src="'+src.key+'" aria-pressed="'+sel+'"'+
+      (has ? '' : ' disabled')+'>'+inner+'</button>';
+  }).join('');
+}
+function renderChips(root, state){
+  var el = root.querySelector('[data-chips]');
+  el.innerHTML = RANGES.map(function(r){
+    return '<li><button type="button" class="chip" data-range="'+r.key+'" aria-pressed="'+
+      (state.range===r.key)+'">'+r.name+'</button></li>';
+  }).join('');
+}
+
+/* ---- wire up one variant ---------------------------------------------- */
+function boot(root){
+  var variant = root.dataset.variant;
+  var state = {source:'all', range:'all'};
+  var chart = {A:chartA, B:chartB, C:chartC}[variant];
+
+  function draw(){
+    var range = RANGES.filter(function(r){ return r.key===state.range; })[0];
+    var rows  = inRange(forSource(state.source), range.days);
+    renderTiles(root, variant, state);
+    renderChips(root, state);
+    root.querySelector('[data-custom]').classList.toggle('open', state.range==='pick');
+    renderStats(root.querySelector('[data-stats]'), rows);
+    root.querySelector('[data-chart]').innerHTML = rows.length ? chart(rows) : oneRun(rows);
+    renderTable(root.querySelector('[data-table]'), rows);
+  }
+
+  root.addEventListener('click', function(e){
+    var t = e.target.closest('.tile[data-src]');
+    if(t && !t.disabled){ state.source = t.dataset.src; draw(); return; }
+    var c = e.target.closest('.chip[data-range]');
+    if(c){ state.range = c.dataset.range; draw(); }
+  });
+  draw();
+}
+Array.prototype.forEach.call(document.querySelectorAll('[data-variant]'), boot);
+</script>
