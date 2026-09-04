@@ -85,6 +85,12 @@ else
   fail "the record holds no attempts: $body"
 fi
 
+# The practice tables only exist if schema step 3 ran. /healthz opens the
+# store, so a migration that threw would 500 here rather than report counts —
+# but naming the table makes the check say what it is actually testing, and
+# this runs against production after every deploy.
+contains "/healthz reports the practice run count" "$body" '"practice_run"'
+
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/")"
 check "dashboard index renders" "$code" "200"
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths")"
@@ -126,6 +132,10 @@ if [ -n "$session_url" ]; then
 else
   fail "no session link on the dashboard to follow"
 fi
+
+board="$("${CURL[@]}" "$BASE/s/maths/practice")"
+contains "the practice board renders its filters" "$board" 'name="source"'
+contains "and names the activities registered for the subject" "$board" "Tutoring session"
 
 page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"
 contains "a topic page renders its change history" "$page" "Every change"
