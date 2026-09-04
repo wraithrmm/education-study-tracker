@@ -134,8 +134,10 @@ else
 fi
 
 board="$("${CURL[@]}" "$BASE/s/maths/practice")"
-contains "the practice board renders an activity card per source" "$board" 'class="tile"'
-contains "and a rolling date window rather than two date boxes" "$board" 'window=30d'
+contains "the practice board renders an activity picker" "$board" 'class="tiles"'
+contains "and invites an activity with nothing logged rather than filtering to nothing" \
+  "$board" 'not played yet'
+contains "and offers a rolling date window rather than two date boxes" "$board" 'window=30d'
 contains "and names the activities registered for the subject" "$board" "Tutoring session"
 
 page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"
@@ -541,10 +543,16 @@ if [ "$REMOTE" = 0 ]; then
   check "the practice board renders" "$code" "200"
   board="$(cat "$WORK/board.html")"
   contains "the board renders its panels" "$board" "Recent sessions"
-  contains "the board offers its filters" "$board" 'name="source"'
+  contains "the board offers a card per activity" "$board" 'class="tile"'
+  contains "and marks the one the board is showing" "$board" 'aria-current="page"'
   contains "the board lists what was voided and why" "$board" "Practice"
-  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/practice?source=maths_session&from=2026-01-01&ref=A17")"
+  code="$("${CURL[@]}" -o "$WORK/filtered.html" -w '%{http_code}' "$BASE/s/maths/practice?source=maths_session&from=2026-01-01&ref=A17")"
   check "the board filters by activity, date and topic" "$code" "200"
+  filtered="$(cat "$WORK/filtered.html")"
+  contains "a filtered board keeps its activity when the dates are edited" \
+    "$filtered" '<input type="hidden" name="source" value="maths_session">'
+  contains "and opens the date panel because that is what is filtering" \
+    "$filtered" '<details class="pickdates" open>'
   body="$("${CURL[@]}" "$BASE/s/maths")"
   contains "the subject dashboard carries a practice panel" "$body" "the whole board"
   contains "which links to the full board" "$body" "/s/maths/practice"
