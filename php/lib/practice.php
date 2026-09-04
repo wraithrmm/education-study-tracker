@@ -449,6 +449,13 @@ function practice_default_format(string $metric): string
     return 'integer';
 }
 
+/** "2026-08-18" reads as "18 Aug" under a star. */
+function practice_axis_date(string $ymd): string
+{
+    $t = strtotime($ymd);
+    return $t === false ? $ymd : date('j M', $t);
+}
+
 /** "metrics.top_speed" reads as "Top speed" in a heading. */
 function practice_metric_label(string $metric): string
 {
@@ -458,11 +465,12 @@ function practice_metric_label(string $metric): string
 
 // ---- rendering ----------------------------------------------------------
 //
-// Server-rendered inline SVG. The app's chart is thirty lines of SVG, so the
-// tracker matches it rather than adding a charting dependency, and the
-// geometry below is pinned: any change to it has to re-run the Spanish golden
-// snapshot. A refactor that improves the maths board and shifts the Spanish
-// chart by two pixels is a failed change.
+// Server-rendered inline SVG, still no charting dependency: the whole chart
+// is one function and a star path. The geometry below is pinned and the
+// Spanish golden snapshot fails the build on any drift, so a refactor that
+// improves the maths board and shifts the Spanish chart by two pixels is a
+// failed change. Re-pinning is a deliberate act with --update, not a side
+// effect.
 
 /** Trim a coordinate so the committed snapshot does not churn on float noise. */
 function practice_coord(float $v): string
@@ -472,16 +480,46 @@ function practice_coord(float $v): string
 }
 
 /**
- * The line chart, geometry pinned:
+ * A five-pointed star, first point straight up.
  *
- *   viewBox 0 0 600 200, left/right padding 45, baseline y=165, top y=45,
- *   y = 165 - (value / maxValue) * 120, a single point centred at x=300,
- *   polyline #7c3aed width 3 round joins, circles r=5, value labels 14px
- *   above the point at font-size 15 bold #4b5563.
+ * @param float $inner the waist, as a fraction of the outer radius
+ */
+function practice_star_path(float $cx, float $cy, float $r, int $points, float $inner): string
+{
+    $d    = '';
+    $step = M_PI / $points;
+    $a    = -M_PI / 2;
+    for ($i = 0; $i < $points * 2; $i++) {
+        $rr  = $i % 2 ? $r * $inner : $r;
+        $d  .= ($i ? 'L' : 'M') . practice_coord($cx + cos($a) * $rr)
+             . ' ' . practice_coord($cy + sin($a) * $rr) . ' ';
+        $a  += $step;
+    }
+    return $d . 'Z';
+}
+
+/**
+ * The score chart, geometry pinned:
+ *
+ *   viewBox 0 0 600 232, left/right padding 62, baseline y=192, top y=60,
+ *   y = 192 - (value / maxValue) * 132, polyline #7c3aed width 3 round joins
+ *   over a violet wash, one star per run, value labels 15px bold #4b5563
+ *   above each star and the run date 11px #78716c along the bottom at y=215.
+ *
+ * The star is the point of the design rather than decoration on top of it: it
+ * encodes the score twice, as height and as area, so a good run is visibly
+ * bigger and not merely higher up. The best run in view is drawn in gold under
+ * a dashed record line, which is the one thing on the board that says what to
+ * aim at rather than what already happened.
+ *
+ * Crowding is handled by geometry, never by dropping runs. Once the stars are
+ * closer than 34px they shrink to fit, only the record and the latest run keep
+ * their value label, and the dates thin to six: a chart nobody can read is
+ * worse than one that labels less.
  *
  * Hidden entirely below 2 runs: one point is not a trend.
  *
- * @param array<int,array{value:float,text:string,label:string}> $points oldest first
+ * @param array<int,array{value:float,text:string,label:string,axis?:string}> $points oldest first
  */
 function practice_line_svg(array $points, string $title, bool $labelPoints, bool $percent): string
 {
@@ -498,30 +536,108 @@ function practice_line_svg(array $points, string $title, bool $labelPoints, bool
     }
 
     $coords = [];
-    foreach ($points as $i => $p) {
-        $x = $n === 1 ? 300.0 : 45 + $i * (510 / ($n - 1));
-        $y = 165 - (min((float) $p['value'], $maxValue) / $maxValue) * 120;
-        $coords[] = [$x, $y];
+    foreach ($points as $p) {
+        $coords[] = min((float) $p['value'], $maxValue) / $maxValue;
+    }
+    $spacing = 476 / ($n - 1);
+    $xs      = [];
+    $ys      = [];
+    foreach ($coords as $i => $frac) {
+        $xs[] = 62 + $i * $spacing;
+        $ys[] = 192 - $frac * 132;
     }
 
-    $poly = implode(' ', array_map(
-        static fn($c) => practice_coord($c[0]) . ',' . practice_coord($c[1]),
-        $coords
-    ));
+    // Stars sized to the gaps between them, so twenty runs are small and four
+    // are generous, and neither overlaps its neighbour.
+    $rmax  = max(5.0, min(16.0, $spacing * 0.42));
+    $rmin  = max(4.0, $rmax * 0.42);
+    $dense = $spacing < 34;
 
-    $svg = '<svg class="chart" viewBox="0 0 600 200" width="100%" style="max-height:200px" role="img">'
+    // Every run at the maximum is a record; a board where they all match has
+    // no record at all, and the gold would be meaningless.
+    $best    = max($values);
+    $hasBest = $best > min($values);
+    $bestY   = 192 - (min($best, $maxValue) / $maxValue) * 132;
+    $bestAt  = $hasBest ? array_keys($values, $best, true) : [];
+
+    // Gradient ids have to be unique on a page that draws two charts, and
+    // stable across renders or the snapshot churns: derive them from the
+    // title rather than from a counter.
+    $id = 'c' . substr(md5($title), 0, 8);
+
+    $svg = '<svg class="chart" viewBox="0 0 600 232" width="100%" style="max-height:232px" role="img">'
         . '<title>' . h($title) . '</title>'
-        . '<polyline points="' . $poly . '" fill="none" stroke="#7c3aed" stroke-width="3"'
+        . '<defs><linearGradient id="' . $id . 'w" x1="0" y1="0" x2="0" y2="1">'
+        . '<stop offset="0" stop-color="#7c3aed" stop-opacity=".22"/>'
+        . '<stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient>'
+        . '<linearGradient id="' . $id . 'g" x1="0" y1="0" x2="0" y2="1">'
+        . '<stop offset="0" stop-color="#ffd257"/><stop offset="1" stop-color="#f5a623"/>'
+        . '</linearGradient></defs>';
+
+    $line = [];
+    foreach ($xs as $i => $x) {
+        $line[] = practice_coord($x) . ',' . practice_coord($ys[$i]);
+    }
+    $area = [];
+    foreach ($xs as $i => $x) {
+        $area[] = practice_coord($x) . ' ' . practice_coord($ys[$i]);
+    }
+    $svg .= '<path d="M' . practice_coord($xs[0]) . ' 192 L' . implode(' L', $area)
+        . ' L' . practice_coord($xs[$n - 1]) . ' 192 Z" fill="url(#' . $id . 'w)"/>';
+
+    if ($hasBest) {
+        $svg .= '<line class="record" x1="34" y1="' . practice_coord($bestY)
+            . '" x2="566" y2="' . practice_coord($bestY)
+            . '" stroke="#f5a623" stroke-width="1.5" stroke-dasharray="5 5"/>'
+            . '<text x="566" y="' . practice_coord($bestY - 8) . '" text-anchor="end" font-size="12"'
+            . ' font-weight="700" letter-spacing="1" fill="#b45309">'
+            . h($points[$bestAt[count($bestAt) - 1]]['text']) . ' TO BEAT</text>';
+    }
+
+    $svg .= '<polyline points="' . implode(' ', $line) . '" fill="none" stroke="#7c3aed" stroke-width="3"'
         . ' stroke-linejoin="round" stroke-linecap="round"/>';
 
-    foreach ($coords as $i => $c) {
-        $svg .= '<circle cx="' . practice_coord($c[0]) . '" cy="' . practice_coord($c[1])
-            . '" r="5" fill="#7c3aed"/>';
-        if ($labelPoints) {
-            $svg .= '<text x="' . practice_coord($c[0]) . '" y="' . practice_coord($c[1] - 14)
+    foreach ($xs as $i => $x) {
+        $y      = $ys[$i];
+        $isBest = in_array($i, $bestAt, true);
+        $r      = $rmin + $coords[$i] * ($rmax - $rmin);
+        if ($isBest) {
+            $svg .= '<path d="' . practice_star_path($x, $y, $r + 7, 5, 0.38)
+                . '" fill="#fde68a" opacity=".55"/>';
+        }
+        $svg .= '<path class="star' . ($isBest ? ' best' : '') . '" d="'
+            . practice_star_path($x, $y, $r, 5, 0.45) . '" fill="'
+            . ($isBest ? 'url(#' . $id . 'g)' : '#7c3aed')
+            . '" stroke="#1c1917" stroke-width="1" stroke-linejoin="round"/>';
+        if ($labelPoints && (!$dense || $isBest || $i === $n - 1)) {
+            $svg .= '<text x="' . practice_coord($x) . '" y="' . practice_coord($y - $r - 9)
                 . '" text-anchor="middle" font-size="15" font-weight="700" fill="#4b5563">'
                 . h($points[$i]['text']) . '</text>';
         }
+    }
+
+    // Dates along the bottom, thinned to at most six, always including the
+    // latest run: the right-hand end is the one everybody looks at.
+    $step = (int) max(1, (int) ceil($n / 6));
+    foreach ($xs as $i => $x) {
+        $axis = (string) ($points[$i]['axis'] ?? '');
+        if ($axis === '' || ($i % $step !== 0 && $i !== $n - 1)) {
+            continue;
+        }
+        $svg .= '<text x="' . practice_coord($x) . '" y="215" text-anchor="middle" font-size="11"'
+            . ' fill="#78716c">' . h($axis) . '</text>';
+    }
+
+    // One margin note, in the page's own italic rather than a webfont, and
+    // only when there is room for it.
+    if ($hasBest && !$dense) {
+        $bi   = $bestAt[count($bestAt) - 1];
+        $side = $xs[$bi] > 300 ? -1 : 1;
+        $svg .= '<text x="' . practice_coord($xs[$bi] + $side * 32) . '" y="'
+            . practice_coord($ys[$bi] + 26) . '" text-anchor="' . ($side > 0 ? 'start' : 'end')
+            . '" font-family="Georgia,serif" font-style="italic" font-size="19" fill="#b45309"'
+            . ' stroke="#fff" stroke-width="4" paint-order="stroke" stroke-linejoin="round">'
+            . 'best yet!</text>';
     }
     return $svg . '</svg>';
 }
@@ -699,6 +815,7 @@ function practice_render_line(array $panel, array $runs): string
             'value' => $v,
             'text'  => practice_format($v, $format),
             'label' => practice_run_date($run) . ' ' . $run['label'],
+            'axis'  => practice_axis_date(practice_run_date($run)),
         ];
     }
     if (count($points) < 2) {
@@ -980,26 +1097,217 @@ function practice_filter_from_query(array $q): array
             $filter[$key] = $q[$param];
         }
     }
+    // "?window=30d" is the spelling the date chips use, so a bookmarked board
+    // still means "the last thirty days" next month rather than a fixed date
+    // that quietly ages. An explicit range wins: the two are alternatives.
+    if (!isset($filter['since']) && !isset($filter['until'])
+        && !empty($q['window']) && is_string($q['window'])
+        && preg_match('/^([1-9]\d{0,3})d$/', $q['window'], $m)) {
+        $filter['window'] = $m[1] . 'd';
+        $filter['since']  = gmdate('Y-m-d', time() - ((int) $m[1]) * 86400);
+    }
     return $filter;
 }
 
-function practice_filter_form(Store $store, array $subject, array $filter): string
+/**
+ * A board URL with part of the filter replaced. Passing null for a key drops
+ * it, which is how the "all time" chip clears a date range.
+ */
+function practice_board_url(string $slug, array $filter, array $over = []): string
 {
-    $options = '<option value="">Every activity</option>';
-    foreach ($store->listPracticeSources($subject['slug']) as $s) {
-        $options .= '<option value="' . h($s['key']) . '"'
-            . (($filter['source'] ?? '') === $s['key'] ? ' selected' : '') . '>'
-            . h($s['display_name']) . '</option>';
+    $windowed = isset($filter['window']);
+    $q = [
+        'source' => $filter['source'] ?? null,
+        'window' => $filter['window'] ?? null,
+        // When a window is in force the dates it implies are derived, not the
+        // user's, and echoing them back would freeze a rolling window.
+        'from'   => $windowed ? null : ($filter['since'] ?? null),
+        'to'     => $windowed ? null : ($filter['until'] ?? null),
+        'ref'    => $filter['ref'] ?? null,
+    ];
+    // A window and an explicit range are two spellings of one filter, so
+    // setting either clears the other.
+    if (array_key_exists('window', $over)) {
+        $q['from'] = $q['to'] = null;
     }
-    return '<form class="filters" method="get" action="/s/' . h($subject['slug']) . '/practice">'
-        . '<label><small>Activity</small><select name="source">' . $options . '</select></label>'
-        . '<label><small>From</small><input type="date" name="from" value="' . h($filter['since'] ?? '') . '"></label>'
-        . '<label><small>To</small><input type="date" name="to" value="' . h($filter['until'] ?? '') . '"></label>'
+    if (array_key_exists('from', $over) || array_key_exists('to', $over)) {
+        $q['window'] = null;
+    }
+    foreach ($over as $k => $v) {
+        $q[$k] = $v;
+    }
+    $q = array_filter($q, static fn($v) => $v !== null && $v !== '');
+    return '/s/' . rawurlencode($slug) . '/practice' . ($q ? '?' . http_build_query($q) : '');
+}
+
+/** Runs grouped by source, plus '*' for the lot. */
+function practice_source_tally(array $runs): array
+{
+    $out = [];
+    foreach ($runs as $r) {
+        foreach (['*', (string) $r['source']] as $k) {
+            $out[$k] ??= ['runs' => 0, 'attempted' => 0.0, 'correct' => 0.0];
+            $out[$k]['runs']++;
+            $out[$k]['attempted'] += (float) $r['attempted'];
+            $out[$k]['correct']   += (float) $r['correct'];
+        }
+    }
+    return $out;
+}
+
+/** Line-art glyphs, drawn rather than pulled in: the page loads no icon font. */
+const PRACTICE_ICONS = [
+    'all'    => '<circle cx="9" cy="9" r="7.2"/><path d="M9 4.4v9.2M4.4 9h9.2"/>',
+    'target' => '<circle cx="9" cy="9" r="7.2"/><circle cx="9" cy="9" r="3.6"/>',
+    'cards'  => '<rect x="2.2" y="4.6" width="11" height="8.4" rx="1.6"/>'
+              . '<path d="M5.4 3.2h8.2a1.6 1.6 0 0 1 1.6 1.6v7"/>',
+    'speech' => '<path d="M2.6 4.4h12.8v7.4H8.4L5 14.6v-2.8H2.6z"/>',
+    'book'   => '<path d="M2.6 3.4h5a2 2 0 0 1 2 2v9a1.6 1.6 0 0 0-1.6-1.6H2.6z"/>'
+              . '<path d="M15.4 3.4h-5a2 2 0 0 0-2 2v9a1.6 1.6 0 0 1 1.6-1.6h5.4z"/>',
+    'dot'    => '<circle cx="9" cy="9" r="6"/>',
+];
+
+/** Sources are data, so the glyph is matched on the key rather than enumerated. */
+function practice_source_icon(string $key): string
+{
+    return match (true) {
+        str_contains($key, 'gallery')   => 'target',
+        str_contains($key, 'flashcard') => 'cards',
+        str_contains($key, 'chat')      => 'speech',
+        str_contains($key, 'session')   => 'book',
+        default                         => 'dot',
+    };
+}
+
+function practice_icon(string $name): string
+{
+    return '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor"'
+        . ' stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">'
+        . (PRACTICE_ICONS[$name] ?? PRACTICE_ICONS['dot']) . '</svg>';
+}
+
+/**
+ * One activity card. A source with nothing behind it is not a link: filtering
+ * to a guaranteed empty page is a dead end, so it renders as an invitation to
+ * go and play it instead.
+ */
+function practice_source_card(
+    string $href,
+    string $name,
+    string $icon,
+    ?array $tally,
+    bool $everPlayed,
+    bool $selected
+): string {
+    $head = '<span class="tname">' . practice_icon($icon) . h($name) . '</span>';
+
+    if ($tally === null || $tally['runs'] === 0) {
+        return '<span class="tile empty">' . $head
+            . '<span class="tnum">' . ($everPlayed ? '0' : 'new') . '</span>'
+            . '<span class="tsub">' . ($everPlayed
+                ? 'nothing in this window'
+                : 'not played yet &mdash; give it a go') . '</span></span>';
+    }
+
+    $acc = $tally['attempted'] > 0 ? $tally['correct'] / $tally['attempted'] : null;
+    return '<a class="tile" href="' . h($href) . '"' . ($selected ? ' aria-current="page"' : '') . '>'
+        . $head
+        . '<span class="tnum">' . $tally['runs'] . '</span>'
+        . '<span class="tsub">' . ($tally['runs'] === 1 ? 'run' : 'runs')
+        . ($acc === null ? '' : ' &middot; ' . h(practice_format($acc, 'percent1')) . ' right first time')
+        . '</span>'
+        . ($acc === null ? '' : '<span class="meter"><i style="width:'
+            . practice_coord($acc * 100) . '%"></i></span>')
+        . '</a>';
+}
+
+/** The date chips, in the order they read: widest first. */
+const PRACTICE_RANGES = [
+    [null,  'All time'],
+    ['30d', 'Last 30 days'],
+    ['7d',  'Last 7 days'],
+];
+
+/**
+ * The activity picker, in place of the old dropdown row.
+ *
+ * A dropdown makes you commit before it tells you anything. These cards carry
+ * the two figures that decide whether the click is worth making &mdash; how many
+ * runs are in view, and how many she got right first time &mdash; so choosing an
+ * activity confirms something already on the screen. They are ordinary links,
+ * so the board still works with JavaScript off, and the date range collapses
+ * to three chips with the two date boxes behind a disclosure, because a fixed
+ * range is the rarest of the four things anyone wants from this row.
+ *
+ * The counts deliberately ignore the source the board is already narrowed to.
+ * Counting within it would leave every card but the selected one reading zero,
+ * which is exactly the information the cards exist to give.
+ */
+function practice_picker(Store $store, array $subject, array $filter): string
+{
+    $slug = $subject['slug'];
+
+    $unsourced = $filter;
+    unset($unsourced['source']);
+    $inView = practice_source_tally($store->listPracticeRuns($slug, $unsourced));
+    // "Nothing in this window" and "never played" read differently on a card,
+    // so the second tally is needed — but only when there is a window at all.
+    $ever = $unsourced ? practice_source_tally($store->listPracticeRuns($slug)) : $inView;
+
+    $cards = [practice_source_card(
+        practice_board_url($slug, $filter, ['source' => null]),
+        'Everything',
+        'all',
+        $inView['*'] ?? null,
+        isset($ever['*']),
+        !isset($filter['source'])
+    )];
+    foreach ($store->listPracticeSources($slug) as $src) {
+        $key     = (string) $src['key'];
+        $cards[] = practice_source_card(
+            practice_board_url($slug, $filter, ['source' => $key]),
+            (string) $src['display_name'],
+            practice_source_icon($key),
+            $inView[$key] ?? null,
+            isset($ever[$key]),
+            ($filter['source'] ?? null) === $key
+        );
+    }
+
+    $window = $filter['window'] ?? null;
+    $fixed  = $window === null && (isset($filter['since']) || isset($filter['until']));
+    $chips  = '';
+    foreach (PRACTICE_RANGES as [$key, $label]) {
+        $on = $key === null ? ($window === null && !$fixed) : $window === $key;
+        $chips .= '<a class="rangechip" href="'
+            . h(practice_board_url($slug, $filter, ['window' => $key]))
+            . '"' . ($on ? ' aria-current="page"' : '') . '>' . h($label) . '</a>';
+    }
+
+    // The dates and the topic box, kept but got out of the way. Open when they
+    // are what is actually filtering the board.
+    $open  = $fixed || isset($filter['ref']);
+    $chips .= '<details class="pickdates"' . ($open ? ' open' : '') . '>'
+        . '<summary>Pick dates &amp; topic</summary>'
+        . '<form class="filters" method="get" action="/s/' . h($slug) . '/practice">'
+        . (isset($filter['source'])
+            ? '<input type="hidden" name="source" value="' . h($filter['source']) . '">' : '')
+        . '<label><small>From</small><input type="date" name="from" value="'
+        . h($window === null ? ($filter['since'] ?? '') : '') . '"></label>'
+        . '<label><small>To</small><input type="date" name="to" value="'
+        . h($window === null ? ($filter['until'] ?? '') : '') . '"></label>'
         . '<label><small>Topic</small><input type="text" name="ref" size="6" placeholder="G14" value="'
         . h($filter['ref'] ?? '') . '"></label>'
         . '<button type="submit">Filter</button>'
-        . ($filter ? ' <a href="/s/' . h($subject['slug']) . '/practice"><small>clear</small></a>' : '')
-        . '</form>';
+        . '</form></details>';
+
+    if ($filter) {
+        $chips .= '<a class="clear" href="/s/' . h($slug) . '/practice"><small>clear</small></a>';
+    }
+
+    return '<div class="picker"><p class="plabel">Pick an activity</p>'
+        . '<div class="tiles">' . implode('', $cards) . '</div>'
+        . '<div class="ranges">' . $chips . '</div></div>';
 }
 
 /** The full board at /s/{subject}/practice. */
@@ -1012,7 +1320,7 @@ function render_practice_board(Store $store, array $subject, array $query = []):
 
     $body = detail_head($subject, 'Practice', 'Games and sessions logged against ' . h($subject['name'])
         . '. Practice never moves a topic status &mdash; that happens through sessions only.');
-    $body .= practice_filter_form($store, $subject, $filter);
+    $body .= practice_picker($store, $subject, $filter);
 
     if (!$runs) {
         $body .= '<p><small>' . ($filter

@@ -184,10 +184,25 @@ they wrote. An unknown panel *type* in an already-stored configuration is a
 different case — it is skipped with a logged warning rather than breaking the
 page, so a board written by a newer version still renders everything else.
 
-The board is at `/s/<subject>/practice`, filterable by activity, date range and
-topic, with the first four panels also shown on the subject dashboard. It is
-server-rendered inline SVG: the app's chart is thirty lines of SVG, so the
-tracker matches it rather than adding a charting dependency. Every chart
+The board is at `/s/<subject>/practice`, with the first four panels also shown
+on the subject dashboard. Activities are picked from cards rather than a
+dropdown: each card carries the two figures that decide whether the click is
+worth making — how many runs are in view, and how many she got right first
+time — so choosing an activity confirms something already on the screen instead
+of revealing it. The counts ignore the activity the board is already narrowed
+to, or every card but the selected one would read zero. An activity with
+nothing logged is not a link at all: filtering to a guaranteed empty page is a
+dead end, so it renders as an invitation to go and play it. The cards are
+ordinary links, so the board works with JavaScript off.
+
+Date ranges are chips writing `?window=30d`, a rolling window rather than a
+frozen date, so a bookmarked board still means the last thirty days next month.
+The two date boxes and the topic filter are kept behind a disclosure and open
+automatically when they are what is filtering the board. `?from=`/`?to=` still
+work and beat a window; the two are alternatives and setting either clears the
+other.
+
+Charts are server-rendered inline SVG with no charting dependency. Every chart
 carries a `<title>` and repeats its numbers as a table — the chart is never the
 only route to the data.
 
@@ -195,9 +210,14 @@ only route to the data.
 own view does, because that view is the delivery she actually cares about and
 the reason she keeps playing. Its configuration is seeded by migration and
 covered by a golden snapshot in `tests/golden`, rendered against a fixed
-fixture and diffed on every build; the chart geometry — viewBox, padding,
-baseline, stroke, point radius, label offset — is pinned in `practice.php` and
-shared with the app. Any change to a panel type must re-run
+fixture and diffed on every build; the chart geometry — viewBox `0 0 600 232`,
+padding 62, baseline y=192, span 132, stroke, star radius, label offsets — is
+pinned in `practice.php`. Each run is drawn as a star sized by its value, so
+the score is encoded twice, as height and as area; the best run in view is gold
+under a dashed record line. Crowding is handled by geometry and never by
+dropping runs: past about 34px between stars they shrink, only the record and
+the latest run keep their value label, and the dates thin to six. Any change to
+a panel type must re-run
 `php deploy/practice-test.php`: a refactor that improves the maths board and
 shifts the Spanish chart by two pixels is a failed change. Run it with
 `--update` to rewrite the snapshots deliberately, and read the diff before you
@@ -210,7 +230,11 @@ Accuracy on the board is always **pooled** — total correct over total attempte
 are 76.8% and 77.2%; they differ, and pooled is the honest one.
 
 There are deliberately no leaderboards, streaks, badges or nudges, no
-per-keystroke telemetry and no cross-subject comparison. The chart exists
+per-keystroke telemetry and no cross-subject comparison. The gold star and the
+record line are the one concession, and they stay inside that rule: they mark
+her own best run against her own, which is the thing the chart was always for.
+Nothing on the board counts consecutive days or withholds anything for missing
+one. The chart exists
 because she likes seeing progress, not to manufacture obligation, and comparing
 Spanish accuracy to maths accuracy would invite the wrong conclusion.
 

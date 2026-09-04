@@ -410,7 +410,10 @@ call($store, 'tracker_log_practice', ['subject' => 'spanish', 'runs' => array_sl
 $bulkRuns = $store->listPracticeRuns('spanish');
 check('twenty-nine runs are stored', count($bulkRuns), 29);
 $board = practice_render_panels($store, $subject, SPANISH_SCOREBOARD, $bulkRuns);
-check('the chart is capped at its limit of 20 points', substr_count($board, '<circle'), 20);
+check('the chart is capped at its limit of 20 points',
+    substr_count($board, '<path class="star'), 20);
+check('and at twenty points it labels only the record and the latest run',
+    substr_count($board, 'font-size="15" font-weight="700"'), 2);
 check('and the table at its limit of 20 rows',
     substr_count($board, '<tr>') - substr_count($board, '<thead><tr>') - substr_count($board, '<tr><td'), 0);
 foreach ($bulkRuns as $r) {
@@ -419,6 +422,48 @@ foreach ($bulkRuns as $r) {
     }
 }
 check('the bulk runs are out of the way again', count($store->listPracticeRuns('spanish')), 4);
+
+echo "\n== the activity picker ==\n";
+$picker = practice_picker($store, $subject, []);
+contains('every registered activity gets a card', $picker, 'Shooting Gallery');
+contains('the card carries the run count', $picker, '<span class="tnum">4</span>');
+contains('and how many she got right first time', $picker, '76.8% right first time');
+contains('Everything is selected when nothing is filtered', $picker,
+    'href="/s/spanish/practice" aria-current="page"');
+contains('an activity with nothing logged is an invitation', $picker,
+    'not played yet &mdash; give it a go');
+lacks('and is not a link to a guaranteed empty board', $picker, 'source=spanish_flashcards');
+lacks('the dropdown is gone', $picker, '<select');
+
+// The counts have to ignore the narrowing the board already has, or every
+// card but the selected one reads zero — which is the one thing they are for.
+$narrowed = practice_picker($store, $subject, ['source' => 'spanish_gallery']);
+contains('narrowing to an activity leaves the other counts intact', $narrowed,
+    '<span class="tnum">4</span>');
+contains('and marks that card as the current one', $narrowed,
+    'href="/s/spanish/practice?source=spanish_gallery" aria-current="page"');
+
+check('a date chip is a rolling window, not a frozen date',
+    practice_board_url('spanish', [], ['window' => '30d']),
+    '/s/spanish/practice?window=30d');
+check('picking a window clears an explicit range',
+    practice_board_url('spanish', ['since' => '2026-01-01', 'until' => '2026-02-01'], ['window' => '7d']),
+    '/s/spanish/practice?window=7d');
+check('picking an activity keeps the window it was picked in',
+    practice_board_url('spanish', ['window' => '30d', 'since' => '2026-08-05'],
+        ['source' => 'spanish_gallery']),
+    '/s/spanish/practice?source=spanish_gallery&window=30d');
+check('and All time clears the window without losing the activity',
+    practice_board_url('spanish', ['window' => '30d', 'since' => '2026-08-05',
+        'source' => 'spanish_gallery'], ['window' => null]),
+    '/s/spanish/practice?source=spanish_gallery');
+
+$w = practice_filter_from_query(['window' => '7d']);
+check('?window=7d resolves to a since date', $w['since'], gmdate('Y-m-d', time() - 7 * 86400));
+check('and keeps the window for the chips to read', $w['window'], '7d');
+check('an explicit range beats a window',
+    practice_filter_from_query(['window' => '7d', 'from' => '2026-01-01'])['window'] ?? null, null);
+check('a nonsense window is ignored', practice_filter_from_query(['window' => 'lol']), []);
 
 echo "\n== the Spanish golden snapshot (acceptance 1, BLOCKING) ==\n";
 $spanishHtml = practice_render_panels($store, $subject, practice_scoreboard_for($store, 'spanish'),
@@ -467,9 +512,19 @@ if (!$UPDATE) {
     lacks('and the mean is nowhere on the board', $spanishHtml, '77.2%');
     contains('the top speed is 8.4', $spanishHtml, '<p class="big mono">8.4</p>');
     contains('the chart plots the raw score, labelled', $spanishHtml, '>56</text>');
-    contains('the chart is pinned to its viewBox', $spanishHtml, 'viewBox="0 0 600 200"');
+    contains('the chart is pinned to its viewBox', $spanishHtml, 'viewBox="0 0 600 232"');
     contains('the line is the pinned purple', $spanishHtml, 'stroke="#7c3aed" stroke-width="3"');
-    contains('the best score sits on the top of the plot at y=45', $spanishHtml, 'cy="45"');
+    contains('the best score sits on the top of the plot at y=60', $spanishHtml,
+        '<line class="record" x1="34" y1="60"');
+    contains('every run is a star', $spanishHtml, '<path class="star"');
+    contains('and the best one is gold', $spanishHtml, '<path class="star best"');
+    contains('the record line says what to beat', $spanishHtml, '>56 TO BEAT</text>');
+    contains('the run dates label the axis', $spanishHtml, '>4 Sep</text>');
+    contains('and the record is annotated', $spanishHtml, '>best yet!</text>');
+    // Two charts on one page would collide on a shared gradient id, so each
+    // chart derives its own from its title.
+    preg_match('/id="(c[0-9a-f]{8})w"/', $spanishHtml, $gid);
+    lacks('each chart owns its gradient ids', $mathsHtml, $gid[1] ?? 'no-id-found');
     contains('every chart carries a title', $spanishHtml, '<title>Score trend');
     contains('and the same numbers appear as a table', $spanishHtml, 'Chart data');
     contains('the maths board draws its split bar', $mathsHtml, 'How questions went');
