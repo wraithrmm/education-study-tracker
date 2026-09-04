@@ -376,7 +376,15 @@ function render_subject(Store $store, array $subject): string
             . ' · ' . h($lastPaper['date']) . '</small></p></a>'
         : '<p><small>No full paper logged.</small></p>';
 
-    $kicker      = h($subject['spec_code'] ?? '') . ($subject['tier'] ? ' · ' . h($subject['tier']) : '');
+    // Every other page carries its way back in the kicker — a topic returns to
+    // its subject, the practice board to its subject — and the subject page was
+    // the one dead end. Same treatment, pointing at the index. Joining the
+    // parts rather than concatenating them also drops the stray separator a
+    // subject with a tier but no spec code used to grow.
+    $trail       = array_filter([h((string) ($subject['spec_code'] ?? '')),
+                                 h((string) ($subject['tier'] ?? ''))], static fn($p) => $p !== '');
+    $kicker      = '<a href="/">← All subjects</a>'
+                 . ($trail ? ' · ' . implode(' · ', $trail) : '');
     $when        = h(gmdate('Y-m-d H:i'));
     $notes       = $subject['notes'] ? '<br>' . h($subject['notes']) : '';
     $subjectName = h($subject['name']);
