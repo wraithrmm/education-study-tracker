@@ -166,10 +166,23 @@ subject: panel *types* are code, panel *instances* are configuration. Types are
 `stat`, `line`, `table`, `topics` and `split`, every one of them taking a title
 and an optional `source` filter, so one subject can show separate panels per
 activity. `tracker_set_scoreboard` writes the configuration, which is the point
-— a new chart for a new need needs no deploy. An invalid panel rejects the
-whole configuration, so a bad edit cannot half-apply; an unknown panel type in
-a stored configuration is skipped with a logged warning rather than breaking
-the page.
+— a new chart for a new need needs no deploy.
+
+| Type | Options beyond `title` and `source` |
+|---|---|
+| `stat` | `metric`, `window` (`all`, `lastN`, `Nd`), `agg`, `format`, `label` to replace the generated caption |
+| `line` | `metric`, `limit`, `y_axis` (`auto` or `percent`), `label_points`, `format` |
+| `table` | `columns`, `limit` |
+| `topics` | `sort`, `limit`, `metrics` — which columns the breakdown shows |
+| `split` | `limit`, `group_by` (`run`, `source` or `topic`) |
+
+An invalid panel rejects the whole configuration, so a bad edit cannot
+half-apply, and that includes an option the renderer does not read: a
+misspelled key is refused rather than silently ignored, because a key that does
+nothing is how a board ends up not matching the configuration someone believes
+they wrote. An unknown panel *type* in an already-stored configuration is a
+different case — it is skipped with a logged warning rather than breaking the
+page, so a board written by a newer version still renders everything else.
 
 The board is at `/s/<subject>/practice`, filterable by activity, date range and
 topic, with the first four panels also shown on the subject dashboard. It is
