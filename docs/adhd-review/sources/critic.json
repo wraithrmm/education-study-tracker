@@ -1,0 +1,251 @@
+{
+  "gaps": [
+    {
+      "topic": "Age rules, safeguarding and data handling for a 13-year-old using Claude and a link-public dashboard",
+      "why_it_would_change_a_recommendation": "Every autonomous-use recommendation assumes she chats with Claude alone (maths-tutor-session, marker-feedback/5 'ask Claude to check', engineering/2 'open /s/maths/today'), the Spanish artifact calls the Anthropic API from her browser (spanish-pipeline/11), and the dashboard is public by default and narrates her errors and habits (engineering/12, student-ux/6, marker-feedback/9). The research has only ai-tutor-design/C14 (APA advisory, verdict none) and an unverified caveat that consumer AI services commonly require users to be 18+; the planned search for UK DfE generative-AI guidance never ran. If direct use by a minor is outside the provider's terms, 'largely autonomous' becomes parent-account, parent-present use and the student today page loses 'ask Claude'. If the dashboard stays public, the proposals to add energy ratings, frustration markers, start times and habit counts (state-model/1, feedback-emotion/C8, tutor-session/3, engineering/5) put more of a child's behavioural record on an open URL.",
+      "what_to_check": "Anthropic consumer terms and usage policy on minimum age and supervised use; DfE 'Generative AI in education' guidance and Online Safety Act duties as they touch a home setting; where Claude session logs and the artifact's chat transcripts about a minor are retained and who controls the API key; set DASHBOARD_PUBLIC=false or the signed-link option in engineering/12 before any behavioural field is added; whether the For-Student files and the tracker constitute a record the local authority or a centre SENCo will later read."
+    },
+    {
+      "topic": "Her voice: nothing asks the student what she wants, consents to, or thinks the system is for",
+      "why_it_would_change_a_recommendation": "The strongest predictor of response in the adolescent programmes cited is the adolescent's own rating of the working alliance and autonomy support (adhd-ef/C12 Langberg 2016, partial; adhd-ef/C13, feedback-emotion/C10, self-regulation-tools/C14 STAND). Every review designs for her (student-ux/1, marker-feedback/6, tutor-session/3) but the only choices offered to her are 'Energy 1-5?' and three options after disengagement (tutor-session/9). Nothing records whether she chose to sit GCSEs at 13, whether she wants a grade shown (marker-feedback/2 says ask the parent), what she thinks of the countdown, or whether she wants the chart she likes to become the doorway to a maths habit page. If she did not choose the goal, the delay-aversion evidence (adhd-ef/C3, motivation-gamification/C1) says the whole reward structure is external, and the MI-derived advice (student sets the goal, chooses the order) is being applied without the first MI step.",
+      "what_to_check": "A short structured conversation with her, written into the appendix in her words: why she is doing this, which subject first, what she wants on her page, what she does not want logged, what happens if December goes badly; make her the reviewer of the today-page mock-up before it is built; look for adolescent autonomy-support and self-determination evidence in ADHD interventions, which the digest reaches only through STAND and a single trajectory paper."
+    },
+    {
+      "topic": "Household capacity: the parent as sole tutor, invigilator, evidence-gatherer, coach and engineer, and the student's total load beyond two GCSEs",
+      "why_it_would_change_a_recommendation": "The active ingredient in every well-established package is a trained adult checking weekly (adhd-ef/C10, C11; self-regulation-tools/C4, C5, C7), and delivery without that skill produced a null result (adhd-ef/C13, self-regulation-tools/C14). The reviews assign the same parent: three Shape A plus one Shape C sessions a week (plan-velocity/5), invigilating nine timed papers in Dec-Feb (plan-velocity/9), assembling the JCQ evidence pack and finding a centre that says yes three times (uk-exam-logistics/C1, C2, C12), weekly co-planning meetings (feedback-emotion/C10), same-day report-card review (self-regulation-tools/C4), a praise style (feedback-emotion/C2), Spanish role-play and dictation (plan-velocity/7), resource curation (engineering/7) and about 50 hours of service changes (engineering NUMBERS). Parent tutors produce smaller effects than professionals (early-entry-homeed/C9, partial), and parenting stress and parental ADHD symptoms moderate outcomes (adhd-ef/C12, C13). On the student side, the GLH arithmetic gives roughly 8 tutored hours a week for these two subjects alone (early-entry-homeed/C3, partial) before any other subject, exercise (session-structure/C5-C8), sleep (C10) or peers, and the local authority's suitable-education expectation covers the whole curriculum. Nothing records the parent's available hours or the rest of her week, so the report cannot tell under-resourced from under-performing, which is plan-velocity/5's own point.",
+      "what_to_check": "The parent's realistic weekly hours for sessions, mocks, admin and building; whether a second adult, an online tutor, a home-education group or a mock-exam service can take invigilation and one session a week; the whole-week timetable including other subjects and physical activity; whether the parent has considered their own ADHD screening (heritability is high and STAND's moderator analysis is the relevant evidence); what the local authority knows of the plan."
+    },
+    {
+      "topic": "Medication status and clinician involvement are unknown, and a large part of the advice silently branches on them",
+      "why_it_would_change_a_recommendation": "The one study that changed its answer by medication status found retrieval practice did not repair weak encoding in unmedicated students while medicated students matched controls (learning-science/C12, partial; n=36, grouping not randomised); if-then plans worked best combined with stimulant medication (self-regulation-tools/C1 Study 2); session-window and time-of-day advice (session-structure/C11, C14; tutor-session/8) only means something if there is a coverage window; NICE expects a shared treatment plan covering educational needs and sequences medication after environmental modification (adhd-ef/C8, session-structure/C13), which must not be read as 'she should be medicated'; comorbid anxiety runs at about one in five (maths-blanks-anxiety/C4, none). If unmedicated, the report's weight shifts to the teach block and encoding checks and the December bar should be read more cautiously; if medicated, timing sessions inside the window is the cheapest single lever; either way the access-arrangement route needs a specialist letter (uk-exam-logistics/C2), so a clinician has to be in the loop by November.",
+      "what_to_check": "Whether there is a current prescriber or CAMHS/paediatric contact and when the next review is; whether she is medicated and the parent's own note of the effective window, kept in the parent-maintained appendix line that tutor-session/8 proposes and never asked of her by the tutor; whether anxiety has ever been assessed; whether a diagnosis letter exists that names the functional impact on timed work. Write the report with two explicit branches rather than one silent assumption."
+    },
+    {
+      "topic": "Monitoring versus surveillance: reconciling 'largely autonomous' with the evidence that adolescents with ADHD need adult monitoring, without the tracker becoming a behaviour log she did not choose",
+      "why_it_would_change_a_recommendation": "The digest's line that 'unsupported self-regulation is not expected to be sufficient' (early-entry-homeed/C7, partial) is the researcher's gloss, but HOPS, DRC, STAND and OST all include adult checking, so 'autonomous' will not survive contact with the evidence. The reviews answer by proposing tutor-recorded counts of working_not_shown, answer_targeting, prose_not_boxes and skip_requested (state-model/1, engineering/1, engineering/4), start times and endings (engineering/5, state-model/4), an energy number (tutor-session/3), a frustration 1-5 (feedback-emotion/C8), predicted-versus-actual scores (ai-tutor-design/C8), estimate-versus-actual minutes (self-regulation-tools/C9), every item of every Spanish game (spanish-pipeline/2, against the README's no-per-keystroke-telemetry line) and a five-session habit line on the parent dashboard. The self-monitoring evidence those proposals cite (adhd-ef/C14, self-regulation-tools/C3) is for the student recording her own behaviour, not a tutor scoring her for a parent, and student-ux/6 has already found that third-person narration of her habits on a page she visits is a reason to close the tab. The difference between an accommodation and surveillance is who records it, who sees it and whether she agreed.",
+      "what_to_check": "Rewrite the habit proposals as self-monitoring with matching (she ticks 'working on every answer / answered what was asked / no blanks', the tutor ticks the same, agreement is praised; the DuPaul and Stoner form named in self-regulation-tools/C3); show her exactly what is logged and the same line the parent sees; make parent monitoring weekly and collaborative (STAND) rather than a same-day review of every session; state in the README which new fields are tutor-only, parent-facing, or hers; drop 'skip_requested' and 'answer_targeting' as parent-facing labels; look for evidence on adolescents' experience of monitoring in ADHD interventions (Sibley's parent monitoring is 'by agreement')."
+    },
+    {
+      "topic": "What happens if the December mock goes badly, and how the fallback is told to her",
+      "why_it_would_change_a_recommendation": "plan-velocity/1 shows the appendix's 'expected >= grade 5' is two grades above the evidenced level and reachable only at 2.7 topics a week against an observed net of minus one; early-entry-homeed/C12 and uk-exam-logistics/C13 establish that a poor May 2027 sitting cannot be re-sat until June 2028 (no November series under 16), so December is a genuine go/no-go; adhd-ef/C12 says non-response should change the approach, not intensify it. Yet nothing says what she is told before the mock about what it decides, who tells her the result, or how 'Foundation' or 'not this year' is framed so it does not read as failure. feedback-emotion/C7's one-off honest message is partial and an extrapolation from a school programme; marker-feedback/13's handover script covers a paper, not a decision. The tutor skill's first line and the red countdown currently tell her every session that she is preparing for Higher in May 2027, so any fallback would arrive as a reversal of everything the system has said.",
+      "what_to_check": "Agree with her in advance, in writing in the appendix, the three readings of the December mark and what each means for her (plan-velocity/1's bands), including that deferral to June 2028 is a planned option and not a verdict; decide who delivers the result and script it in the marker-feedback/6 voice; look for evidence on communicating tier or entry decisions to adolescents (probably none, say so) and use STAND's collaborative goal-setting as the nearest model; change the tutor skill's tier framing to neutral now so December cannot contradict it."
+    }
+  ],
+  "contradictions": [
+    {
+      "between": "learning-science/C13 (worked examples first, g=0.48, supported) versus the tutor skill's 'never hand over the answer first' and ai-tutor-design/C1, C4 (step-based hints and answer-withholding, both unverified)",
+      "what_conflicts": "C13's implication says the no-answer rule 'is right for practice but wrong for first teaching' of the 36 untaught maths topics; ai-tutor-design/C4 credits answer-withholding with removing the ChatGPT harm; tutor-session/1 proposes 'one example you lead, one she leads' without saying which rule governs when.",
+      "how_to_resolve": "State the rule as stage-dependent: new topic = a full worked example she explains back, then a faded example with one step missing, then independent problems with hints only (Renkl fading and expertise reversal are named in C13's implication); practice, starters and exit tickets = no answer first. Note that Bastani's guardrail bundled hints and withholding so the effect cannot be attributed to withholding alone (ai-tutor-design caveats) and that the worked-example evidence is general-population."
+    },
+    {
+      "between": "the immediate-feedback cluster (feedback-emotion/C13 Luman, partial; motivation-gamification/C4, none; learning-science/C7; adhd-ef/C3) versus ai-tutor-design/C9 (2018 adult-ADHD lab study where 0 s feedback impaired learning and 3-6 s helped, none) and the Metcalfe 2009 delayed-feedback note; also tutor-session/10 ('praise not every time') versus feedback-emotion/C13 ('acknowledgement in the same turn as the attempt')",
+      "what_conflicts": "One side says feedback and acknowledgement must be immediate and per item; the other says a short delay helped adults with ADHD on a lab task and typical children on vocabulary. The verifier notes Luman's 'deteriorates under delayed or intermittent reward' is a theoretical prediction, 'more frequent' was not shown, and C9's sample size is unknown.",
+      "how_to_resolve": "Separate reinforcement timing from corrective-information timing. Immediate, specific, contingent acknowledgement of the target behaviour (a written line, a read-back of the question) every time it occurs satisfies both Luman's immediacy and tutor-session/10's contingency; corrective marking after a few seconds of her own re-read is compatible with C9 and costs nothing. Say that none of these three sources justifies rebuilding feedback timing; keep per-item feedback in the Shooting Gallery and treat the re-read pause as a hypothesis to watch against retry data."
+    },
+    {
+      "between": "the README's no-rewards reading, feedback-emotion/C14's response-cost warning (partial, unsourced) and motivation-gamification/C7 (Deci undermining) versus the ADHD intervention evidence that used home rewards: DRC (self-regulation-tools/C4, parents trained to give home rewards), STAND (self-regulation-tools/C14 verifier: includes contingency management), HOPS (adhd-ef/C11 'checking with rewards'), Dovis (adhd-ef/C7: 10 euros or a game normalised persistence, 1 euro did not), Marx (motivation-gamification/C2: real rewards nearly doubled the odds ratio), Luman (feedback-emotion/C13: reward and response cost both helped)",
+      "what_conflicts": "The stance is defended in the digest by general-population studies of badges, leaderboards and streaks (motivation-gamification/C9, C11, C12), but every ADHD-direct package the report will recommend carried tangible contingencies, the feedback-only variant is untested (self-regulation-tools caveats), and C14's claim that response cost is punitive and escalates conflict is contradicted by C13's own source.",
+      "how_to_resolve": "Split the stance in two. Keep 'nothing on the board is withheld, no streaks, badges or comparison' as supported (C11, C12, C10, student-ux/8). Do not present home contingencies as anti-evidence: recommend parent-agreed, immediate, tangible-enough rewards for behaviours (session started, questions submitted, working shown), never for marks, following Deci's own distinction (expected performance-contingent rewards on interesting tasks undermine; behaviour-contingent rewards on a non-preferred task are what the ADHD literature used). Remove the response-cost warning or label it opinion."
+    },
+    {
+      "between": "the tracker's 8-week ageing rule and 3-week examready rule versus learning-science/C8 (Cepeda optimal gap, partial), learning-science/C2 and mfl-vocab-srs/C2 (expanding equals uniform), and three different scheduler proposals: engineering/3 ([1,3,7,14,30,60] with recall_streak), state-model/2 (7-14-21-42-84), tutor-session/6 (slot ladder 1 session / 1 week / 3-8 weeks / 8+)",
+      "what_conflicts": "Cepeda's curve implies a first gap nearer 25 days for a 250-day horizon, so 8 weeks is at the far edge and C8's 12-50-day band is the agent's interpolation; the reviews propose expanding ladders although the meta-analyses say expanding gains nothing over equal spacing (g=0.034; Nakata 2015 'very small') and the maths spacing effect is smaller than elsewhere (learning-science/C3, g=0.28); the three reviews disagree with each other on the ladder.",
+      "how_to_resolve": "Report the evidence as: any spacing beats massing (large), the shape of the schedule barely matters, and a first re-test around 3-4 weeks with a second before the February decision is inside the supported band. Pick one schedule (state-model/2's maps onto the existing thresholds) and present the ladder as a design choice, not a finding. The load-bearing fix is that developing topics have no schedule at all today (state-model/2: four topics invisible for nine weeks), not the exact intervals."
+    },
+    {
+      "between": "tutor-session/1 (one Shape A per day, 20-minute teach, mandatory break) versus plan-velocity/1 and /5 (2.7 topics a week to December; three Shape A plus one Shape C a week) against an observed 0.9 session-days a week; and tutor-session/1's WHY versus adhd-ef/C5 and session-structure/C1 (time-on-task decline only small to moderate) and early-entry-homeed/C8 (EEF: about 30 minutes, three to five times a week)",
+      "what_conflicts": "The tutor cap and the plan pace are compatible only at three or more session-days a week, which nobody has budgeted. tutor-session/1 says sustained-attention decline over time is the core deficit and steeper in a second block, but the two ADHD meta-analyses say the additional decline is small to moderate; the case for breaks rests on NICE (guideline, unquantified), one lab study whose 'keep sessions short' recommendation is not in the paper (session-structure/C2, partial) and a university Pomodoro study (session-structure/C3). The 2 Sep second-session collapse is n=1.",
+      "how_to_resolve": "Present the arithmetic together: at one Shape A per day the December grade-5 bar is unreachable, so the report resets the checkpoint (plan-velocity/1) rather than raising the pace, and adds a 30-45 minute Shape E so that three to five session-days a week is possible without a 90-minute block each time. Phrase the break as NICE guidance plus general-population evidence, not as an ADHD-specific finding, and the second-session pattern as one observation worth logging."
+    },
+    {
+      "between": "plan-velocity/2, /4 and spanish-pipeline/4 (Foundation as the working assumption, Higher only on two dated tests) versus the maths appendix 'Tier intention Higher', target 'secure 5, stretch 6', the tutor skill's 'preparing for AQA 8300 Higher (June 2027)', seed.php tier Higher, and the Spanish subject row asserting Higher while its appendix says TO CONFIRM",
+      "what_conflicts": "All recorded evidence is Foundation (148/240, 22/25); Higher grade 5 needs 40% of a paper roughly half made of untaught content; a Higher paper manufactures the blanks the system is built to suppress (plan-velocity/2 WHY); F/H topics hide Higher depth (plan-velocity/11); no November resit exists for her (early-entry-homeed/C12, uk-exam-logistics/C13). The plan review asked for board analyses of borderline candidates by tier and none was retrieved.",
+      "how_to_resolve": "Adopt the Foundation working assumption with the two dated reversal tests; change the tutor skill's description line and line 8 now so sessions stop being framed as Higher; set the Spanish row to match its appendix; say plainly that the tier recommendation rests on arithmetic, the no-resit rule and the blanks mechanism, not on a retrieved study of tier outcomes; keep plan-velocity/2's note that a Foundation 5 at 13 does not close off Higher later."
+    },
+    {
+      "between": "marker-feedback/2 and /6 rule 7 (one grade at most, after the actions, no hedge, or none) versus the tracker showing grades everywhere: the subject badge '148/240 = grade below 4' (student-ux/2, plan-velocity/8, marker-feedback/9), the attempt page with the answer key one click from her chart, student-ux/2's proposal to headline the latest check score, and plan-velocity/8's proposal to print two grades ('grade 4 on June 2022; grade 3 on June 2024 standards')",
+      "what_conflicts": "The marker review's evidence (Butler 1988; Kluger and DeNisi 1996, neither retrieved by the research; feedback-emotion/C4 is the nearest verified claim) says a grade suppresses the comments beneath it; the page she visits for her chart currently gives a wrong, hedged grade as its headline; two reviews want more numbers on the parent page.",
+      "how_to_resolve": "Two audiences, one rule: the student-facing surfaces (today page, For-Student file) show marks, blanks and at most one plain grade, never a hedge; the parent dashboard carries the series-correct two-grade reading. Fix the seed's missing grade-3 row today so no page can say 'below 4' (plan-velocity/8, marker-feedback/9b) and close the attempt table by default. Cite Butler 1988 as a classic single experiment that was not retrieved."
+    },
+    {
+      "between": "adhd-ef/C14 and self-regulation-tools/C3 (self-monitoring: the student records her own behaviour) versus state-model/1, engineering/1 and engineering/4 (tutor-recorded habit counts shown to the parent)",
+      "what_conflicts": "The reviews cite the self-monitoring evidence for a tutor-scored habit line; the studies' mechanism is the act of self-recording, and the effect sizes are from single-subject designs.",
+      "how_to_resolve": "Implement the habit fields as her self-ratings with tutor matching; keep tutor counts as an internal check rather than a dashboard line; say the effect sizes are not comparable to trial figures."
+    },
+    {
+      "between": "ai-tutor-design/C1, C3, C5, C6 (tutoring-system effects 0.43-0.76 and a Harvard RCT, all unverified) versus early-entry-homeed/C8, C9 (human tutoring: maths +2 months; 0.288 in the published version; parent tutors weaker) and the caveat that no AI-tutoring study with ADHD adolescents exists",
+      "what_conflicts": "Read together they invite a number for what Claude-as-tutor will deliver; none of the samples is comparable, and the ai-tutor-design area never verified a claim.",
+      "how_to_resolve": "Quote no expected effect size for the system; state that the December mock is its first real test and that the only ADHD-direct tutoring evidence is that retrieval practice works as well for students with ADHD (learning-science/C11) but does not repair weak encoding (C12)."
+    }
+  ],
+  "weakest_load_bearing": [
+    {
+      "claim_id": "maths-blanks-anxiety/C14",
+      "why_weak": "Evidence type none; no source retrieved; yet the skipping script, the blanks metric and the message that an attempt can never score below a blank all rest on it, and marker-feedback's strengths repeat it from the skill file.",
+      "how_the_report_should_phrase_it": "AQA 8300 mark schemes, as encoded in the gcse-maths-marker skill, award method marks for correct working and carry no negative marking; verify against one published scheme before quoting it to her as a rule."
+    },
+    {
+      "claim_id": "session-structure/C10",
+      "why_weak": "Verdict unsupported: the 63.7% evening-chronotype figure belongs to a 2025 paper; the cited 2022 paper found 19% evening, 54% intermediate.",
+      "how_the_report_should_phrase_it": "Adolescents with ADHD report more sleep disturbance and a higher share of evening chronotypes than peers, with figures varying widely by study (19% to 64%); the practical point is to log session start time, not to assume she is an evening type."
+    },
+    {
+      "claim_id": "uk-exam-logistics/C3",
+      "why_weak": "Verdict unsupported: the March 2026 revision softened 'must trial and exhaust' rest breaks to 'should consider'; the claim reverses the direction; the 2026-27 AARA that governs June 2027 was never seen.",
+      "how_the_report_should_phrase_it": "Under the 2025-26 AARA as revised in March 2026 the SENCo should consider supervised rest breaks before applying for 25% extra time; the 2026-27 edition has not been checked. Plan for rest breaks first and record timed-work evidence either way."
+    },
+    {
+      "claim_id": "learning-science/C12",
+      "why_weak": "Misattributed (Minear et al. 2023, not Knouse); n=36 versus 36 college students learning Swahili word pairs; medication grouping observational; yet it is the basis for 'encoding is the weakest link' and for the medication branch.",
+      "how_the_report_should_phrase_it": "One small observational study of college students found retrieval practice helped students with ADHD as much as others but did not compensate for weaker initial learning in the unmedicated group; treat it as a reason to secure first learning carefully, not as evidence about medication."
+    },
+    {
+      "claim_id": "ai-tutor-design/C4",
+      "why_weak": "Never verified; the unassisted-exam decrement was not seen; the guardrail bundled hints, guidance and withholding; Turkish high-school sample, not ADHD; yet it carries 'never give the answer first' as load-bearing and the hints-per-question logging proposal.",
+      "how_the_report_should_phrase_it": "A large field experiment (Bastani et al. 2025, not verified here) found unguarded ChatGPT access raised practice scores but lowered unassisted performance, and a hint-only tutor largely removed the harm; the effect cannot be attributed to answer-withholding alone."
+    },
+    {
+      "claim_id": "ai-tutor-design/C9 with ai-tutor-design/C10, feedback-emotion/C13 and motivation-gamification/C4",
+      "why_weak": "The whole feedback-timing cluster: C9 is one unverified adult lab study with unknown n; C10 is explicitly a belief without a retrieved source; Luman's immediacy preference is confirmed but 'more frequent' was not shown and 'deteriorates under delayed reward' is a theoretical prediction per the verifier.",
+      "how_the_report_should_phrase_it": "Children with ADHD prefer immediate over delayed reward and respond to salient reinforcement (Luman et al. 2005, 22 studies); whether feedback must arrive within seconds, and whether a short pause before marking helps or hurts, is not established."
+    },
+    {
+      "claim_id": "adhd-ef/C12",
+      "why_weak": "Misattributed (Langberg et al. 2016); N=112 after-school participants, not the 326-student trial; the lower bound is one in six, not one in three; it underpins 'if the behavioural metrics have not moved by December, change the approach'.",
+      "how_the_report_should_phrase_it": "In the one trajectory analysis available (n=112 in an after-school programme), between one-sixth and a half of adolescents improved substantially, and the adolescent's own rating of the working alliance plus low parent-teen conflict predicted who did."
+    },
+    {
+      "claim_id": "early-entry-homeed/C8",
+      "why_weak": "Recalled with zero searches; the verifier found the EEF page gives mathematics +2 months, not the +5 headline, and 'up to ten weeks'; it is the basis for the Shape E short-session proposal.",
+      "how_the_report_should_phrase_it": "The EEF Toolkit rates one-to-one tuition at about five months on average but only about two months in mathematics, with the best results from short regular sessions (about 30 minutes, three to five times a week) over a set period."
+    },
+    {
+      "claim_id": "early-entry-homeed/C9",
+      "why_weak": "Recalled; the published version reports 0.288 SD, not 0.37; 'maths effects persisted' misreads the paper; no AI tutor in the sample; parent tutors weaker.",
+      "how_the_report_should_phrase_it": "Across PreK-12 tutoring trials the pooled effect is about 0.29 SD (0.37 in the working paper), larger for teacher and paraprofessional tutors than for parents and for three or more sessions a week; nothing here transfers to an AI tutor."
+    },
+    {
+      "claim_id": "early-entry-homeed/C5",
+      "why_weak": "Recalled; the 'largest gains in mathematics' finding is primary-school only, and at secondary level reading and writing showed the larger effect, the wrong direction for this plan; motivational-strategy moderator not seen.",
+      "how_the_report_should_phrase_it": "Self-regulated-learning training improves secondary pupils' achievement (d about 0.54), more so when metacognitive reflection is included; do not claim a maths-specific advantage at secondary age."
+    },
+    {
+      "claim_id": "learning-science/C8",
+      "why_weak": "The '10-20% of the time to the test' figure does not appear in Cepeda et al.; the 12-50-day band is the agent's interpolation; it is used to shorten the 8-week ageing rule.",
+      "how_the_report_should_phrase_it": "Cepeda et al. 2008 found the best review gap is roughly 20% of the time to the test for tests a few weeks away, falling to about 5-10% at a year; for a May exam that points to a first re-test within about a month, and the exact figure is an interpolation."
+    },
+    {
+      "claim_id": "self-regulation-tools/C14 with feedback-emotion/C10 and adhd-ef/C13",
+      "why_weak": "STAND's 2021 community trial found no overall effect versus usual care (n=278), gains only with licensed therapists (22%); the programme includes contingency management the claims omit; the parent-teen conflict outcome was not visible; yet it grounds the weekly collaborative parent meeting and the MI stance.",
+      "how_the_report_should_phrase_it": "STAND was efficacious in its university trial (n=128) but did not beat usual care when delivered by community therapists, except where therapists were licensed; its parent role includes monitoring with agreed contingencies. A parent applying its style through a skill file is two steps from the tested conditions."
+    },
+    {
+      "claim_id": "self-regulation-tools/C4",
+      "why_weak": "Supported, but n=63, and the tested card was tied to parent-delivered home rewards; a praise-and-review-only version is untested, which bears directly on the README stance.",
+      "how_the_report_should_phrase_it": "The daily report card improved classroom functioning in a 63-child randomised trial in which parents were trained to give home rewards; a praise-only version has not been tested."
+    },
+    {
+      "claim_id": "self-regulation-tools/C3 with adhd-ef/C14",
+      "why_weak": "The ranking 'largest and most consistent' was not seen; the effects (>1.0; 3.61) are pooled single-subject metrics not comparable to trial effect sizes; primary-age classroom samples.",
+      "how_the_report_should_phrase_it": "Self-regulation interventions including self-monitoring show large effects in ADHD classroom studies, but the numbers come from single-subject designs and cannot be read as trial effect sizes."
+    },
+    {
+      "claim_id": "motivation-gamification/C11 with motivation-gamification/C12",
+      "why_weak": "The evidence against badges and streaks is one 16-week university quasi-experiment with intact classes and seven consumer experiments; nothing in ADHD; the 2026 gamified-app RCT in children with ADHD was found but its results were not read.",
+      "how_the_report_should_phrase_it": "The case against badges, leaderboards and streaks rests on one university quasi-experiment and a series of consumer experiments; it shows a real risk in general populations, not proof of harm for this child, and a 2026 ADHD trial should be checked."
+    },
+    {
+      "claim_id": "adhd-ef/C7 with motivation-gamification/C5",
+      "why_weak": "One lab study of 30 children with ADHD (the other file's 86 versus 62 belongs to a different paper); supports the direction that salient reinforcement or a game restores persistence, not any effect size for a score chart.",
+      "how_the_report_should_phrase_it": "In one laboratory study of 30 children with ADHD, a game format or a large reward normalised persistence but not working memory; it supports the direction, not the size, of the chart's effect."
+    },
+    {
+      "claim_id": "feedback-emotion/C7",
+      "why_weak": "Recalled; the visible figure is +0.15 core GPA in supportive schools, not +0.10; the effect depended on peer norms; the step to a single tutor-delivered message is an extrapolation.",
+      "how_the_report_should_phrase_it": "A brief online growth-mindset programme raised lower-achievers' grades by about 0.15 points in supportive schools; there is no evidence for a single tutor-delivered message, so present it as cheap, honest framing rather than an intervention."
+    },
+    {
+      "claim_id": "mfl-vocab-srs/C12 with mfl-vocab-srs/C13",
+      "why_weak": "Never verified; 25 ADHD versus 30 controls on a perceptual decision task, authors from the journal record; underpins the reading that the Shooting Gallery's accelerating drill measures impulsivity.",
+      "how_the_report_should_phrase_it": "One small study found adolescents with ADHD set a less flexible speed-accuracy trade-off on a perceptual task; the accelerating drill may therefore inflate errors, which is a reason to log timeouts separately, not a measured effect on vocabulary learning."
+    },
+    {
+      "claim_id": "maths-blanks-anxiety/C8",
+      "why_weak": "Never verified; randomised by classroom over ten days; effect sizes quoted but unconfirmed; underpins the fixed plan-do-check routine.",
+      "how_the_report_should_phrase_it": "One classroom-randomised study (Iseman and Naglieri 2011, not verified here) found ten days of explicit planning-strategy instruction improved maths calculation in children with ADHD and learning difficulties, with gains at one year; numbers unconfirmed."
+    },
+    {
+      "claim_id": "feedback-emotion/C1",
+      "why_weak": "Supported, but a single laboratory programme (Study 1 n=128), general population, applied to ADHD by inference; its replication record was not searched and is mixed in later literature.",
+      "how_the_report_should_phrase_it": "In a classic 1998 experiment with 10-12-year-olds, praise for intelligence reduced persistence after failure while praise for effort did not; the finding is general-population, from one laboratory, and its replication record was not checked."
+    },
+    {
+      "claim_id": "early-entry-homeed/C1",
+      "why_weak": "Recalled; the direction is confirmed but the matched-prior-attainment comparison and the 'grade C banked' detail were not seen; the mechanism was school-driven mass entry.",
+      "how_the_report_should_phrase_it": "DfE's 2011 analysis (RR208) found early entrants tended to achieve lower grades than end-of-Year-11 entrants under school-driven mass entry; it says nothing about an individual readiness-based entry, and its details should be read from the PDF before being quoted."
+    },
+    {
+      "claim_id": "self-regulation-tools/C10",
+      "why_weak": "Weak in the other direction: the claim that no controlled trial of a timer exists is contradicted by Wennberg 2018 (RCT of a time-assistance package, ages 9-15, results unseen) and a 2025 within-subject study (n=44, ages 7-9, less anxiety, no score change).",
+      "how_the_report_should_phrase_it": "A visible timer is supported by NICE-style consensus, one RCT of a time-management package in 9-15-year-olds whose results were not read, and a small study in younger children showing less anxiety but no score change; use it as a calm cue, not a treatment."
+    },
+    {
+      "claim_id": "session-structure/C5",
+      "why_weak": "Pooled g=0.17 on low-quality evidence, and the verifier's subgroup shows bouts of 30 minutes or less were not significant, so the '10-20 minute walk' implication sits in the null subgroup.",
+      "how_the_report_should_phrase_it": "A single bout of moderate exercise has a small effect on executive function in ADHD (g=0.17, low-quality evidence), significant only for bouts of about 30 minutes or more."
+    },
+    {
+      "claim_id": "uk-exam-logistics/C2",
+      "why_weak": "From a secondary guide; the JCQ wording for Form 9 was not seen; a GP counts only with the RCGP extended role; 'no standardised testing' appears only in secondary sources.",
+      "how_the_report_should_phrase_it": "For ADHD the extra-time route is Form 9 with a specialist letter (CAMHS acceptance, psychiatrist, HCPC psychologist, consultant, or a GP with the RCGP extended role in ADHD); confirm against JCQ AARA section 5 in the 2026-27 edition before relying on it."
+    },
+    {
+      "claim_id": "early-entry-homeed/C3",
+      "why_weak": "GLH attribution wrong (awarding bodies assign it, not Ofqual's conditions); AQA 8300 may be 140 not 130; Spanish GLH unfound; the 8-hours-a-week figure drives the capacity argument.",
+      "how_the_report_should_phrase_it": "A full GCSE is listed at 120-140 guided learning hours; spread over the weeks to May and June 2027 that is roughly 7.5-9 tutored hours a week for the two subjects, a range the family should compare with the hours actually available."
+    }
+  ],
+  "over_engineering_risks": [
+    {
+      "proposal": "Three overlapping student views: engineering/2 today page (6 h), student-ux/1 today page and marker-feedback/9c ?view=student on the attempt route",
+      "risk": "One page should be built, read-only and non-public, before any schema work; the evidence that student dashboards improve learning is weak and from university samples (self-regulation-tools/C12, C13, both partial), so the page earns its place by removing the countdown, the grade and the third-person narration, not by adding panels."
+    },
+    {
+      "proposal": "Expanding-interval scheduler with next_due, interval_days and recall_streak (engineering/3, 10 h; state-model/2; tutor-session/6 slot ladder)",
+      "risk": "The meta-analyses say the shape of the schedule barely matters (learning-science/C2, mfl-vocab-srs/C2) and the maths spacing effect is modest (C3); a rule of 'first re-test at 3-4 weeks, every developing topic dated' captures the gain with a skill edit and one next_due column. Ten hours and a migration for the least evidence-sensitive parameter."
+    },
+    {
+      "proposal": "Habit-flag infrastructure: six keys with held/lapses counts, per-item flags, a Habits table and a review-queue block (state-model/1, engineering/4, 7 h)",
+      "risk": "The zero-deploy metrics path (engineering/1) already stores numeric counts; the evidence is for self-monitoring, not tutor scoring; the blanks precedent is one metric on one student. Building the surveillance layer first (gap 5) risks the thing the objective is about, her engagement, before anyone knows whether counting changes behaviour."
+    },
+    {
+      "proposal": "Spanish app rebuild: tracker_review_words tool, hosting on the tracker domain, speech synthesis, speech recognition, dictation and read-aloud modes, a 90-word builder, a sequence column and a new spanish-tutor-session skill (spanish-pipeline/1, 2, 3, 11; plan-velocity/7)",
+      "risk": "All chatbot and listening evidence is adult EFL and unverified (mfl-vocab-srs/C7-C11, none); the gating decisions are series and centre by 30 Sep and 31 Oct (plan-velocity/6, spanish-pipeline/4), and if Spanish moves to June 2028 the build can wait a year. Meanwhile maths, which is being sat, has zero resources (engineering/7). Fix the two bugs (spanish-pipeline/6, 5d), add self-rating and timeouts, and defer the rest to the series decision."
+    },
+    {
+      "proposal": "Session-opening and closing ritual stack: plan with times, last win, planned-next, energy 1-5 (tutor-session/3), an if-then plan in her words (self-regulation-tools/C1), a three-line checklist (ai-tutor-design/C12), a predicted score (ai-tutor-design/C8), an anxiety 1-5 (maths-blanks-anxiety/C1), minutes estimates (self-regulation-tools/C9), a read-the-question routine (tutor-session/7), a self-check every few questions (adhd-ef/C14), explain-it-back (ai-tutor-design/C7), a frustration 1-5 (feedback-emotion/C8), 'what can you do now' and transition scripts (tutor-session/4, 11)",
+      "risk": "Each is cheap alone; together they turn a 10-minute starter into 20 minutes of meta-routine for a student with working-memory limits, against 'one message, one ask' (tutor-session/12) and COGA minimal content (ai-tutor-design/C11). Pick at most three: the times, one if-then plan, one three-tick self-check at the exit ticket."
+    },
+    {
+      "proposal": "Three timed three-paper mock cycles in December, January and February (plan-velocity/9: nine papers, about 13.5 h, parent-invigilated) plus Spanish component papers (spanish-pipeline/4)",
+      "risk": "Mock fatigue for her and 15+ invigilated hours for the parent; the retrieval evidence does not require full papers monthly and the access-arrangement evidence needs some timed work, not three cycles. The review's own fallback (drop January if December is below 157) should be the default."
+    },
+    {
+      "proposal": "Milestones schema and checklist page (engineering/9, 5 h) and the weekly digest page plus Routine plus email (engineering/10, up to 8.5 h)",
+      "risk": "The deadlines are real and must be a dated list, but a list in the appendix and a calendar entry costs nothing; the digest duplicates a dashboard the parent already has. Parent-facing admin features are being built ahead of the student-facing fixes."
+    },
+    {
+      "proposal": "A CSS chunk clock without JavaScript (engineering/8, 2.5 h)",
+      "risk": "A kitchen timer or phone does the job and can pause; NICE asks for breaks, not timers, and the timer evidence is thin (self-regulation-tools/C10). A clock that cannot pause on a read-only page is a demonstration, not an accommodation."
+    },
+    {
+      "proposal": "Per-topic worked-example and misconception notes for every topic (ai-tutor-design/C5 implication, Harvard undergraduate evidence) and resource curation for 64 maths plus 100 Spanish topics",
+      "risk": "A very large authoring load on the parent; do it for the next twelve topics in queue order only (engineering/7's gap-first order) and let the December mock decide whether more is worth it."
+    },
+    {
+      "proposal": "Same-day parent review of a daily report card (self-regulation-tools/C4 implication) alongside a weekly co-planning meeting (feedback-emotion/C10, self-regulation-tools/C14)",
+      "risk": "Daily inspection of each session contradicts the STAND-style weekly, collaborative monitoring the same digest recommends and the parent's capacity (gap 3); choose weekly."
+    }
+  ],
+  "overall": "The report must open with provenance: of 141 claims, 59 were never verified, 42 are partial and 2 unsupported; three research areas ran zero searches and wrote from memory; not one study sampled a home-educated 13-year-old with ADHD taught by an AI, and every effect size is general-population or a small ADHD lab sample, so each recommendation must carry its evidence grade and the report must quote no expected gain for Claude-as-tutor. It must not omit the hard external dependencies with dates, which decide the outcome regardless of pedagogy: a centre that says yes three times (8300 entry, the 8692 speaking NEA, ADHD access arrangements for an external candidate), a specialist letter for the Form 9 route with no private assessment before the centre is engaged, the centre's own entry cut-off before the unconfirmed board date of about 21 February 2027, and the fact that a poor May 2027 sitting cannot be re-sat until June 2028. It must reset the December checkpoint (grade 5 is unreachable at any observed pace), make Foundation the working assumption with two dated reversal tests, correct the baseline (148/240 is a grade 4 on its own series and a 3 on restored standards, not 'below 4', and the seed can be fixed today), and say that the blanks metric is the one thing that has demonstrably worked on this student while the failure mode has moved to rushing. It must separate the board stance (no streaks, badges or comparison, supported) from a no-home-rewards reading that the ADHD evidence does not support, and separate self-monitoring she owns from tutor surveillance the parent reads. It must name what nobody asked: the age and safeguarding position for a minor using Claude and a public dashboard, her own voice and consent, the parent's hours and the rest of her education, medication and clinician involvement as an explicit two-branch assumption, and a pre-agreed script for what December decides. And it must order the work so that skill edits and the seed fix land first, one student page second, and schema and Spanish rebuilds only after the series and centre decisions, because the parent is the only engineer and the only tutor."
+}

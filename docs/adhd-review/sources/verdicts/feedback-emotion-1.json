@@ -1,0 +1,61 @@
+{
+  "area": "feedback-emotion",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Mueller & Dweck (1998), JPSP 75(1), 33-52, six studies of fifth graders (Study 1: 128 children, ages 10-12, mean 10.7). Summaries confirm intelligence-praised children favoured performance goals over learning goals, showed less persistence, less enjoyment, more low-ability attributions and worse performance after failure, and that almost 40% of them misreported their score. The comparator figure for the effort-praise group (claimed ~10%) and the 'roughly 400 in total' N were not visible in any summary.",
+      "corrected_source": "Mueller, C. M., & Dweck, C. S. (1998). Praise for intelligence can undermine children's motivation and performance. Journal of Personality and Social Psychology, 75(1), 33-52.",
+      "corrected_url": "https://pubmed.ncbi.nlm.nih.gov/9686450/",
+      "corrected_numbers": "Study 1 N = 128 fifth graders (70 girls, 58 boys), ages 10-12, mean 10.7; 'almost 40%' of intelligence-praised children misreported their score. Total N across six studies and the effort-group misreporting rate were not seen; do not quote '~400' or '~10%'."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Gunderson, Gripshover, Romero, Dweck, Goldin-Meadow & Levine (2013), Child Development 84(5), 1526-1541, DOI 10.1111/cdev.12064 matches. Summaries confirm N = 53 parent-child pairs observed at home at 14, 26 and 38 months, and that the proportion of process praise predicted incremental frameworks at 7-8 years, described as belief that intelligence is malleable and a greater preference for challenge. The 2018 follow-up linking toddler praise to fourth-grade achievement also exists (PubMed 29172567). The 'roughly 18% of praise was process praise' figure and the 'not total praise' contrast were not visible.",
+      "corrected_source": "Gunderson, E. A., Gripshover, S. J., Romero, C., Dweck, C. S., Goldin-Meadow, S., & Levine, S. C. (2013). Parent praise to 1- to 3-year-olds predicts children's motivational frameworks 5 years later. Child Development, 84(5), 1526-1541.",
+      "corrected_url": "https://onlinelibrary.wiley.com/doi/abs/10.1111/cdev.12064",
+      "corrected_numbers": "N = 53; praise coded at 14, 26 and 38 months; outcomes at 7-8 years. The '~18% process praise' figure was not seen; do not quote it."
+    },
+    {
+      "id": "C3",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Brummelman, Thomaes, Orobio de Castro, Overbeek & Bushman (2014), Psychological Science 25(3), 728-735, DOI 10.1177/0956797613514251 matches. Summaries confirm three studies: an experiment (Study 1) and a naturalistic study (Study 2) found adults gave about twice as much inflated praise to low-self-esteem children, and Study 3 found inflated praise reduced challenge seeking (children chose easier drawings) in low-self-esteem children with the opposite effect for high-self-esteem children. Study 3 sample size (claimed ~240) and the age range (claimed 8-12) were not visible.",
+      "corrected_source": "Brummelman, E., Thomaes, S., Orobio de Castro, B., Overbeek, G., & Bushman, B. J. (2014). \"That's not just beautiful—that's incredibly beautiful!\": The adverse impact of inflated praise on children with low self-esteem. Psychological Science, 25(3), 728-735.",
+      "corrected_url": "https://journals.sagepub.com/doi/abs/10.1177/0956797613514251",
+      "corrected_numbers": "Adults gave roughly twice as much inflated praise to low-self-esteem children (Studies 1-2). Study 3 N and ages not seen; do not quote 'N about 240' or '8-12' without checking the paper."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Hattie & Timperley (2007), Review of Educational Research 77(1), 81-112, DOI 10.3102/003465430298487 matches. Summaries confirm the three feedback questions (where am I going / how am I going / where to next), that it synthesises 74 meta-analyses covering 7,000+ studies and 13,370 effect sizes, that praise, punishment and extrinsic rewards were the least effective forms for achievement, and that Kluger & DeNisi (1996) found negative effects in about one third of feedback studies (average 0.41). The exact average feedback effect (claim says 'around d = 0.7'; the paper's widely cited figure is 0.79) was not displayed, and the four-level task/process/self-regulation/self labels were only visible indirectly via the 2020 replication.",
+      "corrected_source": "Hattie, J., & Timperley, H. (2007). The power of feedback. Review of Educational Research, 77(1), 81-112.",
+      "corrected_url": "https://journals.sagepub.com/doi/abs/10.3102/003465430298487",
+      "corrected_numbers": "74 meta-analyses, >7,000 studies, 13,370 effect sizes; commonly cited average d = 0.79 (not directly seen; Hattie's syntheses shown as ranging 0.66-0.94). Kluger & DeNisi (1996): ~600 studies, average 0.41, about one third of interventions reduced performance."
+    },
+    {
+      "id": "C5",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Wisniewski, Zierer & Hattie (2020), Frontiers in Psychology 10:3087, DOI 10.3389/fpsyg.2019.03087 matches. Summaries confirm 435 studies, k = 994 effect sizes, N > 61,000, overall random-effects d = 0.48 with significant heterogeneity, larger effects for cognitive and motor outcomes than motivational and behavioural ones, and larger effects for feedback carrying more information (task, process, self-regulation) than for low-information forms. The specific 'd = 0.99 for high-information feedback' was not visible in any summary.",
+      "corrected_source": "Wisniewski, B., Zierer, K., & Hattie, J. (2020). The power of feedback revisited: A meta-analysis of educational feedback research. Frontiers in Psychology, 10, 3087.",
+      "corrected_url": "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2019.03087/full",
+      "corrected_numbers": "435 studies, 994 effect sizes, N > 61,000, overall d = 0.48. Per-type figures (e.g. d = 0.99 high-information) not seen; describe as 'larger' rather than quoting 0.99 unless checked in the full text."
+    },
+    {
+      "id": "C6",
+      "verdict": "supported",
+      "notes": "Two searches. Source confirmed: Sisk, Burgoyne, Sun, Butler & Macnamara (2018), Psychological Science 29(4), DOI 10.1177/0956797617739704 matches; meta-analysis 1 = 273 studies (>365,000 participants), meta-analysis 2 = 43 intervention studies (>57,000), 'weak' overall effects, mindset explaining 1% of achievement variance (i.e. r about 0.10). Macnamara & Burgoyne (2023, Psychological Bulletin) confirmed: 63 studies, N = 97,672, 94% of interventions confounded, higher-quality studies less likely to show benefit, evidence of publication and financial-incentive bias; Burnette et al. (2023) and the Tipton et al. commentary on both also confirmed to exist. The exact d = 0.08 and the 'not reliably above zero after adjustment' wording were not displayed verbatim but are consistent with what was shown.",
+      "corrected_source": "Sisk, V. F., Burgoyne, A. P., Sun, J., Butler, J. L., & Macnamara, B. N. (2018). To what extent and under which circumstances are growth mind-sets important to academic achievement? Two meta-analyses. Psychological Science, 29(4), 549-571. See also Macnamara & Burgoyne (2023), Psychological Bulletin.",
+      "corrected_url": "https://journals.sagepub.com/doi/abs/10.1177/0956797617739704",
+      "corrected_numbers": "Sisk 2018: 273 studies / >365,000 participants (correlation), 43 studies / >57,000 (interventions), mindset = 1% of variance (r about 0.10); d = 0.08 not seen verbatim. Macnamara & Burgoyne 2023: 63 studies, N = 97,672, 94% confounded, higher-quality studies less likely to show benefit."
+    },
+    {
+      "id": "C7",
+      "verdict": "partial",
+      "notes": "Two searches. Source confirmed: Yeager et al. (2019), Nature 573, DOI 10.1038/s41586-019-1466-y matches; National Study of Learning Mindsets, 65 US public schools, 12,490 ninth graders individually randomised, short (under one hour) online intervention that improved grades among lower-achieving students, increased advanced-maths enrolment, and whose effects depended on peer norms supporting challenge. But the GPA figure visible in summaries is +0.15 core / +0.17 STEM grade points for lower achievers in medium-to-low-performing schools with supportive norms, not the +0.10 the claim quotes; the overall lower-achiever +0.10 figure, the 'two sessions of ~25 minutes' design and pre-registration were not visible. The claim's extrapolation to a single one-off message from a tutor or parent goes beyond a two-session school-delivered programme whose effect hinged on school peer norms.",
+      "corrected_source": "Yeager, D. S., et al. (2019). A national experiment reveals where a growth mindset improves achievement. Nature, 573, 364-369.",
+      "corrected_url": "https://www.nature.com/articles/s41586-019-1466-y",
+      "corrected_numbers": "65 schools, 12,490 ninth graders; intervention under one hour online; lower achievers in supportive medium-to-low-performing schools: +0.15 core GPA, +0.17 STEM GPA. The +0.10 overall figure and '2 x 25 min' were not confirmed."
+    }
+  ]
+}

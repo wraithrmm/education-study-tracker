@@ -1,0 +1,171 @@
+{
+  "area": "mfl-vocab-srs",
+  "searches_run": 6,
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Repeated retrieval of vocabulary spread across long intervals roughly tripled long-term retention compared with repeated retrieval with no gap, and the shape of the schedule (expanding, equal or contracting) made no difference.",
+      "evidence_type": "RCT",
+      "source_title": "Spaced Retrieval: Absolute Spacing Enhances Learning Regardless of Relative Spacing",
+      "authors_year": "Karpicke & Bauernschmidt, 2011",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/21574747/",
+      "key_numbers": "Repeated retrieval with long intervals produced a 200% improvement in long-term retention relative to repeated retrieval with no spacing; no evidence that expanding, equal or contracting schedules differed. Randomised laboratory experiment (Journal of Experimental Psychology: LMC, 37, 1250-1257); sample size not shown in search summary.",
+      "adhd_specific": "general",
+      "implication": "The Spanish app's Flashcards and Shooting Gallery are played ad hoc per set with no cross-day scheduling; the load-bearing feature is a per-word 'next due' date so each word is actively recalled on several separate days weeks apart. Which algorithm (Leitner boxes or SM-2) is chosen is secondary; the tracker's optional per-item outcomes on tracker_log_practice are the data the due-date needs, so make them mandatory for Spanish runs.",
+      "load_bearing": true
+    },
+    {
+      "id": "C2",
+      "claim": "In second-language word-pair learning, gradually widening the gaps between reviews (expanding spacing) beat fixed gaps only by a very small margin, so a simple fixed-interval scheme is nearly as good.",
+      "evidence_type": "RCT",
+      "source_title": "Effects of expanding and equal spacing on second language vocabulary learning: Does gradually increasing spacing increase vocabulary learning?",
+      "authors_year": "Nakata, 2015",
+      "url": "https://www.cambridge.org/core/journals/studies-in-second-language-acquisition/article/abs/effects-of-expanding-and-equal-spacing-on-second-language-vocabulary-learning/D1D796306985C52F9BE7A1200AC50DB9",
+      "key_numbers": "128 Japanese college students learning 20 English-Japanese word pairs; spacing type (expanding vs equal) crossed with amount (massed, short, medium, long); 'limited, yet statistically significant' advantage for expanding spacing with 'very small' effect sizes. Studies in Second Language Acquisition, 37, 677-711.",
+      "adhd_specific": "general",
+      "implication": "Do not spend build effort on a sophisticated adaptive scheduler; a Leitner ladder such as 1, 3, 7, 14, 30 days implemented in the single-file React app or the PHP service captures most of the benefit. The tracker's existing 'examready = passes a spaced re-test at least 3 weeks after securing' rule is consistent with this evidence and should be applied to Spanish topics unchanged.",
+      "load_bearing": false
+    },
+    {
+      "id": "C3",
+      "claim": "In a semester-long beginners' Spanish course, the number of days students used the Anki spaced-repetition app predicted end-of-semester Spanish performance even after controlling for baseline ability, motivation, self-efficacy and beliefs; but the study's own title calls the tool a 'bitter pill', signalling that learners disliked or under-used it.",
+      "evidence_type": "observational",
+      "source_title": "Enhancing L2 learning through a mobile assisted spaced-repetition tool: an effective but bitter pill?",
+      "authors_year": "Seibert Hanson & Brown, 2020",
+      "url": "https://www.tandfonline.com/doi/full/10.1080/09588221.2018.1552975",
+      "key_numbers": "62 university-level beginning Spanish learners; positive relationship between days studying with Anki and Spanish performance at the end of the semester, controlling for baseline abilities, motivation, self-efficacy and beliefs (Computer Assisted Language Learning, 33(1-2)). Uptake and drop-off figures not shown in search summary.",
+      "adhd_specific": "general",
+      "implication": "The predictor was days of contact, not minutes per session, so the plan should aim for a short daily Spanish touch (for example 10 minutes of due reviews) rather than a weekly 90-minute block like the maths shape A. Because adherence is the known failure mode and the parent has ruled out streaks, the dashboard could show 'practice days this week' as a neutral count next to the score chart she already likes, and the tutoring skill should end every maths session by offering the Spanish due-queue as a two-minute closer.",
+      "load_bearing": true
+    },
+    {
+      "id": "C4",
+      "claim": "Spacing improves the explicit, deliberately recallable kind of vocabulary knowledge that flashcards and translation tasks test, but not the tacit knowledge that supports fluent reading, which comes from repeated exposure in context.",
+      "evidence_type": "RCT",
+      "source_title": "Effects of spacing on contextual vocabulary learning: Spacing facilitates the acquisition of explicit, but not tacit, vocabulary knowledge",
+      "authors_year": "Nakata & Elgort, 2021",
+      "url": "https://journals.sagepub.com/doi/10.1177/0267658320927764",
+      "key_numbers": "Sample size and effect sizes not shown in search summary; an approximate replication was published in Studies in Second Language Learning and Teaching (pressto.amu.edu.pl/index.php/ssllt/article/view/49487).",
+      "adhd_specific": "general",
+      "implication": "Flashcards and the Shooting Gallery are the right tools for the translation, dictation and writing parts of AQA 8692, but the 16 'skills' topics in the Spanish tracker (reading and listening) need short graded reading and listening passages that recycle the same list words. Add a 'read a short text using this week's words' step to the language-learning-platform skill so contextual exposure is logged as practice too.",
+      "load_bearing": true
+    },
+    {
+      "id": "C5",
+      "claim": "Under the reformed GCSE MFL rules, words not on the exam board's pre-defined vocabulary list cannot appear in assessments unless they are glossed or part of an inference or dictation task, so exam vocabulary is a closed, knowable set.",
+      "evidence_type": "policy-document",
+      "source_title": "gcse subject level conditions and requirements for modern foreign languages and certificate requirements 2022",
+      "authors_year": "Ofqual, 2022",
+      "url": "https://gov.uk/government/publications/gcse-subject-level-conditions-for-2022/gcse-subject-level-conditions-and-requirements-for-modern-foreign-languages-and-certificate-requirements-2022",
+      "key_numbers": "Search summary states: vocabulary not in a pre-defined list cannot feature in assessments unless appropriately glossed or part of an inference or dictation task; DfE subject content has explicit requirements on vocabulary lists. The list sizes (commonly reported as 1,200 Foundation / 1,700 Higher) were NOT shown in the search summary and must be checked against the AQA 8692 specification.",
+      "adhd_specific": "general",
+      "implication": "Every vocabularySet in the app should be built from and tagged against the AQA 8692 defined vocabulary list (the language-learning-platform skill already says to source from pasted spec pages; make list membership a required field). Because the Higher list is a superset, learn the Foundation list first, which also keeps the 'Higher TO CONFIRM' tier decision open in the same way the maths plan keeps Foundation open until February 2027.",
+      "load_bearing": true
+    },
+    {
+      "id": "C6",
+      "claim": "The reformed MFL GCSEs were first taught from September 2024 with first examinations in summer 2026, so a June 2027 candidate will have exactly one real past series plus the board's specimen materials to practise on.",
+      "evidence_type": "policy-document",
+      "source_title": "Consultation outcome: Proposed changes to the assessment of modern foreign language GCSEs from 2023 - covering requirements for the assessment of vocabulary",
+      "authors_year": "DfE/Ofqual, 2022 (publication date not shown in search summary)",
+      "url": "https://gov.uk/government/consultations/proposed-changes-to-the-assessment-of-modern-foreign-language-gcses-from-2023/covering-requirements-for-the-assessment-of-vocabulary",
+      "key_numbers": "Revised qualifications taught from September 2024, first examinations 2026; from summer 2022 boards were allowed to gloss unfamiliar words and were no longer required to include off-list vocabulary.",
+      "adhd_specific": "general",
+      "implication": "The Spanish appendix in gcse-progress-tracker cannot mirror the maths plan's reliance on a library of past papers; checkpoints should be built on AQA specimen papers and the June 2026 papers once published, and the gcse-spanish-marker's rule of only grading 'where verified boundaries exist' is correct because 2026 will be the only real boundary set. Pre-2024 legacy AQA Spanish papers are useful for listening and reading practice but their vocabulary and task types (no dictation, no read-aloud) do not match.",
+      "load_bearing": true
+    },
+    {
+      "id": "C7",
+      "claim": "Adding an AI chatbot to speaking activities over six weeks reduced foreign-language speaking anxiety, increased enjoyment and improved speaking scores compared with a control group in a controlled classroom study.",
+      "evidence_type": "observational",
+      "source_title": "Effects of incorporating AI chatbots into think-pair-share activities on EFL speaking anxiety, language enjoyment, and speaking performance",
+      "authors_year": "Authors not shown in search summary, 2025 (Computer Assisted Language Learning)",
+      "url": "https://www.tandfonline.com/doi/full/10.1080/09588221.2025.2478271",
+      "key_numbers": "Pretest-posttest control-group quasi-experimental design over 6 weeks; chatbot group showed notably reduced speaking anxiety, higher enjoyment and better speaking performance. Sample size and effect sizes not shown in search summary. Quasi-experimental, not randomised.",
+      "adhd_specific": "general",
+      "implication": "The app's AI Chat is the right direction, but the tracker does not currently log speaking at all. Give the chat a structured mode that mirrors AQA speaking tasks (role-play, reading aloud, photo-card style conversation), log each as a practice run with a 'speaking' source, and have the tutor skill treat it as rehearsal for the centre-conducted assessment, not as evidence of secure status.",
+      "load_bearing": true
+    },
+    {
+      "id": "C8",
+      "claim": "A systematic review of AI chatbots in second-language education finds their most consistent benefit is lowering affective barriers, especially anxiety, by giving learners a non-judgemental space to practise.",
+      "evidence_type": "systematic-review",
+      "source_title": "AI-driven chatbots in second language education: A systematic review of their efficacy and pedagogical implications",
+      "authors_year": "Authors not shown in search summary, 2025",
+      "url": "https://www.sciencedirect.com/science/article/pii/S2215039025000086",
+      "key_numbers": "Number of included studies and pooled effects not shown in search summary; summary reports reduced anxiety and increased motivation because learners perceive the environment as non-judgemental and supportive.",
+      "adhd_specific": "general",
+      "implication": "For a 13-year-old who says 'skip it' or 'I can't' when stuck, a low-stakes chat partner that never marks her down is a plausible way to get speaking started; keep the AI Chat free of scoring and separate from the Shooting Gallery scoreboard, consistent with the parent's no-nudges stance.",
+      "load_bearing": false
+    },
+    {
+      "id": "C9",
+      "claim": "A 2025 meta-analysis of comparative studies concludes that chatbots improve language-learning outcomes overall, but the pooled effect size was not visible in the search summary and the underlying studies are adult, mostly EFL, samples.",
+      "evidence_type": "meta-analysis",
+      "source_title": "Effectiveness of Chatbots in Improving Language Learning: A Meta-Analysis of Comparative Studies",
+      "authors_year": "Authors not shown in search summary, 2025",
+      "url": "https://www.researchgate.net/publication/390850220_Effectiveness_of_Chatbots_in_Improving_Language_Learning_A_Meta-Analysis_of_Comparative_Studies",
+      "key_numbers": "not shown in search summary",
+      "adhd_specific": "general",
+      "implication": "Treat chatbot speaking practice as promising rather than proven for this student: build it, log it, and let the parent judge it by her own willingness to use it and by human-facilitated rehearsals, not by the literature alone.",
+      "load_bearing": false
+    },
+    {
+      "id": "C10",
+      "claim": "When the same students sat one speaking exam facilitated by an AI chatbot and one by human instructors, the AI-facilitated exam was associated with lower anxiety and better performance, which means gains under AI may not transfer automatically to a human examiner.",
+      "evidence_type": "observational",
+      "source_title": "Reducing anxiety and enhancing performance: the impact of AI chatbots versus human facilitation on EFL speaking assessment outcomes",
+      "authors_year": "Authors not shown in search summary, 2025 (Frontiers in Psychology)",
+      "url": "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2025.1745942/full",
+      "key_numbers": "48 first-year English Language Teaching students; mixed methods; two comparable speaking examinations, one AI-facilitated and one human-facilitated. Effect sizes not shown in search summary.",
+      "adhd_specific": "general",
+      "implication": "The AQA speaking component is conducted by a centre with a human, and no centre is confirmed; confirming a centre is the hard deadline item in the Spanish plan. Schedule parent-run (human) speaking rehearsals alongside AI Chat from spring 2027 so the anxiety reduction has a chance to transfer, and record both kinds as separate practice sources.",
+      "load_bearing": true
+    },
+    {
+      "id": "C11",
+      "claim": "In a randomised controlled trial, university learners who practised listening with AI-driven speech-recognition technology improved listening comprehension and flow and reduced listening anxiety relative to controls.",
+      "evidence_type": "RCT",
+      "source_title": "The impact of AI-driven speech recognition on EFL listening comprehension, flow experience, and anxiety: a randomized controlled trial",
+      "authors_year": "Authors not shown in search summary, 2025 (Humanities and Social Sciences Communications)",
+      "url": "https://www.nature.com/articles/s41599-025-04672-8",
+      "key_numbers": "84 Chinese university students randomly assigned to an AI speech-recognition group or a control group; direction of effects positive on comprehension, flow and anxiety; effect sizes not shown in search summary.",
+      "adhd_specific": "general",
+      "implication": "The reformed AQA listening paper includes a dictation task; a listen-and-type dictation mode in the app (spoken list words and short phrases with instant letter-level feedback) would practise exactly that skill and could be logged through tracker_log_practice with a 'dictation' source so the 7 phonics topics in the tracker get evidence.",
+      "load_bearing": false
+    },
+    {
+      "id": "C12",
+      "claim": "Children and adolescents with ADHD are impaired at optimising the trade-off between speed and accuracy, and the size of that impairment tracks their hyperactive-impulsive symptoms, so speeding up a task pushes them toward fast wrong answers rather than a balanced setting.",
+      "evidence_type": "observational",
+      "source_title": "Basic Impairments in Regulating the Speed-Accuracy Tradeoff Predict Symptoms of Attention-Deficit/Hyperactivity Disorder",
+      "authors_year": "Mulder et al., 2010 (author names not shown in search summary; attribution from the Biological Psychiatry record, verify)",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0006322310008255",
+      "key_numbers": "25 participants with ADHD and 30 typically developing children and adolescents; perceptual decision-making paradigm with speed- and accuracy-emphasis sessions; impaired optimisation of the speed-accuracy trade-off, directly related to hyperactive/impulsive symptoms; the search summary also reports that ADHD participants were faster than controls even in accuracy sessions.",
+      "adhd_specific": "direct",
+      "implication": "The Shooting Gallery's rule of speeding up every three correct answers deliberately moves the student into the speed regime where ADHD learners cannot re-balance, so part of the 19-29% error rate in her four logged games may be impulsive responding rather than vocabulary gaps. Make untimed retrieval the default for new and 'developing' words, reserve the accelerating mode for words already known, and record the speed level at each error in the per-item outcomes so practice_stats can separate 'wrong under pressure' from 'wrong untimed'.",
+      "load_bearing": true
+    },
+    {
+      "id": "C13",
+      "claim": "A review of the speed-accuracy trade-off reports that ADHD groups show a shifted trade-off function with the same slope as controls, meaning their rate of processing is normal but their setting of the decision threshold is inflexible; accuracy therefore depends heavily on the speed conditions imposed by the task.",
+      "evidence_type": "review",
+      "source_title": "The speed-accuracy tradeoff: history, physiology, methodology, and behavior",
+      "authors_year": "Heitz, 2014 (author not shown in search summary; attribution from the Frontiers in Neuroscience record, verify)",
+      "url": "https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2014.00150/full",
+      "key_numbers": "not shown in search summary beyond the qualitative statement that ADHD speed-accuracy functions are 'shifted, but not different in slope' and that recent work suggests 'relative inflexibility in optimizing decision criteria'.",
+      "adhd_specific": "indirect",
+      "implication": "Because her processing rate is not the problem, timed drills are not needed to build speed; they mainly change where she sits on the trade-off. Hold speed constant within a run (or let her pick a speed level at the start) and compare accuracy across fixed speeds, rather than letting the game accelerate automatically; the existing top_speed metric should be interpreted as the pressure she was under, not as an achievement.",
+      "load_bearing": true
+    }
+  ],
+  "caveats": [
+    "Search budget: the session's WebSearch quota (200 calls) was exhausted after 6 of the planned 8+ searches; three further searches (handwriting vs typing vs speaking for vocabulary retention; 2023-2026 meta-analyses of spaced repetition for L2 vocabulary; AQA 8692 vocabulary list, dictation and read-aloud specifics) were blocked. Those topics, plus receptive vs productive knowledge, multi-word chunks, Leitner vs SM-2 head-to-head, and a specific evidence-based new-words-per-day figure, are therefore NOT covered by any claim here and should be treated as open.",
+    "No study found sampled 13-year-olds, home-educated learners, or GCSE candidates; the spacing evidence (C1, C2, C4) is from adult laboratory word-pair learning, and the chatbot evidence (C7-C11) is from adult university EFL learners, mostly in China and Turkey. Only C12 sampled people with ADHD, and it used a perceptual decision task, not vocabulary drills.",
+    "Evidence types marked 'RCT' for C1, C2 and C4 are randomised laboratory experiments with word pairs, not field trials; C7 is quasi-experimental (non-randomised) and C10 is a within-subject comparison of two exams.",
+    "The vocabulary list sizes (1,200 Foundation / 1,700 Higher) and the exact AQA 8692 dictation and read-aloud task formats were not shown in any search summary; C5 and C6 rest on the Ofqual subject-level conditions and the DfE consultation outcome page only, and the AQA specification should be checked directly.",
+    "Nakata (2023, Language Learning, 'Costs and Benefits of Spacing for Second Language Vocabulary Learning: Does Relearning Override the Positive and Negative Effects of Spacing?') appeared in results but only its title was visible, so it is not used as a claim; its title indicates spacing has short-term costs (more forgetting between sessions) that a student may experience as 'harder', which is worth explaining to her.",
+    "Author attributions for C12 (Mulder et al., 2010) and C13 (Heitz, 2014) were not shown in the search summaries and are given from the journal records; the parent's verifier should confirm them.",
+    "Daily dose: no direct evidence was retrieved on how many new words per day are sustainable; the implication in C3 (short daily contact beats a weekly block) is an inference from 'days of use' being the predictor, combined with the absolute-spacing finding in C1, not a measured dosing study."
+  ]
+}

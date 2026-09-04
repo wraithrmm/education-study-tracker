@@ -1,0 +1,51 @@
+{
+  "area": "session-structure",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched the Huang-Pollock, Karalunas, Tam & Moore 2012 abstract (J Abnorm Psychol 121:360-371). The summary confirms 47 between-groups CPT studies, a random-effects model corrected for sampling error and unreliability, large effect sizes (delta) for overall performance and only small-to-moderate delta for performance over time in the handful of studies reporting it; the authors attribute the smaller time-on-task effects partly to easily distinguished targets and distractors. Exact delta values were still not visible, as the claim already states."
+    },
+    {
+      "id": "C2",
+      "verdict": "partial",
+      "notes": "Authors confirmed as Dekkers, Agelink van Rentergem, Koole, van den Wildenberg, Popma, Bexkens, Stoffelsen, Diekmann & Huizenga, 2017 (PubMed 28536846, PMC5701950). The abstract reports a stop-signal task given twice to 96 children aged 9-13 (42 ADHD, 54 controls); the ADHD group was more affected by time-on-task on two inattention measures (reaction-time variability and errors) but not on inhibition, and reinforcement in the second run improved only reaction-time variability, so the authors conclude both executive-resource and motivation depletion contribute. Two searches did not surface any statement that the authors recommend short sessions or short breaks; that recommendation should be presented as the researchers' inference from the finding, not as the paper's own advice.",
+      "corrected_numbers": "n = 96 (42 ADHD, 54 typically developing), aged 9-13; stop-signal task administered twice; steeper decline in ADHD on two attention indices only, not inhibition; reinforcement partly offset the decline (reaction-time variability only). No explicit 'keep sessions short / offer breaks' recommendation visible in the abstract."
+    },
+    {
+      "id": "C3",
+      "verdict": "supported",
+      "notes": "The PubMed/Maastricht abstract confirms 87 Dutch bachelor's and master's students in a one-day online self-study intervention, with n = 35 self-regulated, n = 25 Pomodoro (6-min break per 24-min block) and, by subtraction, n = 27 systematic-short (3 per 12); both systematic conditions reported more concentration and motivation and lower perceived difficulty, with similar task completion in shorter time. Random assignment to the three conditions and the higher fatigue and distractedness in the self-regulated group were confirmed only through a secondary summary (daybook.so), not the abstract itself, and the 'no difference in mental effort' point was not visible anywhere. The abstract pools the two systematic conditions, so it does not show 24/6 beating 12/3, exactly as the claim's implication states."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Searched the Cepeda, Pashler, Vul, Wixted & Rohrer 2006 abstract (Psychological Bulletin 132:354-380). The summary confirms 839 assessments of distributed practice in 317 experiments from 184 articles, examination of spacing, lag and expanding-ISI effects, and the joint operation of inter-study interval and retention interval with the optimal ISI increasing as retention interval increases. Effect sizes remain unseen, as the claim already says."
+    },
+    {
+      "id": "C5",
+      "verdict": "supported",
+      "notes": "Searched the BMC Pediatrics 2025 three-level meta-analysis (25(1):519, doi 10.1186/s12887-025-05846-8). The summary confirms 12 studies, g = 0.17 (95% CI 0.05 to 0.29), P = 0.007, rated low-quality evidence. The subgroup results cut against the implication's '10-20 minute brisk walk': bouts of 30 minutes or less were not significant (g = 0.19, P = 0.109) whereas bouts of 30 minutes or more were (g = 0.16, P = 0.027), and moderate intensity was significant (g = 0.16, P = 0.011) while moderate-to-vigorous was not (g = 0.22, P = 0.357).",
+      "corrected_numbers": "Pooled figures correct. Subgroups: <=30 min g = 0.19, P = 0.109 (n.s.); >=30 min g = 0.16, P = 0.027; moderate intensity g = 0.16, P = 0.011; moderate-to-vigorous g = 0.22, P = 0.357 (n.s.); versus video-watching control g = 0.19, P = 0.006. The implication's 10-20 minute walk sits in the non-significant duration subgroup; the source better supports about 30 minutes of moderate exercise, and the whole effect is small and low quality."
+    },
+    {
+      "id": "C10",
+      "verdict": "unsupported",
+      "notes": "The cited 2022 Archives de Pediatrie paper (Martinez-Cayuelas et al., PubMed 35387750, 84 families) reports 19% evening, 54% intermediate and 27% morning chronotype in adolescents with ADHD and concludes they tend toward the intermediate type, with evening preference related to hyperactivity/inattention scores; it does not contain 63.7%. The 63.7% evening-chronotype figure belongs to a different paper, 'Exploring chronotype, sleep disturbances, and temperament in adolescents with attention deficit hyperactivity disorder' (Chronobiology International 42(7), 2025, PubMed 40443161), which reports higher sleep-disturbance rates and 63.7% evening chronotype versus controls. The direction (more evening types and more sleep disturbance in ADHD) survives, but the cited source contradicts the quoted number, so the strength 'much more likely than peers' should rest on the 2025 paper and the systematic review, not the 2022 one.",
+      "corrected_source": "Exploring chronotype, sleep disturbances, and temperament in adolescents with attention deficit hyperactivity disorder (Chronobiology International, 2025, 42(7))",
+      "corrected_url": "https://pubmed.ncbi.nlm.nih.gov/40443161/",
+      "corrected_numbers": "2022 Archives de Pediatrie paper: 84 families; 19% evening, 54% intermediate, 27% morning chronotype in ADHD adolescents. 63.7% evening chronotype is from the 2025 Chronobiology International paper (sample size not visible)."
+    },
+    {
+      "id": "C13",
+      "verdict": "supported",
+      "notes": "Searched the NG87 recommendations page and PDF. The summary reproduces the environmental-modification recommendation verbatim: modifications should be specific to the person's circumstances and determined from an assessment of needs, with examples including seating, lighting and noise, reducing distractions (for example headphones), optimising work or education to have shorter periods of focus with movement breaks (including the use of 'I need a break' cards), and reinforcing verbal requests with written instructions. No minutes figure is given, as the claim says."
+    },
+    {
+      "id": "C14",
+      "verdict": "partial",
+      "notes": "The NG87 search confirms the wording: think about using a modified-release methylphenidate preparation in the morning and an immediate-release preparation at another time of day to extend the duration of effect, and immediate-release preparations may suit more flexible dosing or initial titration. The 'titrated to response, usually at weekly intervals' detail in key_numbers did not appear in the NG87 summary; NG87 says to titrate against symptoms and adverse effects, and the weekly-interval phrasing looks like BNF wording rather than NG87. The claim text itself contains no numbers and is fully supported.",
+      "corrected_numbers": "Drop 'usually at weekly intervals' or attribute it to the BNF; NG87 itself was only seen to say titrate dose against symptoms and adverse effects."
+    }
+  ]
+}

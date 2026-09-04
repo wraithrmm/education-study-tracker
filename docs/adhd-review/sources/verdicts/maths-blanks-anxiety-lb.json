@@ -1,0 +1,91 @@
+{
+  "area": "maths-blanks-anxiety",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched the title with the quoted figures. ERIC (EJ1213924) and SAGE summaries show Namkung, Peng & Lin (2019), Review of Educational Research 89(3), 459-496: 131 studies, 478 effect sizes, pooled r = -.34, primary r = -.27, secondary r = -.36, with moderation by MA dimension, task difficulty and effects on grades. Every number and author in the claim matches."
+    },
+    {
+      "id": "C3",
+      "verdict": "partial",
+      "notes": "Searched the exact title. ScienceDirect/ResearchGate summaries give the authors as Canu, Elizondo & Broman-Fulks (2017), Learning and Individual Differences 58, 56-63, with n = 40 undergraduates with ADHD diagnosis/traits vs n = 163 peers, and confirm higher specific maths anxiety in the ADHD group even after controlling for general anxiety. The 'no difference on arithmetic performance' element of the claim was not visible in any summary, so that half cannot be confirmed; the sample is undergraduates, not adolescents.",
+      "corrected_source": "Canu, W. H., Elizondo, M., & Broman-Fulks, J. J. (2017). History of ADHD traits related to general test and specific math anxiety in college students. Learning and Individual Differences, 58, 56-63.",
+      "corrected_numbers": "n = 40 ADHD vs n = 163 non-ADHD undergraduates; ADHD group higher on maths anxiety after controlling for general anxiety; arithmetic-performance non-difference not seen in search summary"
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Searched the exact title with '18.4%'. ScienceDirect and ResearchGate summaries confirm Clinical Psychology Review vol. 118, article 102571 (2025): 121 studies, 39,894 children and adolescents with ADHD; ODD 34.7%, behaviour disorders 30.7%, anxiety disorders 18.4%, specific phobias 11.0%, enuresis 10.8%, conduct disorder 10.7%. Authors were not shown in the summary (affiliation University of Iceland), but the claim did not name them.",
+      "corrected_numbers": "121 studies, N = 39,894; anxiety disorders 18.4%; ODD 34.7%; behaviour disorders 30.7%; specific phobias 11.0%; enuresis 10.8%; CD 10.7%"
+    },
+    {
+      "id": "C5",
+      "verdict": "supported",
+      "notes": "Searched authors plus title. KCL, Springer, PubMed (26315934) and ResearchGate all show Tosto MG, Momi SK, Asherson P & Malki K, BMC Medicine, 27 Aug 2015, DOI 10.1186/s12916-015-0414-4, so the journal correction in the file is right. The summary confirms 30 cross-sectional plus 4 longitudinal studies, a stronger negative association for the inattentive than the hyperactive-impulsive subtype, and a stronger negative genetic correlation of maths ability with inattention; magnitudes were not shown.",
+      "corrected_numbers": "34 studies (30 cross-sectional, 4 longitudinal); genetic-correlation magnitudes not shown in search summary"
+    },
+    {
+      "id": "C6",
+      "verdict": "partial",
+      "notes": "Searched the exact title. SAGE lists Antonini, Kingery, Narad, Langberg, Tamm & Epstein, Journal of Attention Disorders 2016 (online 2013), so the recalled author and year are right. The summary shows parent-rated attention predicted maths achievement and observed attention predicted productivity, but no teacher-rated correlation was visible, and the paper's headline is that n-back (working-memory) accuracy, not behaviour ratings, mediated the ADHD-achievement gap ('neurocognition, rather than behavior, may account for the deficits'), which is weaker than the claim's framing of attention state as the predictor.",
+      "corrected_source": "Antonini, T. N., Kingery, K. M., Narad, M. E., Langberg, J. M., Tamm, L., & Epstein, J. N. (2016). Neurocognitive and behavioral predictors of math performance in children with and without ADHD. Journal of Attention Disorders, 20(2), 108-118 (online 2013).",
+      "corrected_numbers": "Parent-rated attention and n-back accuracy predicted maths achievement; teacher-rated correlation not seen; n-back accuracy mediated the group difference in achievement; coefficients not shown"
+    },
+    {
+      "id": "C7",
+      "verdict": "supported",
+      "notes": "Searched the exact title with the PubMed ID. PubMed 28597131, Springer and ASU summaries confirm Friedman LM, Rapport MD, Orban SA, Eckrich SJ & Calub CA, Journal of Abnormal Child Psychology 46(3), 491-504 (2018, online 2017), so the recalled authors and year are right. The summary shows central executive fully mediated the group difference in applied problem solving, calculation partially mediated it, phonological and visuospatial STM did not, and the serial model explained 79% of variance; sample was 36 boys with ADHD-combined and 33 typically developing boys aged 8-12, so the finding is being extrapolated to a 13-year-old.",
+      "corrected_source": "Friedman, L. M., Rapport, M. D., Orban, S. A., Eckrich, S. J., & Calub, C. A. (2018). Journal of Abnormal Child Psychology, 46(3), 491-504.",
+      "corrected_numbers": "n = 36 ADHD-C boys + 33 TD boys, ages 8-12; central executive full mediator; calculation partial mediator; serial mediation explains 79% of variance"
+    },
+    {
+      "id": "C8",
+      "verdict": "partial",
+      "notes": "Two searches. SAGE/PubMed (21383109) summaries confirm Iseman & Naglieri (2011), Journal of Learning Disabilities 44(2), 184-195: random assignment by classroom, 10 days of PASS-based instruction by special-education teachers, worksheet effect sizes 0.85 (experimental) vs 0.26 (comparison), far transfer to WJ-III Math Fluency and WIAT-II Numerical Operations, and a continued advantage at 1-year follow-up on Math Fluency. Neither search showed the far-transfer effect sizes (1.17 vs 0.09; 0.40 vs -0.14), the sample size, or participant ages, so the claim's applicability to a 13-year-old cannot be confirmed and the design is classroom-level randomisation with a small number of clusters.",
+      "corrected_numbers": "Confirmed: worksheets 0.85 vs 0.26; 10 days; randomised by classroom; 1-year follow-up on Math Fluency. Not seen: 1.17 vs 0.09, 0.40 vs -0.14, n, ages"
+    },
+    {
+      "id": "C9",
+      "verdict": "supported",
+      "notes": "Searched the exact title. SAGE and PubMed (22713360) show Lewandowski L, Hendricks K & Gordon M, Journal of Attention Disorders 19(1), 27-34, print 2015 (epub June 2012), so 'Lewandowski et al.' is right and '2012/2013' is defensible as the epub year. The summary confirms n = 38 ADHD vs n = 746 non-ADHD high-school students on the online TestTracker reading battery, poorer decoding, comprehension and vocabulary accuracy in ADHD, and similar reading speed, items attempted, perceived test anxiety, self-perceived skill and strategy use; magnitudes not shown.",
+      "corrected_source": "Lewandowski, L., Hendricks, K., & Gordon, M. (2015). Test-taking performance of high school students with ADHD. Journal of Attention Disorders, 19(1), 27-34 (epub 2012).",
+      "corrected_numbers": "n = 38 ADHD vs 746 non-ADHD; reading test battery, not maths"
+    },
+    {
+      "id": "C10",
+      "verdict": "supported",
+      "notes": "Searched the title with Jenifer/Beilock. PubMed (35286113), APA and WashU summaries confirm Jenifer JB, Rozek CS, Levine SC & Beilock SL (2022), Journal of Experimental Psychology: General, DOI 10.1037/xge0001202, full title 'Effort(Less) Exam Preparation: Math Anxiety Predicts the Avoidance of Effortful Study Strategies'. The summary shows N = 190 high-school students, that maths anxiety predicted less planned engagement with effortful problem solving, and that this avoidance partially mediated the anxiety-exam performance link, which matches the claim.",
+      "corrected_source": "Jenifer, J. B., Rozek, C. S., Levine, S. C., & Beilock, S. L. (2022). Effort(less) exam preparation: Math anxiety predicts the avoidance of effortful study strategies. Journal of Experimental Psychology: General.",
+      "corrected_numbers": "N = 190 high-school students; avoidance of effortful problem solving partially mediated the maths anxiety to exam performance association; coefficients not shown"
+    },
+    {
+      "id": "C11",
+      "verdict": "partial",
+      "notes": "Searched the title with 'Balt' and the ERIC number. ERIC EJ1400784 and ResearchGate show the meta-analysis is by Sammallahti, Finell, Jonsson & Korhonen (2023), Journal of Numerical Cognition 9(2), not 'Balt et al.'; Balt et al. 2022 is a prior study cited within it. The summary gives 50 studies, 75 effect sizes, pooled g = -0.467 for maths-anxiety reduction and g = 0.502 for maths performance, with cognitive-support and emotion-regulation interventions effective on both, so the effect size the claim said could not be read is available.",
+      "corrected_source": "Sammallahti, E., Finell, J., Jonsson, B., & Korhonen, J. (2023). A meta-analysis of math anxiety interventions. Journal of Numerical Cognition, 9(2).",
+      "corrected_numbers": "50 studies, 75 effect sizes; g = -0.467 (anxiety reduction), g = 0.502 (maths performance)"
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Searched the exact title. Frontiers/ResearchGate/DOAJ show Herzog M & Casale G (2024), Frontiers in Education 9:1276741. The summary shows the study is an ABAB single-case design with a total of 10 students in Grades 2 and 4 with varying ADHD profiles receiving a computer-based maths intervention, analysed with hierarchical piecewise regression; the claim's 'observational' label and its use to argue against stacking two sessions for a 13-year-old rest on ten primary pupils, which materially overstates the strength of the evidence.",
+      "corrected_source": "Herzog, M., & Casale, G. (2024). Inattention negatively moderates the effectiveness of a mathematics intervention in low performing primary school students. Frontiers in Education, 9, 1276741.",
+      "corrected_numbers": "n = 10 pupils, Grades 2 and 4, ABAB single-case design, computer-based intervention; lower learning progress with ADHD symptoms and isolated attention difficulties; moderation coefficients not shown"
+    },
+    {
+      "id": "C13",
+      "verdict": "supported",
+      "notes": "Searched the title with the recalled authors. PMC5641671, PubMed (29075227) and Wikidata confirm Capodieci A & Martinussen R (2017), Frontiers in Psychology 8:1801. The summary shows 30 adolescents with ADHD and 39 typically developing peers aged 14-17 matched on age and IQ, similar calculation scores but poorer maths fluency in ADHD, and more 'switch' errors in the ADHD group; the error taxonomy comes from a timed fluency task, so it does not directly supply exam categories such as 'misread question' or 'blank'.",
+      "corrected_numbers": "n = 30 ADHD + 39 TD, ages 14-17; error types from a maths fluency task; ADHD group made more switch errors; effect sizes not shown"
+    },
+    {
+      "id": "C14",
+      "verdict": "supported",
+      "notes": "Searched AQA 8300 mark schemes for method-mark and negative-marking wording. The AQA filestore June 2023 8300/1H mark scheme and mirrored 2H/3H/2F schemes carry the standard glossary: 'GCSE examinations are marked in such a way as to award positive achievement wherever possible', M marks are awarded for a correct method, follow-through marks for correct working, and 'credit should be given to any valid methods' not explicitly in the scheme. The exact phrase 'no negative marking' was not seen, but the positive-achievement principle and the M-mark definition are the AQA statement of it; evidence_type should move from 'none' to 'policy-document'.",
+      "corrected_source": "AQA GCSE Mathematics 8300/1H Paper 1 Higher, June 2023 mark scheme, 'Glossary for Mark Schemes' and 'Principles of marking' sections.",
+      "corrected_url": "https://filestore.aqa.org.uk/sample-papers-and-mark-schemes/2023/june/AQA-83001H-MS-JUN23.PDF",
+      "corrected_numbers": "No numeric claim; AQA wording is 'award positive achievement wherever possible' and M = method marks for a correct method, rather than the literal phrase 'no negative marking'"
+    }
+  ]
+}

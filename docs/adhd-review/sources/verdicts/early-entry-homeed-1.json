@@ -1,0 +1,53 @@
+{
+  "area": "early-entry-homeed",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "partial",
+      "notes": "Two searches. The source is real: DfE Research Report DFE-RR208 'Early entry to GCSE examinations', published 14 November 2011, on gov.uk. Search summaries confirm the headline direction (early entry rising fast in maths and English, 'for many this can be detrimental to their overall performance', DfE spokesperson: early entrants 'tend to achieve lower grades than those who take exams at the end of Year 11'). The two specific details in the claim could not be seen: the comparison 'of similar prior attainment' (the summary only says prior attainment is a factor in who gets entered) and 'many who reached a grade C did not improve it'. The re-sit figures that did surface (nearly 70% of maths early entrants retook; about 45% improved) and 'about a third of a grade lower' appeared in mixed summaries and cannot be pinned to RR208 rather than the Cambridge Assessment / FFT Datalab papers that also came up.",
+      "corrected_source": "Department for Education (2011). Early entry to GCSE examinations. Research Report DFE-RR208, published 14 November 2011.",
+      "corrected_url": "https://www.gov.uk/government/publications/early-entry-to-gcse-examinations",
+      "corrected_numbers": "PDF: https://assets.publishing.service.gov.uk/media/5a7ac1d140f0b66eab99c6fd/DFE-RR208.pdf. Direction confirmed; the 'grade C banked and not improved' detail and the matched-prior-attainment comparison are not visible in search summaries and should be read from the PDF before being quoted."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "One search. The gov.uk news story 'Changes to early entry at GCSE' exists and says that from 29 September 2013 only a pupil's first entry counts in school performance tables, introduced to address the increase in early entry (summer 2013: 23% of maths entries, 170,537, and 10% of English entries, 70,134, were from pupils not at the end of KS4). It applied to EBacc subjects first and to all qualifications from 2015 (Juniper Education / Pearson summaries). The claim's second half, that this is a school-accountability rule that does not touch a private candidate's own certificate, is an inference rather than something the page states, but it follows directly from the rule being about performance tables and nothing in the results contradicts it.",
+      "corrected_source": "Department for Education news story, 'Changes to early entry at GCSE', 29 September 2013.",
+      "corrected_url": "https://www.gov.uk/government/news/changes-to-early-entry-at-gcse",
+      "corrected_numbers": "Summer 2013: 23% of maths entries (170,537) and 10% of English entries (70,134) were early; rule applied to EBacc subjects from 29 Sep 2013 and to all qualifications from 2015."
+    },
+    {
+      "id": "C3",
+      "verdict": "partial",
+      "notes": "Four searches. The 120-140 GLH range for a full GCSE is confirmed by AQA itself (AQA on X, Dec 2020: 'The guided learning hours for a full GCSE course are 120 - 140 hours', pointing to Ofqual's Register) and by secondary sources; one summary gave AQA 8300 maths as 140 GLH but the Ofqual register page did not render in results, so that figure is not tied to an official page. The attribution is wrong: Ofqual's GCSE (9 to 1) qualification conditions do not prescribe a GLH figure; awarding organisations assign GLH/TQT under the General Conditions (Section E / TQT criteria) and Ofqual lists them on its register as estimates. 'AQA prints this on each specification' was not seen on the 8300 or 8692 specification pages returned. The GLH definition (supervised, tutor-directed time; TQT adds unsupervised study) matches Ofqual's TQT criteria. AQA Spanish 8692 GLH (QAN 610/3530/0) was not found.",
+      "corrected_source": "Ofqual Handbook, General Conditions of Recognition, Section E (design and development; TQT/GLH assignment); Ofqual Register of Regulated Qualifications; AQA statement on X (Dec 2020) giving 120-140 GLH for a full GCSE.",
+      "corrected_url": "https://www.gov.uk/guidance/ofqual-handbook/section-e-design-and-development-of-qualifications",
+      "corrected_numbers": "120-140 GLH per GCSE (AQA, citing the Ofqual register: https://x.com/AQA/status/1335874063890345984; register: https://register.ofqual.gov.uk/). If AQA 8300 is 140 GLH as one summary states, the maths line becomes 140 / 31.7 = ~4.4 tutored h/week, not 4.1; Spanish GLH unconfirmed, so the ~7.8 h/week combined figure should be presented as a range of roughly 7.6-8.8 until the register entries are read."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Checked against the live tracker (tracker_get_state, 4 Sep 2026) and one search. Maths: Secure 16, Developing 12, Not started 24, Gap 12, so 24 + 12 = 36 never-taught topics plus 12 developing, as claimed (the 12 'gap' topics were diagnosed on 30 Jun 2026 but not taught). Spanish: Not started 98, Developing 2, of 100 topics, as claimed. AQA's provisional May/June 2027 GCSE timetable shows Mathematics Paper 1 on 14 May 2027 (morning). Date arithmetic reproduces: 7 Sep 2026 to 14 May 2027 = 249 days = 35.6 weeks (claim 35.7), minus 4 = ~31.7; 36 / 31.7 = 1.14 topics/week; 98 / 35.4 = 2.77 topics/week. Not checked: the 9 Jun 2027 Spanish date (search budget exhausted), and note that 11 Spanish 'not started' rows carry a 3 Sep 2026 last-touched stamp, so 'untouched' is slightly loose.",
+      "corrected_source": "Education Tracker live state (maths, spanish) read 4 Sep 2026; AQA provisional exam timetable May/June 2027 (GCSE).",
+      "corrected_url": "https://www.aqa.org.uk/files/32986d0b-0ce6-462a-9682-5ba7a41619f9/b885d02b087859fa4d6ee0e094de3f85101e90bc.pdf",
+      "corrected_numbers": "Maths 16/12/24/12 (secure/developing/not started/gap) = 23% covered; Spanish 98 not started + 2 developing = 1% covered; maths paper 1 on 14 May 2027 confirmed; 249 days = 35.6 weeks to that date."
+    },
+    {
+      "id": "C5",
+      "verdict": "partial",
+      "notes": "Three searches. The source is real: Dignath & Buttner (2008), Metacognition and Learning 3(3), 231-264; 74 studies (49 primary, 35 secondary), 357 effect sizes, overall mean effect 0.69; academic-performance effects d = 0.61 (primary) and 0.54 (secondary); effects higher when metacognitive reflection was included and when a combination of strategy types rather than cognitive strategies alone was taught. Two details in the claim do not hold as stated: the 'largest gains in mathematics' finding applies to primary school only; at secondary level the summaries say the effect was larger for reading/writing than for mathematics, which is the wrong direction for a 13-year-old maths plan. The specific role of motivational strategies was not visible in any summary. The recalled 'academic-performance effect about 0.62' is the primary figure (0.61), not an overall one.",
+      "corrected_source": "Dignath, C., & Buttner, G. (2008). Components of fostering self-regulated learning among students. A meta-analysis on intervention studies at primary and secondary school level. Metacognition and Learning, 3(3), 231-264.",
+      "corrected_url": "https://link.springer.com/article/10.1007/s11409-008-9029-x",
+      "corrected_numbers": "Overall mean effect 0.69; academic performance d = 0.61 primary, 0.54 secondary; 74 studies / 357 effect sizes. Mathematics advantage is a primary-school finding; at secondary level reading/writing showed the larger effect. Do not cite 'largest gains in maths' for a secondary-age student."
+    },
+    {
+      "id": "C6",
+      "verdict": "partial",
+      "notes": "Two searches. The source is real: Theobald (2021), Contemporary Educational Psychology 66, 101976; 49 studies, 5,786 university students, 251 effect sizes, three-level meta-analysis, overall g = 0.38. Reported outcome effects: academic performance g = 0.37, motivation g = 0.35, metacognitive strategies g = 0.40, resource-management strategies g = 0.39, cognitive strategies g = 0.32; specific strategies ranged 0.23 (rehearsal) to 0.61 (attention/concentration). The recalled 0.45 for 'SRL strategies' does not appear anywhere. The claim's key moderator, 'largest when metacognitive strategies were taught inside subject content rather than as a stand-alone course', was not visible: the moderators shown were feedback (larger effects on metacognitive and resource-management strategies) and cooperative learning; the embedded-versus-stand-alone remark surfaced only in a later paper citing Theobald. University sample confirmed, so 'indirect' is right.",
+      "corrected_source": "Theobald, M. (2021). Self-regulated learning training programs enhance university students' academic performance, self-regulated learning strategies, and motivation: A meta-analysis. Contemporary Educational Psychology, 66, 101976.",
+      "corrected_url": "https://www.sciencedirect.com/science/article/abs/pii/S0361476X21000357",
+      "corrected_numbers": "49 studies, 5,786 participants, 251 effect sizes; overall g = 0.38; academic performance 0.37, motivation 0.35, metacognitive strategies 0.40, resource management 0.39, cognitive 0.32 (not 0.45 for strategies). Moderators seen: feedback and cooperative learning; embedded-vs-stand-alone not seen. Open-access PDF: https://www.uni-trier.de/fileadmin/fb1/prof/PSY/SUK/Theobald_2021-1.pdf"
+    }
+  ]
+}

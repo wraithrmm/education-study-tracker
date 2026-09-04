@@ -1,0 +1,53 @@
+{
+  "area": "early-entry-homeed",
+  "verdicts": [
+    {
+      "id": "C7",
+      "verdict": "partial",
+      "notes": "Three searches. The source is real: Evans, Owens, Wymbs & Ray (2018), Journal of Clinical Child & Adolescent Psychology 47(2), 157-198, a systematic review of 2012-2016 literature graded with SCCAP/Division 12 criteria (PubMed 29257898). No summary showed the review's own classification of organisation/planning training as the best-evidenced treatment for adolescents; what was visible is that the Challenging Horizons Program (developed by Evans himself, a conflict worth noting) is a training intervention shown to improve organisation skills and academic functioning in middle-school pupils with ADHD. The phrases 'delivered with adult monitoring, feedback and rewards' and 'unsupported self-regulation is not expected to be sufficient' are the research agent's gloss and were not seen in any summary of the paper.",
+      "corrected_source": "Evans SW, Owens JS, Wymbs BT, Ray AR (2018). Evidence-Based Psychosocial Treatments for Children and Adolescents With Attention Deficit/Hyperactivity Disorder. J Clin Child Adolesc Psychol 47(2):157-198. doi:10.1080/15374416.2017.1390757",
+      "corrected_url": "https://pubmed.ncbi.nlm.nih.gov/29257898/",
+      "corrected_numbers": "not shown in search summary; review covers literature 2012-2016"
+    },
+    {
+      "id": "C8",
+      "verdict": "partial",
+      "notes": "Two searches. The EEF Toolkit 'One to one tuition' strand exists and the search summary of the EEF page confirms +5 months on average and 'short, regular sessions (about 30 minutes, three to five times a week)'. Two discrepancies: the page says 'over a set period of time (up to ten weeks)', not '6-12 weeks'; and the claim omits the same page's statement that effects in mathematics appear substantially lower (+2 months) than in literacy (+6 months), which is the figure that actually applies to this maths plan. The +5 headline should not be quoted for maths.",
+      "corrected_source": "One to one tuition | EEF Teaching and Learning Toolkit (with Technical Appendix)",
+      "corrected_url": "https://educationendowmentfoundation.org.uk/education-evidence/teaching-learning-toolkit/one-to-one-tuition",
+      "corrected_numbers": "+5 months average; mathematics +2 months, literacy +6 months; about 30 minutes, three to five times a week, up to ten weeks"
+    },
+    {
+      "id": "C9",
+      "verdict": "partial",
+      "notes": "Two searches. NBER Working Paper 27476 (Nickow, Oreopoulos & Quan, 2020) exists and its summary confirms a pooled effect of 0.37 SD, larger effects for teacher and paraprofessional tutors than nonprofessional/parent tutors, larger effects in earlier grades, during school rather than after school, and at three or more days a week. The '96 randomised trials' figure was not visible in any summary. The claim misstates one finding: the paper says maths tutoring yields higher effect sizes in later grades (grade in which tutoring is delivered), not that maths effects 'persisted' into later grades. More importantly, the peer-reviewed version (AERJ 2024, retitled 'The Promise of Tutoring for PreK-12 Learning') reports a pooled effect of 0.288 SD according to the J-PAL evidence review, so the 0.37 headline is superseded.",
+      "corrected_source": "Nickow A, Oreopoulos P, Quan V (2020) NBER WP 27476; published as 'The Promise of Tutoring for PreK-12 Learning', American Educational Research Journal, 2024, doi:10.3102/00028312231208687",
+      "corrected_url": "https://www.nber.org/papers/w27476",
+      "corrected_numbers": "0.37 SD in the 2020 working paper; 0.288 SD in the 2024 published version (per J-PAL evidence review summary); study count not shown in search summary"
+    },
+    {
+      "id": "C10",
+      "verdict": "partial",
+      "notes": "Two searches. The DfE 'Elective home education' official statistics on explore-education-statistics exist and their methodology/help pages describe a collection of headcounts and reasons for home education (126,000 children in autumn 2025), with no attainment measure, which is consistent with the claim. The House of Commons Library briefing SN05108 was found but its text on outcomes was not visible, and the statement that exam boards publish private-candidate entry numbers but not results by setting was not seen anywhere. A negative claim ('no national dataset') cannot be proved by search; nothing found contradicted it.",
+      "corrected_source": "DfE, Elective home education (official statistics, Explore Education Statistics); House of Commons Library, Home education in England (SN05108)",
+      "corrected_url": "https://explore-education-statistics.service.gov.uk/find-statistics/elective-home-education/2024-25-autumn-term",
+      "corrected_numbers": "126,000 children in EHE in autumn 2025 (about 1.5% of school-age children); no attainment figures published"
+    },
+    {
+      "id": "C11",
+      "verdict": "partial",
+      "notes": "Three searches. AQA's 8692 scheme-of-assessment page confirms speaking is 25% of the GCSE, that marks are scaled to meet component weightings, and that the test is teacher-conducted (Paper 2 Teacher's Booklet, 'conduct of the speaking test' guidance; maximum 9 minutes Foundation, 12 minutes Higher). That the recording is sent to AQA for marking was seen only on the HE Exams Wiki, not on an AQA page. AQA's private-candidates NEA page confirms centres must only accept private-candidate entries if willing to provide the non-exam assessment and that finding a willing centre is the candidate's responsibility. Not seen: the '200 scaled marks total' figure and the explicit 'non-exam assessment' label on the 8692 speaking paper. The 'no centre confirmed' part is a local tracker fact, not web-checkable.",
+      "corrected_source": "AQA GCSE Spanish 8692 specification, Scheme of assessment; AQA Private candidates: Non-exam assessment (NEA)",
+      "corrected_url": "https://www.aqa.org.uk/subjects/spanish/gcse/spanish-8692/specification/scheme-of-assessment",
+      "corrected_numbers": "Speaking 25%; test length max 9 min (Foundation) / 12 min (Higher); total scaled marks not shown in search summary. Private-candidate NEA page: https://www.aqa.org.uk/student-and-parent-support/private-candidates/non-exam-assessment"
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Two searches. The rule itself is confirmed by Ofqual's own blog (Jan 2023 and Jan 2021 posts on November-series results) and by DfE's provisional November exam-entry statistics: since 2017, entry to the November series in GCSE mathematics and English language has been limited to students aged 16 or above on 31 August of the year of the series. So a 13- to 14-year-old sitting in May 2027 cannot re-sit in November 2027 and the next chance is June 2028. The cited document is wrong: the condition sits in Ofqual's GCSE Subject Level Conditions and Requirements for Mathematics (and the equivalent for English Language), not the Qualification Level Conditions; the Feb 2017 mathematics conditions were found on gov.uk but their text was not visible in the summary.",
+      "corrected_source": "Ofqual, GCSE Subject Level Conditions and Requirements for Mathematics (Feb 2017) and for English Language; rule restated in Ofqual blog and DfE November entry statistics",
+      "corrected_url": "https://ofqual.blog.gov.uk/2023/01/12/gcse-english-language-and-maths-results-from-the-november-series/",
+      "corrected_numbers": "Aged 16 or above on 31 August of the year of the November series; in force since 2017. Subject-level conditions: https://www.gov.uk/government/publications/gcse-9-to-1-subject-level-conditions-and-requirements-for-mathematics"
+    }
+  ]
+}

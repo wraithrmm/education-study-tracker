@@ -1,0 +1,47 @@
+{
+  "area": "uk-exam-logistics",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched for the JCQ 'Key dates in the examination cycle' June 2027 document and separately for the 21 March 2027 AAO date. The PDF exists at the cited URL (uploaded May 2026) and the search summary of that document gives 31/01/2027 as the deadline for ordering modified papers via Access Arrangements Online and 21/03/2027 as the deadline for processing AAO applications, for both GCSE and GCE in the June 2027 series; the June 2026 document used the same 21 March pattern. Centre-level earlier cut-offs are corroborated only in general terms (e.g. Tutors & Exams' own JCQ-deadline page), so the family must still ask the chosen centre for its internal date."
+    },
+    {
+      "id": "C2",
+      "verdict": "partial",
+      "notes": "Searched for the ADHD Private guide and separately for JCQ's own wording on 'GP with an extended role in ADHD'. The guide exists at the cited URL and its summary lists Form 9 for a medical diagnosis with evidence from CAMHS, an HCPC-registered psychologist, a medical consultant, a psychiatrist, a Speech and Language Therapist, or a neurodevelopmental specialist GP / GP with an extended role in ADHD; jcq.org.uk documents confirm the extended-role GP is acceptable only if they have completed the RCGP extended-role framework in ADHD, a caveat the claim omits. JCQ's own text seen in summaries says that where a candidate has a medical condition and 25% extra time is awarded rather than rest breaks the need is set out in Part 1 of Form 9, but the statement that standardised-score testing is 'not required' for ADHD appeared only in secondary summaries, not in visible JCQ wording, and the guide itself adds that JCQ now expects supervised rest breaks to be considered first.",
+      "corrected_source": "JCQ, Form 9 2025-26 (effective 1 September 2025) and JCQ 'Overview of evidence requirements' 2025-26",
+      "corrected_url": "https://www.jcq.org.uk/wp-content/uploads/2025/09/JCQ-Overview-of-evidence-requirements-25-26_FINAL.pdf",
+      "corrected_numbers": "Evidence list also includes a Speech and Language Therapist; a GP counts only with the RCGP extended-role framework in ADHD; a CAMHS/NHS referral alone is not enough, a formal acceptance letter agreeing to assess the candidate is required. 'No standardised testing needed' is seen only in secondary sources."
+    },
+    {
+      "id": "C3",
+      "verdict": "unsupported",
+      "notes": "Searched for the JCQ March 2026 'Changes to the 2025/26 AARA' document and separately for what it changed about rest breaks. The document exists at the cited URL, but every summary (JCQ's own update, The Dyslexia Shop, Education Elephant) says the March 2026 revision softened the rule: the September 2025 wording that SENCos 'must trial and exhaust' supervised rest breaks before applying for 25% extra time, with the trial documented on Form 9, was replaced in section 5.1 by 'the SENCo should consider the option of supervised rest breaks before making an application for 25% extra time', restoring SENCo professional judgement. The 'must trial, documented as insufficient on Form 9' wording the claim attributes to March 2026 is the pre-March September 2025 text (still visible in the JCQ Overview of evidence requirements 25-26), so the claim reverses the direction of the change; the 2026-27 edition that will govern June 2027 did not appear in any search.",
+      "corrected_source": "JCQ AARA 2025-26, March 2026 revision, section 5.1 (supervised rest breaks)",
+      "corrected_url": "https://www.jcq.org.uk/wp-content/uploads/sites/2/2026/03/JCQ-AARA-2025-March-26.pdf",
+      "corrected_numbers": "From March 2026 the SENCo 'should consider' supervised rest breaks before applying for 25% extra time (not 'must trial and exhaust'); Form 9 Part 1 should still confirm that rest breaks were considered and do not meet the need. The 'must trial and document' rule applied only from 1 September 2025 to March 2026. Re-check the 2026-27 edition (effective 1 September 2026) before relying on either wording for June 2027."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Searched for the New Form 8 2025-2026 PDF and separately for the 25% extra-time evidence it asks for. The form exists at the cited URL, headed '© JCQ 2025 – Effective from 1 September 2025', and summaries of JCQ's 2025-26 material state that a skeleton Part 1 is no longer sufficient and that Part 1 must include teacher feedback and evidence of normal way of working as a minimum. Summaries also state that for 25% extra time Part 1 requires a sample of internal tests/mock papers across relevant subjects showing the application of 25% extra time (e.g. a change of pen colour, or a scanned extract or digital record from an online test) plus comments and observations from teaching staff on why the candidate needs it and how they use it; no minimum number of samples is stated anywhere, which matches the claim."
+    },
+    {
+      "id": "C5",
+      "verdict": "partial",
+      "notes": "Searched for the November 2025 JCQ private-candidates overview and separately for its wording on 1:1 tuition and online feedback. The PDF exists at the cited URL and its knowledge-hub page presents it as the 2025/26 edition; summaries quote it saying SENCos should refer to any online feedback given to the private candidate whilst studying and/or any reported difficulties if the candidate receives regular 1:1 tuition, and that parent/carer comments and the candidate's own comments may be considered where the candidate or tutor gives insufficient information. The clause that the SENCo 'must make clear that the picture of need and normal way of working relates to a private candidate' was not visible in any summary (the 'picture of need' wording appeared only in relation to EHCPs and Form 9), so that part is unconfirmed.",
+      "corrected_numbers": "Document wording is 'should refer to' online feedback and reported difficulties from regular 1:1 tuition, slightly stronger than the claim's 'may draw on'; parent/carer comments may be added to Part 1 where the candidate or private tutor gives insufficient information."
+    },
+    {
+      "id": "C6",
+      "verdict": "partial",
+      "notes": "Searched for the AARA March 2026 PDF and separately for the GCSE statement wording on supervised rest breaks. The document exists at the cited URL and summaries confirm supervised rest breaks are among the 22 centre-delegated arrangements, need no Access Arrangements Online application, need no specialist evidence, and are evidenced within Part 1 of Form 8 (with Form 9 Part 1 confirming rest breaks were considered but do not meet the need where extra time is sought instead). The specific 'statement confirming the need, the nature of the impairment and that rest breaks reflect normal way of working within the centre' and the claim's GCSE-specific framing were not visible in any summary, so the exact obligation and its wording remain unconfirmed; JCQ's private-candidate overview says delegated arrangements 'in most cases' need no evidence produced for inspection."
+    },
+    {
+      "id": "C7",
+      "verdict": "supported",
+      "notes": "Searched for the JCQ knowledge-hub AARA page and separately for the prompter criteria phrased as 'loses concentration easily' and 'sense of time'. Summaries drawn from JCQ's AARA state that a prompter may be permitted where a candidate has a substantial and long-term adverse impairment resulting in persistent distractibility or significant difficulty in concentrating, that it suits a candidate with little sense of time or who loses concentration easily, and that the prompter may physically show where on the page the candidate had been working; the ADHD worked example (persistent difficulty concentrating and poor working memory; supervised rest breaks plus a prompter who may physically show her where on the page she had been working) appears in JCQ's own guidance. Prompters are listed among the centre-delegated arrangements needing no online application."
+    }
+  ]
+}

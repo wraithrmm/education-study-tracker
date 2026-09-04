@@ -1,0 +1,61 @@
+{
+  "area": "mfl-vocab-srs",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Two searches on Karpicke & Bauernschmidt (2011), JEP:LMC 37(5), 1250-1257, doi 10.1037/a0023436, PMID 21574747. The abstract wording 'repeated retrieval with long intervals between each test produced a 200% improvement in long-term retention relative to repeated retrieval with no spacing between tests' was shown verbatim, and the title plus summary confirm the absolute-spacing effect held regardless of expanding, equal or contracting schedule. Sample size was still not shown (the paper reports two experiments); one search summary mixed in the Karpicke & Roediger 2007 '10 minutes vs 2 days' result, which is a different paper and should not be attributed to this one."
+    },
+    {
+      "id": "C3",
+      "verdict": "supported",
+      "notes": "One search on Seibert Hanson & Brown (2020), Computer Assisted Language Learning 33(1-2), 133-155, doi 10.1080/09588221.2018.1552975. Summary confirms 62 university-level learners in a semester-long beginning Spanish course, and a positive relationship between days studying with Anki and end-of-semester Spanish performance while controlling for baseline abilities, motivation, self-efficacy and beliefs. The 'bitter pill' reading is also confirmed: students were reluctant to use the app and reported low enjoyment; uptake percentages were not shown."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "One search on Nakata & Elgort (2021), Second Language Research 37(2), 233-260, doi 10.1177/0267658320927764 (also ERIC EJ1291262). Summary confirms Japanese speakers of English met 48 novel items embedded in informative English sentences, and that spacing facilitated explicit knowledge (form-meaning recall and recognition) but gave no advantage for tacit knowledge measured by semantic priming; an approximate replication in SSLLT exists. The claim's tail, 'tacit knowledge ... comes from repeated exposure in context', is the writer's inference rather than a stated finding, and participant N was not shown.",
+      "corrected_numbers": "48 novel vocabulary items learned from sentence contexts; explicit knowledge = recall and recognition tests, tacit knowledge = semantic priming; participant N not shown."
+    },
+    {
+      "id": "C5",
+      "verdict": "partial",
+      "notes": "Two searches. The gov.uk 'GCSE subject level conditions ... for modern foreign languages ... 2022' page cited is the summer-2022 adaptation of the legacy conditions (its visible content is the temporary removal of the requirement to include unfamiliar vocabulary), not the rulebook for the reformed 2024 GCSEs, so the source attribution is loose even though the substance is broadly right. The AQA 8692 specification (subject content, vocabulary) does show the operative rules: 1,200 lexical items at Foundation plus a further 500 at Higher (1,700 total); off-list proper nouns may be glossed; students are expected to infer single off-list words from written context; dictation includes some off-list vocabulary; and up to 2% of the words in any text may be off-list cognates. The claim omits the 2% cognate allowance, so 'closed, knowable set' is slightly overstated: closed with small, specified leakage.",
+      "corrected_source": "AQA GCSE Spanish (8692) specification, Subject content: Vocabulary (for teaching from September 2024); DfE GCSE subject content for French, German and Spanish (2022; 1,200 / 1,700 word families), with the Ofqual reformed-MFL conditions as the regulatory layer.",
+      "corrected_url": "https://www.aqa.org.uk/subjects/spanish/gcse/spanish-8692/specification/subject-content/vocabulary",
+      "corrected_numbers": "1,200 lexical items Foundation; +500 for Higher (1,700 total); up to 2% of any text may be off-list cognates; off-list proper nouns may be glossed; single off-list words may appear for inference in written context; dictation extracts include some off-list vocabulary."
+    },
+    {
+      "id": "C6",
+      "verdict": "supported",
+      "notes": "One search. The Eduqas MFL 2024 page and the gov.uk press release both state the reformed French, German and Spanish GCSEs are available for teaching from September 2024 with first assessment in summer 2026, and the press release gives the 1,200 (Foundation) and 1,700 (Higher) word-family figures. The inference that a June 2027 candidate has exactly one real past series (summer 2026) plus specimen material follows arithmetically. The cited consultation-outcome page's publication date was still not shown; note also that a gov.uk file titled 'French German and Spanish GCSE subject content 2025' surfaced, suggesting a 2025 reissue of the DfE content that the plan should check for changes.",
+      "corrected_numbers": "First teaching September 2024; first examinations summer 2026; 1,200 word families Foundation / 1,700 Higher (DfE)."
+    },
+    {
+      "id": "C7",
+      "verdict": "supported",
+      "notes": "One search on the CALL 2025 paper, doi 10.1080/09588221.2025.2478271. Summary confirms a 6-week pretest-posttest control-group quasi-experimental design with 75 first-year students at an Indonesian state university (39 AI-chatbot think-pair-share, 36 conventional think-pair-share), with reduced speaking anxiety, higher enjoyment and better speaking performance in the chatbot group, plus interviews with 5 students. Authors are now visible and should be filled in; effect sizes were still not shown.",
+      "corrected_source": "Wu, T.-T., Hapsari, I. P., & Huang, Y.-M. (2025). Computer Assisted Language Learning, 1-39.",
+      "corrected_numbers": "N = 75 (39 experimental, 36 control), first-year university students in Indonesia; 6 weeks; quasi-experimental, not randomised; effect sizes not shown."
+    },
+    {
+      "id": "C10",
+      "verdict": "unsupported",
+      "notes": "One search on the Frontiers in Psychology 2025 paper (doi 10.3389/fpsyg.2025.1745942; PMC12832806; PMID 41602632). The design details match: 48 first-year English Language Teaching students at a Turkish public university, mixed methods, two comparable speaking exams (one AI-chatbot facilitated, one human facilitated) each preceded by the Foreign Language Speaking Anxiety Scale. But the result is misstated: achievement scores did NOT differ significantly between the AI and human conditions; the finding was that anxiety correlated negatively with scores in the human-facilitated exam and showed no significant correlation in the AI-facilitated exam, and that higher digital literacy predicted better scores under AI. So 'better performance' under AI is contradicted and 'lower anxiety' under AI was not shown; the implication (anxiety bites specifically with a human examiner, so rehearse with humans) actually survives on the true finding, but the claim text must be rewritten.",
+      "corrected_numbers": "N = 48; no significant difference in achievement scores between AI- and human-facilitated exams; significant negative anxiety-score correlation in the human-facilitated exam only; digital literacy predicted AI-exam scores."
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Two searches. Authorship and venue are confirmed: Mulder, Bos, Weusten, van Belle, van Dijk, Simen, van Engeland & Durston (2010), Biological Psychiatry 68, 1114-1119; the summary confirms 25 participants with ADHD and 30 typically developing children and adolescents on a perceptual decision-making paradigm, with impaired optimisation of the speed-accuracy tradeoff and a 'relative inflexibility in optimizing decision criteria'. Not seen in any summary: that the impairment tracked hyperactive-impulsive symptoms specifically (the title says only 'predict symptoms of ADHD'), or that ADHD participants were faster than controls even under accuracy emphasis; both details remain to be checked against the abstract before the Shooting Gallery rule is rewritten around them.",
+      "corrected_source": "Mulder, M. J., Bos, D., Weusten, J. M. H., van Belle, J., van Dijk, S. C., Simen, P., van Engeland, H., & Durston, S. (2010). Biological Psychiatry, 68(12), 1114-1119.",
+      "corrected_numbers": "25 ADHD vs 30 typically developing children/adolescents confirmed; symptom-dimension linkage (hyperactive-impulsive vs inattentive) and 'faster even under accuracy emphasis' not seen."
+    },
+    {
+      "id": "C13",
+      "verdict": "partial",
+      "notes": "One search. The attribution is confirmed: Richard P. Heitz (2014), 'The speed-accuracy tradeoff: history, physiology, methodology, and behavior', Frontiers in Neuroscience 8:150, PMID 24966810. The search summary showed only the general abstract and not the ADHD passage, so the quoted phrases 'shifted, but not different in slope' and 'relative inflexibility in optimizing decision criteria' could not be seen (the latter phrase did appear attached to Mulder et al. 2010 in a separate search, which is consistent with Heitz summarising that study). The claim's gloss that 'rate of processing is normal' is an interpretation of the slope statement rather than something shown; treat it as the researcher's reading until the review's clinical section is read directly.",
+      "corrected_source": "Heitz, R. P. (2014). Frontiers in Neuroscience, 8, 150. doi 10.3389/fnins.2014.00150"
+    }
+  ]
+}

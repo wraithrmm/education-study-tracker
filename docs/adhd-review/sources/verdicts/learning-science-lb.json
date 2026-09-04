@@ -1,0 +1,60 @@
+{
+  "area": "learning-science",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched Dunlosky, Rawson, Marsh, Nathan & Willingham 2013 utility ratings. Summaries of the PSPI paper and the American Educator/Scientific American Mind versions confirm exactly 10 techniques, 2 high utility (practice testing, distributed practice), 3 moderate (elaborative interrogation, self-explanation, interleaved practice) and 5 low (summarization, highlighting, keyword mnemonic, imagery for text, rereading), matching the claim technique for technique."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "Two searches on Latimier, Peyre & Ramus 2021 (Educational Psychology Review 33, 959-987). The abstract confirms 29 studies, 39 effect sizes in subset 1 and 54 in subset 2, spaced vs massed retrieval g = 0.74, and subset 2 showing no significant difference between expanding and uniform schedules (g = 0.034); the figure the research file flagged for verification is in the paper's own abstract, not just a secondary summary."
+    },
+    {
+      "id": "C3",
+      "verdict": "partial",
+      "notes": "Two searches on Murray, Horner & Göbel 2025 (Educational Psychology Review 37, article 75). The abstract confirms spaced vs massed g = 0.28 from 27 studies and 53 effect sizes, the isolated (10 studies, 27 ES) vs course-embedded (17 studies, 26 ES) split, and that the spacing effect was larger for isolated material; it describes the retrieval-practice-alone evidence as 'inconclusive, potentially due to a limited number of dedicated studies'. The subgroup values g = 0.43 / 0.24 and the testing-vs-restudy g = 0.18 with a CI crossing zero were not visible in any summary, so the direction of the claim is right but those three numbers are unconfirmed.",
+      "corrected_numbers": "Confirmed: spaced vs massed g = 0.28 (27 studies, 53 effect sizes); isolated subset 10 studies/27 ES, course subset 17 studies/26 ES, isolated larger. Unconfirmed from summaries: g = 0.43 and 0.24 subgroup values; testing vs restudy g = 0.18 and its CI. Abstract wording is 'inconclusive', which is weaker than a point estimate and should be cited as such."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Searched Rohrer, Dedrick, Hartwig & Cheung 2020 (Journal of Educational Psychology 112, 40-52). Summaries confirm 54 seventh-grade classes, four months of interleaved or blocked assignments, an unannounced test one month later, and interleaved 61% vs blocked 38% with d = 0.83. The 787-student count, 5 schools and the CI [0.68, 0.97] did not appear in summaries but nothing contradicted them."
+    },
+    {
+      "id": "C7",
+      "verdict": "supported",
+      "notes": "Searched Yang, Luo, Vadillo, Yu & Shanks 2021 (Psychological Bulletin). Summaries confirm 222 independent studies, 48,478 students and an overall g = 0.499 described as a medium effect. The moderator list (feedback, format consistency, repetitions) was not shown in the summary but the load-bearing numbers match exactly."
+    },
+    {
+      "id": "C8",
+      "verdict": "partial",
+      "notes": "Searched Cepeda, Vul, Rohrer, Wixted & Pashler 2008 (Psychological Science 19, 1095-1102). The abstract confirms over 1,350 participants, gaps up to 3.5 months, final delays up to 1 year, and an optimum gap of 'about 20% of the test delay for delays of a few weeks, falling to about 5% when delay was one year'; a fuller summary gives the ridgeline as roughly 20-40% of a 1-week delay down to 5-10% of a 1-year delay. The claim's '10-20% when the test is weeks away' does not appear anywhere and understates the paper's figure for short delays; the derived 12-50 day band in the implication rests on a 5-20% rule that is a blend of the two endpoints rather than the paper's number for a ~250-day delay.",
+      "corrected_numbers": "Optimal gap about 20% of the test delay for delays of a few weeks (paper's own detail: 20-40% at 1 week), falling to about 5% (5-10%) at one year. There is no 10-20% figure in the source. For a ~250-day exam delay the paper's curve implies something nearer 10% (roughly 25 days), and the 5-20% band cited (12-50 days) is the agent's interpolation, not a source figure."
+    },
+    {
+      "id": "C9",
+      "verdict": "supported",
+      "notes": "Searched Rawson & Dunlosky 2011 (Journal of Experimental Psychology: General 140, 283-302). The abstract confirms 3 experiments, 533 students, more than 100,000 recall responses, initial criterion of 1-4 correct recalls, 1-5 relearning sessions, and the prescriptive conclusion of an initial criterion of 3 correct recalls then 3 relearnings at widely spaced intervals. The Janes et al. 2020 figures (10%+ and effect sizes 0.54-1.10) were not checked within the search budget."
+    },
+    {
+      "id": "C11",
+      "verdict": "supported",
+      "notes": "Searched Knouse, Rawson, Vaughn & Dunlosky 2016 (Clinical Psychological Science 4, 136-143). The abstract confirms n = 25 ADHD and n = 75 non-ADHD college students, a moderate testing effect in both groups (ds = 0.50, 0.57), and that testing enhanced both relational and item-specific processing. The procedural details (two 48-word lists, 8 study vs 4 alternating trials, 2-day delay) were not visible in summaries but the load-bearing effect sizes and sample match."
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Searched the 2023 'Is practice good enough?' paper (PMC10397724 / PubMed 37546447). The finding is confirmed: all participants benefited from retrieval vs restudy with no moderation by ADHD status, unmedicated ADHD participants did worse at encoding and on the final test and used fewer deep strategies, and medicated participants did not differ significantly from controls; sample was 36 ADHD vs 36 controls learning Swahili-English word pairs. However the paper is by Minear and colleagues in Frontiers in Psychology (14:1186566), not 'Knouse et al., 2023', so the citation is misattributed even though the URL is right and the content is as claimed.",
+      "corrected_source": "Minear et al., 2023 (Frontiers in Psychology, 14:1186566), 'Is practice good enough? Retrieval benefits students with ADHD but does not compensate for poor encoding in unmedicated students'",
+      "corrected_url": "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2023.1186566/full",
+      "corrected_numbers": "36 ADHD vs 36 controls; Swahili-English paired associates; retrieval benefit not moderated by ADHD status; medication grouping observational, not randomised."
+    },
+    {
+      "id": "C13",
+      "verdict": "supported",
+      "notes": "Searched Barbieri, Miller-Cotto, Clerjuste & Chawla 2023 (Educational Psychology Review 35, article 11). Summaries confirm 43 articles, 55 studies, 181 effect sizes, robust variance estimation, average g = 0.48 with p = 0.01 described as medium, and the moderators named (correct vs incorrect examples, self-explanation prompts, timing). The 8,033-abstracts figure and the 18-percentile-point conversion were not shown, but 18 points is the correct normal-curve conversion of g = 0.48."
+    }
+  ]
+}

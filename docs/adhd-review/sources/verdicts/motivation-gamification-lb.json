@@ -1,0 +1,54 @@
+{
+  "area": "motivation-gamification",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "partial",
+      "notes": "Searched the Jackson & MacKillop 2016 abstract (Biological Psychiatry: CNNI 1(4), 316-325). The summary confirms 'very strong evidence of significantly higher discounting of future rewards' in ADHD at p < 10^-15 and that the review examined moderators of age, real vs hypothetical reward, and CD/ODD prevalence; the pooled effect size and number of studies were not visible, so the claim's own 'not shown' is accurate and the magnitude ('much more steeply') remains unquantified here. The step from monetary discounting in the lab to a nine-month exam being a weak motivator is an inference, as the file's caveat already says.",
+      "corrected_numbers": "p < 10^-15 confirmed; pooled effect size and k not seen in either search summary, so do not attach a magnitude to 'much more steeply' without checking the paper."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "Searched the Marx, Hacker, Yu, Cortese & Sonuga-Barke 2021 abstract (Journal of Attention Disorders, doi 10.1177/1087054718772138). The summary states 37 group comparisons (22 simple-choice, 15 temporal discounting), 3,763 participants (53% ADHD), small-to-medium effect sizes for both paradigms, and that offering real rewards in the simple-choice paradigm 'almost doubled the odds ratio' for ADHD participants. Every number and phrase in the claim matches."
+    },
+    {
+      "id": "C5",
+      "verdict": "partial",
+      "notes": "Two searches on Dovis, Van der Oord, Wiers & Prins 2012 (J Abnorm Child Psychol 40(5):669-681; PubMed 22187093; Springer 10.1007/s10802-011-9601-8). Both summaries give 30 children with ADHD and 31 non-ADHD controls, so the 86 vs 62 figure in this file is wrong and the other file's 30 vs 31 is right; the design had four conditions (feedback-only, 1 euro, 10 euros, computer-game version), not just feedback-only vs 10 euros. The substantive finding is correctly stated: 10 euros and gaming normalised persistence where 1 euro did not, and incentives improved working memory without normalising it. Worth adding for this system: the summary says gaming motivated task completion as much as 10 euros did.",
+      "corrected_numbers": "N = 30 ADHD vs 31 controls (not 86 vs 62). Four reinforcement conditions: feedback-only, 1 euro, 10 euros, gaming. 10 euros and gaming normalised persistence; 1 euro did not; WM improved under incentives but was not normalised even by the strongest."
+    },
+    {
+      "id": "C6",
+      "verdict": "partial",
+      "notes": "Two searches on Martin 2012 (Contemporary Educational Psychology 37, 91-105; doi 10.1016/j.cedpsych.2012.01.002). The abstract gives N = 87 students with ADHD and N = 3,374 non-ADHD peers, plus supplementary analyses with a randomly drawn non-ADHD sub-sample of 87 and an analysis controlling for achievement; the file's 'N = 3,374 students (ADHD and non-ADHD groups)' misreads the non-ADHD group as the total and omits the ADHD n. The strength is if anything understated: multi-group path analysis found significant positive PB-goal associations with achievement and behavioural engagement for ADHD students, and the absolute parameter estimates trended larger for ADHD than non-ADHD; path coefficients themselves were not visible.",
+      "corrected_numbers": "N = 87 ADHD and N = 3,374 non-ADHD (total 3,461), plus a matched non-ADHD sub-sample of 87; parameter estimates trended larger for the ADHD group, so 'about as strongly' should read 'at least as strongly'."
+    },
+    {
+      "id": "C7",
+      "verdict": "partial",
+      "notes": "Searched the Deci, Koestner & Ryan 1999 abstract (Psychological Bulletin 125(6), 627-668). The summary confirms 128 studies and that engagement-, completion- and performance-contingent rewards undermined free-choice intrinsic motivation at d = -0.40, -0.36 and -0.28, as did all rewards, all tangible rewards and all expected rewards; it also gives self-reported interest effects of d = -0.15 and -0.17 for engagement- and completion-contingent rewards. The positive-feedback figures the claim quotes (d = 0.33 free-choice, 0.31 self-reported interest) did not appear in the summary, so they are unconfirmed here rather than contradicted; nothing seen disagrees with the claim's direction.",
+      "corrected_numbers": "Undermining effects d = -0.40, -0.36, -0.28 confirmed; positive feedback d = 0.33 / 0.31 not visible in the search summary and should be treated as unconfirmed by this check."
+    },
+    {
+      "id": "C9",
+      "verdict": "supported",
+      "notes": "Two searches on Sailer & Homner 2020 (Educational Psychology Review 32, 77-112; ERIC EJ1245270). The summaries give cognitive g = 0.49 [0.30, 0.69], k = 19, N = 1,686; motivational g = 0.36 [0.18, 0.54], k = 16, N = 2,246; behavioural g = 0.25 [0.04, 0.46], k = 9, N = 951, and state that the cognitive effect was stable in a subsplit of high-methodological-rigor studies while motivational and behavioural effects were less stable. Every number and the rigor statement match the claim; the abstract also notes game fiction and combining competition with collaboration as moderators of the behavioural effect, which the claim does not mention but does not need."
+    },
+    {
+      "id": "C10",
+      "verdict": "supported",
+      "notes": "Checked because it was named in the brief even though load_bearing is false. Searched Bai, Hew & Huang 2020 (Educational Research Review): the summary confirms 30 independent interventions from 24 quantitative studies, an overall medium Hedges' g = 0.504 favouring gamification, and a qualitative synthesis of 32 studies with four reasons for liking (enthusiasm, feedback on performance, recognition, goal-setting) and two for disliking (lack of utility, anxiety or jealousy). The confidence interval [0.284, 0.723], p < 0.001 and the 'no publication bias' statement were not visible in the summary; the summary adds that effect sizes varied with sample size and intervention duration but not with element type or number of elements."
+    },
+    {
+      "id": "C11",
+      "verdict": "supported",
+      "notes": "Searched Hanus & Fox 2015 (Computers & Education 80, 152-161). The summary confirms the design: two courses over a 16-week semester measured at four time points, one with a leaderboard and badges added to an otherwise identical curriculum, and the outcomes: the gamified course showed less motivation, satisfaction and empowerment over time, and the effect of course type on final exam scores was mediated by intrinsic motivation. N was not shown, consistent with the claim's 'N not shown'; the file's labelling as a non-randomised quasi-experiment with intact classes is fair."
+    },
+    {
+      "id": "C12",
+      "verdict": "supported",
+      "notes": "Searched the Silverman & Barasch 2023 abstract (Journal of Consumer Research 49(6), 1095-1117). The summary confirms seven studies, streaks defined as behaviours performed consecutively three or more times, that intact logged streaks raise subsequent engagement relative to broken ones, that the effect is independent of actual past behaviour and depends only on how the log represents it, that consumers treat maintaining a streak as a goal in itself, and that the effect is amplified for self-attributed breaks and attenuated when a broken streak can be repaired. Effect sizes were not shown, as the claim says; one study used real language-learning-app users whose streaks were kept, self-broken, or reset by a glitch, which strengthens the relevance to a learning tracker."
+    }
+  ]
+}

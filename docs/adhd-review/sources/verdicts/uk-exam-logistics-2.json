@@ -1,0 +1,56 @@
+{
+  "area": "uk-exam-logistics",
+  "verdicts": [
+    {
+      "id": "C8",
+      "verdict": "partial",
+      "notes": "Searched JCQ word-processor rules (centre delegated, spelling/grammar disabled, normal way of working) and then for the AARA 2025-26 section 5.8 text on mocks and Year 11. Summaries (HE Exams wiki, Everway, several school policies citing AARA 5.8.1 and 5.8.4) confirm: centre-delegated, no AAO application, spelling and grammar check/predictive text must be disabled, must be the candidate's normal way of working within the centre, and each centre must have its own word-processor policy. Not seen anywhere: the 'from Year 11 upwards' qualifier or the 'internal and mock exams' wording; treat that clause as unverified. The cited URL is the generic JCQ AARA landing page; the operative text is AARA section 5.8 in the 2025-26 PDF (March 2026 revision).",
+      "corrected_source": "JCQ Access Arrangements and Reasonable Adjustments 2025-26 (March 2026 revision), section 5.8 Word processors",
+      "corrected_url": "https://www.jcq.org.uk/wp-content/uploads/sites/2/2026/03/JCQ-AARA-2025-March-26.pdf",
+      "corrected_numbers": "'Year 11 upwards' not shown in any summary; drop it unless read in the PDF"
+    },
+    {
+      "id": "C9",
+      "verdict": "supported",
+      "notes": "Searched the separate-invigilation criteria (SENCo decision, normal way of working, long-term medical / social, emotional and mental health needs) and then the 'nervousness / low-level anxiety' exclusion. JCQ's own blog 'Understanding the requirements for separate invigilation' and school policies quoting AARA confirm every element: SENCo decision, substantial long-term impairment (long-term medical condition, long-term psychological condition, long-term social, emotional and mental health needs), must reflect normal way of working in internal tests and mocks, and 'nervousness, low-level anxiety or being worried about examinations is not sufficient'; worked examples cite CAMHS support, i.e. ongoing professional support. No numbers in the claim to check. JCQ writes 'SENCo' not 'SENDCO'; the blog is a more precise URL than the generic AARA landing page.",
+      "corrected_source": "JCQ blog: Understanding the requirements for separate invigilation (plus AARA 2025-26 section 5.16)",
+      "corrected_url": "https://www.jcq.org.uk/blog/understanding-the-requirements-for-separate-invigilation/"
+    },
+    {
+      "id": "C10",
+      "verdict": "partial",
+      "notes": "Searched the AQA private-candidates NEA page, then 8692 speaking-test arrangements. The NEA page exists and its policy sentence is confirmed verbatim ('must provide the opportunity for all candidates, including private candidates, to complete NEAs ... must only accept entries from a private candidate if they are willing to do this'). The 'April and May' window and 'up to three working days' materials rule are confirmed, but they come from AQA's 8692 specification Scheme of assessment page, not the NEA page, and are generic spec wording rather than a dated 2027 window. Not seen in any summary: an AQA statement that 8692 is 'available to private candidates', that speaking is 'assessed by AQA examiners' (the spec says externally marked, but it was not shown), or the '8692/SH June 2027 NEA deadline set by the centre' figure.",
+      "corrected_source": "AQA GCSE Spanish 8692 specification, Scheme of assessment (speaking window and materials rule); AQA private candidates NEA page (centre policy only)",
+      "corrected_url": "https://www.aqa.org.uk/subjects/spanish/gcse/spanish-8692/specification/scheme-of-assessment",
+      "corrected_numbers": "Speaking window 'April and May' is spec text, not a 2027 date; confirm the actual 2027 window on AQA's 8692 key-dates page (https://www.aqa.org.uk/subjects/spanish/gcse/spanish-8692/key-dates)"
+    },
+    {
+      "id": "C11",
+      "verdict": "supported",
+      "notes": "Searched AQA entry-fee rules, then David Game College's 2027 private-candidate page. AQA's Entry Fees page confirms late entry fee is 100% of the original entry fee in addition to the entry fee and very late is 150% in addition (2x and 2.5x), and that late/very late/amendment fees are not refunded. David Game College's GCSE entries page confirms standard deadline 4pm Monday 1 February 2027, £290 per subject standard, £425 late subject to space. A third search for AQA's own June 2027 entry deadline (21 February 2027) still did not surface it; the claim is honest that this was not shown. AQA's provisional June 2027 timetable shows GCSE exams running 10 May to 25 June 2027, contingency day 23 June, results 19 August 2027.",
+      "corrected_numbers": "AQA June 2027 GCSE entry deadline still unconfirmed by search; check AQA dates-and-timetables page. AQA GCSE June 2027 window: 10 May to 25 June 2027 (provisional timetable)."
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Searched the JCQ private-candidates page warning, then the AQA news guide. JCQ's page confirms the warning almost verbatim ('some centres listed may no longer accept private candidates, and others that do may not appear ... Please confirm details directly with any centre'). The AQA news article exists but is the summer-2021 piece: it refers to '190 centres' and an entry deadline of 'Monday 26 April', which was the 2021 teacher-assessed-grades year, so it is not a current tool and its date must not be used for 2027. AQA's current, undated page is 'Finding a school or college' under private candidates. Tutors & Exams appeared in results as a commercial private-candidate network; no 'exam centre association' surfaced, consistent with the claim.",
+      "corrected_source": "JCQ private candidates page (warning confirmed); AQA 'Finding a school or college' page instead of the 2021 news article",
+      "corrected_url": "https://www.aqa.org.uk/student-and-parent-support/private-candidates/finding-a-school-or-college",
+      "corrected_numbers": "AQA news guide is from summer 2021; its '26 April' deadline and '190 centres' do not apply to 2027"
+    },
+    {
+      "id": "C13",
+      "verdict": "supported",
+      "notes": "Searched home-ed.info's GCSE page, then the November-series age rule. home-ed.info says 'Home educators can start GCSE courses at any age', matching the claim's wording that guidance sites say so; no gov.uk/Ofqual page stating 'no minimum age' appeared, so this remains a guidance-site statement, as the claim labels it. The November rule is now attributable: Ofqual's blog on GCSE English language and maths results from the November series states entry 'is restricted to students aged 16 and over', and gov.uk entry statistics phrase it as aged 16 or above on 31 August of that year. That precise cut-off matters for the resit implication: a candidate born after 31 August cannot use the November series until the year she is 16 on 31 August.",
+      "corrected_source": "For the November rule: Ofqual blog, 'GCSE English language and maths results from the November series' (January 2025); gov.uk provisional November entries statistics",
+      "corrected_url": "https://ofqual.blog.gov.uk/2025/01/09/gcse-english-language-and-maths-results-from-the-november-series-2",
+      "corrected_numbers": "November series: aged 16 or over on 31 August of the exam year"
+    },
+    {
+      "id": "C14",
+      "verdict": "supported",
+      "notes": "Searched the JCQ knowledge-hub page for the 2025-26 update to the 7th edition Patoss guide, then the Form 8 Part 1 sequencing rule, then privately commissioned assessments. The page and PDF exist (Patoss/JCQ, August 2025, effective 1 September 2025) and summaries confirm the requirement applies 'whether the assessment is carried out by a centre-based assessor or an external assessor approved by the head of centre' and that Part 1 records teacher feedback, screening results and arrangements used in class, internal tests and mocks. The 'before' sequencing is confirmed: Part 1 of Form 8 must be provided to the assessor prior to the candidate being assessed. The claim actually understates JCQ: AARA says a privately commissioned assessment carried out without prior consultation with the centre cannot be used to award access arrangements or to process an AAO application at all, not merely 'may not be accepted on its own'. Older sources say a 'skeleton' Part 1 suffices; per C4 that is no longer acceptable from 2025-26.",
+      "corrected_numbers": "JCQ AARA: a privately commissioned assessment without prior consultation with the centre cannot be used to award access arrangements or to process an AAO application"
+    }
+  ]
+}

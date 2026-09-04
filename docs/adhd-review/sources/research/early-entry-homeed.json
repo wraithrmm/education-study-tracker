@@ -1,0 +1,160 @@
+{
+  "area": "early-entry-homeed",
+  "searches_run": 0,
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "DfE's 2011 national-data analysis found that pupils entered early for GCSE maths achieved lower grades than pupils of similar prior attainment entered at the end of Year 11, and that many early entrants who reached a grade C did not go on to improve it (source recalled, not confirmed by search this session).",
+      "evidence_type": "observational",
+      "source_title": "Early entry to GCSE examinations (DfE Research Report) [recalled; not shown in search results]",
+      "authors_year": "Department for Education, 2011 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran)",
+      "adhd_specific": "general",
+      "implication": "The mechanism was school-driven mass early entry and grade banking, not the pupil's age, so it transfers to this student only as: do not sit before coverage is complete. Treat the Dec 2026 Foundation mock (expected >= grade 5) and the Feb 2027 tier decision as a genuine go/no-go on entering in May 2027 at all, and write 'defer to June 2028' into the maths appendix as a legitimate outcome so the decision is made on mock evidence rather than on the countdown badge.",
+      "load_bearing": true
+    },
+    {
+      "id": "C2",
+      "claim": "From 29 September 2013 the DfE changed school performance tables so that only a pupil's first entry in a subject counts, explicitly to discourage early and repeated entry; this is an accountability rule for schools and does not apply to a private candidate's own certificate, so a home-educated student may re-sit without that penalty (policy recalled, not confirmed by search this session).",
+      "evidence_type": "policy-document",
+      "source_title": "Changes to early entry at GCSE (DfE announcement, September 2013) [recalled; not shown in search results]",
+      "authors_year": "Department for Education, 2013 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran)",
+      "adhd_specific": "general",
+      "implication": "The report should not import the school framing that early entry is bad in itself. What matters for this student is the re-sit calendar (see C12) and whether topic coverage and mock grades justify the May 2027 sitting; the progress-tracker skill's tier flag already exists and should be extended to an explicit entry/defer recommendation.",
+      "load_bearing": false
+    },
+    {
+      "id": "C3",
+      "claim": "Ofqual's qualification rules give reformed GCSEs 120-140 guided learning hours per subject (AQA prints this on each specification), where GLH counts tutor-directed time only and not independent study (figure supplied in the task brief; not confirmed by search this session).",
+      "evidence_type": "guideline",
+      "source_title": "GCSE (9 to 1) qualification level conditions and requirements / AQA specification 'Guided learning hours' [recalled; not shown in search results]",
+      "authors_year": "Ofqual; AQA (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "120-140 GLH per GCSE (from task brief, unverified). Arithmetic from the brief: 7 Sep 2026 to 14 May 2027 = 35.7 weeks, minus 4 holiday weeks = ~31.7 study weeks; 130 GLH / 31.7 = ~4.1 tutored hours/week for maths. 7 Sep 2026 to 9 Jun 2027 = 39.4 weeks, minus 4 = ~35.4; 130 / 35.4 = ~3.7 hours/week for Spanish. Both subjects: ~7.8 tutored hours/week plus independent practice.",
+      "adhd_specific": "general",
+      "implication": "About 8 tutored hours a week across the two subjects is the GLH-equivalent for a September-to-May run; the tracker records no session duration or hours per week, so the parent cannot see whether the plan is on budget. Add duration to tracker_log_session and a 'tutored hours this week vs ~8' line to the dashboard.",
+      "load_bearing": true
+    },
+    {
+      "id": "C4",
+      "claim": "At the tracker state on 4 Sep 2026, maths has 36 topics never taught (24 not started + 12 gap) plus 12 developing to consolidate in ~32 study weeks, and Spanish has 98 of 100 topics untouched in ~35 study weeks; this is a belief derived by arithmetic from the brief, with no external source.",
+      "evidence_type": "none",
+      "source_title": "System brief, tracker state 2026-09-04 (arithmetic only; no external source)",
+      "authors_year": "This agent, 2026",
+      "url": "n/a (local arithmetic)",
+      "key_numbers": "Maths: 36 new topics / 31.7 weeks = ~1.1 new topics per week plus retests, i.e. at least one new topic per full session at two full sessions a week before the Dec 2026 and Feb 2027 mock weeks are subtracted. Spanish: 98 / 35.4 = ~2.8 topics per week from a standing start.",
+      "adhd_specific": "general",
+      "implication": "The dashboard shows a countdown but not the required pace; add 'topics per week needed' next to the countdown for each subject so drift is visible within weeks rather than at a mock. Spanish tier, target and series must be confirmed now, because 2.8 topics a week from 1% coverage is a Foundation-tier pace unless weekly hours are high.",
+      "load_bearing": true
+    },
+    {
+      "id": "C5",
+      "claim": "Training school pupils in self-regulated learning (planning, monitoring, checking) improves academic performance at both primary and secondary level, with the largest gains in mathematics and when programmes explicitly teach metacognitive and motivational strategies rather than cognitive strategies alone (source recalled, not confirmed by search this session).",
+      "evidence_type": "meta-analysis",
+      "source_title": "Components of fostering self-regulated learning among students. A meta-analysis on intervention studies at primary and secondary school level [recalled; not shown in search results]",
+      "authors_year": "Dignath & Buttner, 2008 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran). Recalled and unverified, for the verifier to check: overall mean effect about 0.69, academic-performance effect about 0.62, secondary-school effect about 0.54, maths effects larger than reading.",
+      "adhd_specific": "general",
+      "implication": "The maths skill's 'what's one thing you could write down?' and its working-shown rule are SRL moves already; make them a fixed 30-second plan-then-check routine on every practice item (which method, estimate first, check sign, write it in the box) and record 'working shown' as a per-item outcome in tracker_log_practice so the habit is measured, given that answers without working recurred twice on 2 Sep.",
+      "load_bearing": true
+    },
+    {
+      "id": "C6",
+      "claim": "A 2021 meta-analysis of self-regulated learning training programmes found reliable gains in academic performance, strategy use and motivation, largest when metacognitive strategies were taught inside subject content rather than as a stand-alone study-skills course; the sample was university students, so applicability to a 13-year-old is indirect (source recalled, not confirmed by search this session).",
+      "evidence_type": "meta-analysis",
+      "source_title": "Self-regulated learning training programs enhance university students' academic performance, self-regulated learning strategies, and motivation: A meta-analysis [recalled; not shown in search results]",
+      "authors_year": "Theobald, 2021 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran). Recalled and unverified: about 49 studies; Hedges g roughly 0.38 for academic performance, 0.45 for SRL strategies, 0.35 for motivation.",
+      "adhd_specific": "general",
+      "implication": "Embed SRL prompts inside the maths and Spanish tasks in the skills rather than adding a separate 'how to study' module; keep them short and repeated every session. Do not quote its effect sizes as applying to this student.",
+      "load_bearing": false
+    },
+    {
+      "id": "C7",
+      "claim": "For adolescents with ADHD, the psychosocial interventions with the strongest evidence are organisation and planning skills training delivered with adult monitoring, feedback and rewards (e.g. Challenging Horizons Program, HOPS); unsupported self-regulation is not expected to be sufficient (source recalled, not confirmed by search this session).",
+      "evidence_type": "systematic-review",
+      "source_title": "Evidence-Based Psychosocial Treatments for Children and Adolescents With Attention-Deficit/Hyperactivity Disorder [recalled; not shown in search results]",
+      "authors_year": "Evans, Owens, Wymbs & Ray, 2018 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran)",
+      "adhd_specific": "direct",
+      "implication": "'Studying largely autonomously' is the highest-risk assumption in the plan for a 13-year-old with ADHD. Schedule the parent's oversight (a fixed 10-minute weekly review of the tracker's sessions-by-week view and loose ends) rather than leaving it ad hoc, and have every session end with a three-line next-session plan the parent can see. This does not require streaks or badges.",
+      "load_bearing": true
+    },
+    {
+      "id": "C8",
+      "claim": "The EEF Toolkit rates one-to-one tuition at about five months' additional progress on average, with the best results from short, regular sessions (around 30 minutes, three to five times a week, over 6-12 weeks) tightly linked to the learner's specific gaps (source recalled, not confirmed by search this session).",
+      "evidence_type": "systematic-review",
+      "source_title": "One to one tuition | EEF Teaching and Learning Toolkit [recalled; not shown in search results]",
+      "authors_year": "Education Endowment Foundation, 2021 toolkit strand (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran). Recalled and unverified: +5 months; about 30 minutes, 3-5 times a week, 6-12 weeks.",
+      "adhd_specific": "general",
+      "implication": "The maths skill's default is a ~90-minute block, two were run in one day on 2 Sep and two practice questions were never submitted; the dosage evidence favours shorter, more frequent sessions (e.g. four 40-minute sessions a week keeping the 10-minute retrieval starter) over long infrequent ones. Add a shorter 'shape E' to the maths skill and use the weekly hours line from C3 to keep total dose on budget.",
+      "load_bearing": true
+    },
+    {
+      "id": "C9",
+      "claim": "Across 96 randomised trials of PreK-12 tutoring, tutoring raised achievement by about 0.37 SD on average; effects were larger for teacher and paraprofessional tutors than for parent or volunteer tutors, larger during the school day than after school, and maths effects persisted into later grades (source recalled, not confirmed by search this session).",
+      "evidence_type": "meta-analysis",
+      "source_title": "The Impressive Effects of Tutoring on PreK-12 Learning: A Systematic Review and Meta-Analysis of the Experimental Evidence (NBER Working Paper 27476) [recalled; not shown in search results]",
+      "authors_year": "Nickow, Oreopoulos & Quan, 2020 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran). Recalled and unverified: 96 RCTs, pooled effect about 0.37 SD; most programmes ran three or more sessions a week.",
+      "adhd_specific": "general",
+      "implication": "Tutor structure and quality drive the effect and no AI tutor was in the sample, so the 0.37 SD figure cannot be assumed to transfer to Claude-as-tutor. The Dec 2026 Foundation mock is therefore the first real test of whether this system works at grade-5 level; the parent should have a human tutor or centre-run mock as a pre-agreed fallback if it misses.",
+      "load_bearing": true
+    },
+    {
+      "id": "C10",
+      "claim": "There is no national dataset of home-educated children's GCSE results in England: DfE's elective home education statistics count children, not attainment, and exam boards publish private-candidate entry numbers but not results by education setting, so no evidence-based expected grade exists for a home-educated 13-year-old; this is a belief without a retrievable source this session.",
+      "evidence_type": "none",
+      "source_title": "No source retrievable this session (DfE 'Elective home education' official statistics, recalled, report headcounts only)",
+      "authors_year": "Department for Education, 2023-2025 (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran)",
+      "adhd_specific": "general",
+      "implication": "Grade projection must rest entirely on the student's own mocks against published boundaries, as the marker skills already require, and the parent report should state plainly that no population benchmark exists for her situation; any 'home-educated children do well at GCSE' claim seen online is self-selected and unverified.",
+      "load_bearing": false
+    },
+    {
+      "id": "C11",
+      "claim": "AQA GCSE Spanish speaking (25% of the qualification, 200 scaled marks total) is a non-exam assessment conducted and audio-recorded by a teacher at a centre and marked by AQA; a private candidate cannot sit it without a centre that agrees to host, and the tracker records no centre as confirmed (verified against the local skill reference file, not the web).",
+      "evidence_type": "policy-document",
+      "source_title": "gcse-progress-tracker/references/subjects/spanish.md (local skill reference summarising the AQA 8692 specification), line 53",
+      "authors_year": "Local skill file citing AQA 8692 (2024 spec), read 2026-09-04",
+      "url": "/root/.claude/skills/synced/4573a9f7-2a0f-468d-a55f-752a46b4cb7c_a7c9a5f9-6655-41a2-821b-3115c7ffaf84/gcse-progress-tracker/references/subjects/spanish.md",
+      "key_numbers": "25% of the qualification is speaking; qualification total 200 scaled marks (from the local file). Centre deadlines: not shown.",
+      "adhd_specific": "general",
+      "implication": "Finding a centre for the speaking NEA is the earliest-deadline item in the whole plan, because centres set private-candidate deadlines months before the June series and many refuse NEA subjects. Add a 'centre confirmed: yes/no + date' field to the Spanish subject on the dashboard and have the progress-tracker skill flag it at every checkpoint until set.",
+      "load_bearing": true
+    },
+    {
+      "id": "C12",
+      "claim": "Under Ofqual's GCSE rules the November exam series for maths and English language is open only to candidates who were aged 16 or over on the preceding 31 August, so if the May 2027 maths sitting disappoints, the next opportunity for a 13- to 14-year-old is June 2028, not November 2027 (rule recalled, not confirmed by search this session).",
+      "evidence_type": "policy-document",
+      "source_title": "GCSE (9 to 1) Qualification Level Conditions and Requirements, November series eligibility [recalled; not shown in search results]",
+      "authors_year": "Ofqual (recalled)",
+      "url": "NOT RETRIEVED: WebSearch budget was exhausted (200/200) before this agent could run any search; no URL appeared in any result. Verify by title and author.",
+      "key_numbers": "not shown in search summary (no search ran)",
+      "adhd_specific": "general",
+      "implication": "The Feb 2027 go/no-go is weightier than a school's would be: a poor May 2027 grade sits on the record for a year before it can be improved. The maths appendix should state the June 2028 fallback explicitly and the progress-tracker skill should include it in the mandatory tier flag, so the family chooses between 'enter May 2027' and 'wait' on mock evidence rather than on sunk effort.",
+      "load_bearing": true
+    }
+  ],
+  "caveats": [
+    "CRITICAL: the session's WebSearch budget was already exhausted (200 of 200) when this agent started; 10 targeted searches were issued (DfE early entry 2011-2013; Ofqual GLH; Dignath & Buttner 2008; Theobald 2021; EEF one-to-one tuition; Nickow, Oreopoulos & Quan 2020; home-educated GCSE outcomes; early-entry analyses 2024-2025; private-candidate NEA guidance; SRL interventions in adolescents with ADHD) and every one was refused, so searches_run is 0. No URL was obtained and no number was confirmed. Every source_title, authors_year and figure marked 'recalled' comes from model knowledge and must be verified before it is quoted to the parent; the verification agents should expect 'partial' at best on C1-C3, C5-C10 and C12.",
+    "C4 and C11 are the only claims grounded in material actually read this session (the system brief and a local skill file); C11's url is a local file path, not a web URL.",
+    "Theobald 2021 sampled university students; Dignath & Buttner 2008 is the only SRL meta-analysis here covering secondary-age pupils. Neither sampled people with ADHD.",
+    "The DfE 2011-2013 early-entry findings concern school-driven mass early entry (banking a grade C and not re-sitting); they are not evidence that an individual, readiness-based entry by a well-prepared younger student harms attainment. No study of readiness-based individual early entry was found or recalled.",
+    "The EEF and Nickow et al. tutoring evidence is about human tutors; no AI-tutoring evidence is included in this area and the 0.37 SD / +5 months figures should not be presented as expected gains from Claude-as-tutor.",
+    "No systematic data on home-educated students' GCSE outcomes in England exists to this agent's knowledge; small self-selected studies exist but none was retrievable, so none is cited.",
+    "The November-series age-16 rule (C12) is recalled from Ofqual's GCSE conditions and is load-bearing; confirm it against Ofqual or AQA before it is used in the tier/entry recommendation.",
+    "The GLH arithmetic in C3-C4 assumes 4 holiday weeks and a 7 Sep 2026 start; the brief records no weekly study hours, so the hours-per-week comparison cannot yet be checked against reality."
+  ]
+}

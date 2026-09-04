@@ -1,0 +1,61 @@
+{
+  "area": "feedback-emotion",
+  "verdicts": [
+    {
+      "id": "C8",
+      "verdict": "supported",
+      "notes": "Two searches. Shaw, Stringaris, Nigg & Leibenluft, 'Emotion Dysregulation in Attention Deficit Hyperactivity Disorder', Am J Psychiatry 2014;171(3):276-293 exists as a narrative review and its abstract states emotion dysregulation is prevalent in ADHD across the lifespan and a major contributor to impairment. The 25-45% (children) and 30-70% (adults) prevalence ranges were confirmed, but via secondary papers citing Shaw 2014 (e.g. a 2016 ADHD journal article), not from the AJP abstract itself; the 'three models' detail was not visible. The de-escalation-routine part of the claim is the agent's inference, not the review's content.",
+      "corrected_source": "Shaw P, Stringaris A, Nigg J, Leibenluft E. Emotion dysregulation in attention deficit hyperactivity disorder. Am J Psychiatry. 2014;171(3):276-293 (narrative review)",
+      "corrected_url": "https://psychiatryonline.org/doi/10.1176/appi.ajp.2013.13070966",
+      "corrected_numbers": "Emotion dysregulation reported in ~25-45% of children and ~30-70% of adults with ADHD (as cited from Shaw et al. 2014 by secondary sources); 'prevalent throughout the lifespan and a major contributor to impairment' (abstract)"
+    },
+    {
+      "id": "C9",
+      "verdict": "supported",
+      "notes": "One search. Results from the Cleveland Clinic, a 2024 PLOS One qualitative study and a 2026 Psychology Today review of the research confirm the term was coined by William Dodson from clinical observation, that RSD is 'not included as a core symptom of ADHD in the DSM-5-TR' and 'isn't an officially accepted medical condition', and that no validated, reliable measure of RSD exists yet (developing one is named as the first research step). ICD-11 absence was not shown verbatim but is covered by 'not an officially accepted condition'. The DSM-5-TR URL given is a real APA page; a peer-reviewed source is a better citation. Note the literature is moving: a 2026 scoping review of RSD in autistic adults and a 2024 ADHD case series exist, so 'no research at all' would be wrong, but 'not validated' still holds.",
+      "corrected_source": "The lived experience of rejection sensitivity in ADHD - A qualitative exploration (PLOS One, 2024), which states RSD is absent from DSM-5-TR and reports 77% of 43 adults with ADHD describing RSD-type experiences; plus DSM-5-TR (APA, 2022)",
+      "corrected_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0314669",
+      "corrected_numbers": "No prevalence claim was made; for context, 77% of 43 adults aged 18-35 with ADHD self-reported RSD-type experiences in the 2024 qualitative study"
+    },
+    {
+      "id": "C10",
+      "verdict": "partial",
+      "notes": "Two searches. Sibley et al. 2016, J Consult Clin Psychol 84(8):699-712, DOI 10.1037/ccp0000106, exists and is a randomised trial (N=128) of STAND versus treatment as usual with post-treatment and 6-month follow-up, conclusion 'acutely efficacious'. What the abstract summary lists as improved at follow-up is parent-reported ADHD symptoms, organisation skills and parenting stress; homework problems and, crucially, parent-teen conflict (the claim's headline outcome) were not visible as confirmed outcomes, and ages 11-15 were not shown. The later community trial (Sibley 2021, N=278, 82 therapists) and its 3-year follow-up (JAACAP 2024) found STAND did not outperform usual care overall, with effects depending on therapist licensure, so the claim's 'conflict falls' framing is stronger than the visible evidence.",
+      "corrected_source": "Sibley MH, Graziano PA, Kuriyan AB, Coxe S, Pelham WE, Rodriguez L, et al. Parent-teen behavior therapy + motivational interviewing for adolescents with ADHD. J Consult Clin Psychol. 2016;84(8):699-712 (RCT, STAND vs TAU)",
+      "corrected_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4949080/",
+      "corrected_numbers": "N=128 (78.5% Hispanic sample), STAND vs TAU, outcomes at post-treatment and 6-month follow-up; durable gains reported for parent-rated ADHD symptoms, organisation skills and parenting stress; parent-teen conflict and homework-problem results not visible in summaries; community replication N=278 with no overall superiority over usual care at 3 years"
+    },
+    {
+      "id": "C11",
+      "verdict": "supported",
+      "notes": "One search. Usher & Pajares, 'Sources of Self-Efficacy in School: Critical Review of the Literature and Future Directions', Review of Educational Research 2008;78(4):751-796, DOI 10.3102/0034654308321456, exists and is the critical review described. The abstract states mastery experience 'is typically the most influential source of self-efficacy' while noting that the strength of the sources varies by gender, ethnicity, academic ability and domain, so 'strongest' holds but is less absolute than the claim reads. The 'praise only works when credible' clause is Bandura's social-persuasion theory and was not visible in the summary; no numbers were claimed.",
+      "corrected_source": "Usher EL, Pajares F. Sources of self-efficacy in school: critical review of the literature and future directions. Rev Educ Res. 2008;78(4):751-796",
+      "corrected_url": "https://journals.sagepub.com/doi/abs/10.3102/0034654308321456",
+      "corrected_numbers": "No quantitative claim; review finds mastery experience typically the most influential source, with influence varying by context"
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Two searches. Amabile & Kramer, 'The Power of Small Wins', Harvard Business Review 89(5), May 2011, pp. 70-80, exists; the HBR page and HBS record confirm ~12,000 diary entries from 238 knowledge workers in 26 project teams at 7 companies and that 'nothing contributed more to a positive inner work life than making progress in meaningful work'. The '76% of best-mood days' figure and the 'setbacks weigh more than progress' asymmetry (which drives the 'never headline a demotion' implication) were not visible in any result. Correlational adult workplace data, as the claim itself says.",
+      "corrected_source": "Amabile TM, Kramer SJ. The Power of Small Wins. Harvard Business Review. 2011;89(5):70-80; book: The Progress Principle (2011)",
+      "corrected_url": "https://hbr.org/2011/05/the-power-of-small-wins",
+      "corrected_numbers": "238 knowledge workers, 26 project teams, 7 companies, ~12,000 diary entries, projects of about 4 months; progress the single strongest driver of positive inner work life; 76% figure and setback asymmetry not seen"
+    },
+    {
+      "id": "C13",
+      "verdict": "partial",
+      "notes": "Two searches. Luman, Oosterlaan & Sergeant, Clin Psychol Rev 2005;25(2):183-213 (PubMed 15642646) exists; 22 studies, N=1,181 children confirmed. The abstract confirms reinforcement (reward and response cost) improves task performance and motivation in both ADHD and controls, somewhat more in ADHD; 'some evidence that a high intensity of reinforcement is highly effective in ADHD' (supports 'more salient'); and that children with ADHD prefer immediate over delayed reward (supports 'more immediate'). But 'performance drops under delayed or intermittent reward' appears in the abstract only as what 'all theories predict', with the empirical findings on partial schedules described as mixed, so the claim states a theoretical prediction as a finding; 'more frequent' was not shown. A corrigendum to the paper exists. Note also that this review found response cost helpful, which C14 should take into account.",
+      "corrected_source": "Luman M, Oosterlaan J, Sergeant JA. The impact of reinforcement contingencies on AD/HD: a review and theoretical appraisal. Clin Psychol Rev. 2005;25(2):183-213 (plus corrigendum)",
+      "corrected_url": "https://pubmed.ncbi.nlm.nih.gov/15642646/",
+      "corrected_numbers": "22 studies, N=1,181 children; reward and response cost both improved performance, effect somewhat larger in ADHD; preference for immediate over delayed reward confirmed; deficient learning under partial or delayed reinforcement is a theoretical prediction, not a demonstrated group difference"
+    },
+    {
+      "id": "C14",
+      "verdict": "partial",
+      "notes": "Two searches. Evans, Owens, Wymbs & Ray, J Clin Child Adolesc Psychol 2018;47(2):157-198, DOI 10.1080/15374416.2017.1390757 (PubMed 29257898), exists and is a systematic review of 2012-2016 literature assigning evidence levels. Secondary sources confirm behavioural parent training, behavioural classroom management, behavioural peer interventions, combined behavioural treatments and organisation training (young adolescents 15 and under) as well-established, with CBT-based adolescent interventions involving parents 'probably efficacious', which supports 'adolescent evidence base thinner'. However the response-cost half of the claim (punitive, easy to over-use, escalates conflict, never for accuracy) was not found in this source or any result, and the file's own caveat admits it is extrapolation; the cited C13 review actually reports response cost improving ADHD children's performance. Treat the response-cost warning as unsourced opinion.",
+      "corrected_source": "Evans SW, Owens JS, Wymbs BT, Ray AR. Evidence-based psychosocial treatments for children and adolescents with attention-deficit/hyperactivity disorder. J Clin Child Adolesc Psychol. 2018;47(2):157-198 (systematic review, 2012-2016 literature)",
+      "corrected_url": "https://www.tandfonline.com/doi/abs/10.1080/15374416.2017.1390757",
+      "corrected_numbers": "Well-established: behavioural parent training, behavioural classroom management, behavioural peer interventions, combined behavioural treatment, organisation training (adolescents 15 and under); probably efficacious: CBT-based interventions for adolescents with parent involvement; no evidence statement on response cost, escalation or accuracy-linked losses was seen"
+    }
+  ]
+}

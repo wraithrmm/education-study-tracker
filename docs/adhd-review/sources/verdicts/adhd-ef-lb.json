@@ -1,0 +1,73 @@
+{
+  "area": "adhd-ef",
+  "searches_run": 13,
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched Martinussen et al. 2005 effect sizes; ERIC and ScienceDirect summaries show 26 studies (1997-Dec 2003), spatial storage 0.85 (CI 0.62-1.08) and spatial central executive 1.06 (CI 0.72-1.39), larger than verbal storage 0.47. Verbal central executive 0.43 and its CI were not displayed in the summary but nothing contradicted them; the Kasper et al. 2012 aside was not checked."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "Searched the Zheng, Wang, Chiu & Shum 2022 abstract; summary shows 27 studies, 1,620 ADHD vs 1,249 controls, accuracy deficit Hedges' g > 0.40 and precision deficit g = 0.66, matching the claim. The overestimation tendency, the age/gender moderators and the separate JAACAP meta-analysis's '55 studies' count were not visible in the summary (the JAACAP paper 'Altered Perceptual Timing Abilities in ADHD' does exist).",
+      "corrected_numbers": "Add: 27 studies, 1,620 participants with ADHD and 1,249 controls. '55 studies' for the JAACAP meta-analysis not confirmed."
+    },
+    {
+      "id": "C3",
+      "verdict": "supported",
+      "notes": "Searched Patros et al. 2016; PubMed/ScienceDirect summary shows 28 tasks from 26 studies, 4,320 children (ADHD 2,360, TD 1,960), medium between-group g = .47, similar pattern across delay discounting and delay of gratification. Marx et al. 2021 exists at the URL given but its 37 comparisons / 3,763 participants / doubled odds ratio were not shown."
+    },
+    {
+      "id": "C4",
+      "verdict": "supported",
+      "notes": "Searched Lipszyc & Schachar 2010; summaries describe a moderate SSRT impairment in ADHD with g = 0.62, matching the claim. The statement that study quality did not affect the ADHD estimate was not visible in the summary."
+    },
+    {
+      "id": "C7",
+      "verdict": "supported",
+      "notes": "Two searches. The first returned '86 children with ADHD and 62 typically-developing controls', but that sentence is the abstract of the companion paper Dovis et al. 2013 'What Part of Working Memory is not Working in ADHD?' (J Abnorm Child Psychol 41, two conditions: feedback-only vs 10 euros). The second search shows the 2012 money-and-gaming paper (JACP 40:669-681, PubMed 22187093) tested 30 children with ADHD vs 31 controls across four conditions (feedback-only, 1 euro, 10 euros, computer game), and that the strongest incentives normalised persistence but not working memory. This file's 30 vs 31 is correct; the other agent's 86 vs 62 belongs to the 2013 paper.",
+      "corrected_numbers": "Dovis et al. 2012 = 30 ADHD vs 31 controls (four conditions). 86 ADHD vs 62 controls = Dovis et al. 2013, a different paper with only feedback-only and 10-euro conditions."
+    },
+    {
+      "id": "C9",
+      "verdict": "partial",
+      "notes": "Searched Bikic et al. 2017; summaries show 12 studies, 1,054 children (576 treatment, 478 control), organisational skills teacher g = 0.54 (0.17-0.91) and parent g = 0.83 (0.32-1.34), inattention teacher g = 0.26 (0.01-0.52) and parent g = 0.56 (0.38-0.74), academic performance g = 0.33 and GPA g = 0.29, all matching key_numbers. The claim sentence's 'moderate-to-large gains in organisation and inattention' overstates inattention: teacher-rated inattention is small (0.26) and only parent-rated is medium (0.56).",
+      "corrected_numbers": "Organisation: moderate-to-large (g 0.54-0.83). Inattention: small-to-medium (g 0.26 teacher, 0.56 parent). Academic: small (g 0.29-0.33)."
+    },
+    {
+      "id": "C10",
+      "verdict": "supported",
+      "notes": "Searched the 2023 umbrella review (PubMed 37030086); summary confirms Clinical Psychology Review vol 102, literature to July 2022, psychological interventions SMD = 0.42 (95% CI 0.33-0.51) for parent-rated and SMD = 0.25 (0.12-0.38) for teacher-rated symptoms, matching the numbers quoted. The Evans, Owens, Wymbs & Ray 2018 evidence-level classification itself was not re-searched within budget; the source exists at the URL given and the well-established status of organisation training for adolescents is consistent with that review."
+    },
+    {
+      "id": "C11",
+      "verdict": "supported",
+      "notes": "Searched Langberg et al. 2012 HOPS; PubMed/ERIC summaries show 17 school mental-health providers from 5 districts, 47 students in grades 6-8 randomised to HOPS or waitlist, parent-rated organised action d = 0.88, planning d = 1.05, homework completion d = 0.85, all matching. The absence of significant teacher-rated change was not displayed in the summary, and the 2018 trial (280 students) was not checked."
+    },
+    {
+      "id": "C12",
+      "verdict": "partial",
+      "notes": "Searched the trajectories paper; PubMed summary confirms 16-46% made large improvements into the normal range and 26-65% small or negligible improvements, four or five latent classes, and that adolescent-rated working alliance plus lower parenting stress and parent-adolescent conflict predicted response. But the paper is Langberg et al. 2016 (Behavior Therapy 47(3):339-354), not Evans et al., and it analysed the N = 112 who received CHP after-school, not the full trial of about 326; the claim sentence's 'a third to a half' also understates the lower bound of 16% (about one in six).",
+      "corrected_source": "Langberg, Evans, Schultz, Becker, Altaye & Girio-Herrera, 2016, Behavior Therapy 47(3):339-354",
+      "corrected_url": "https://pubmed.ncbi.nlm.nih.gov/27157028/",
+      "corrected_numbers": "N = 112 CHP after-school participants analysed (from the ~326-student RCT). Large improvement 16-46%, small/negligible 26-65%, depending on outcome; describe as 'one-sixth to a half' rather than 'a third to a half'."
+    },
+    {
+      "id": "C13",
+      "verdict": "supported",
+      "notes": "Searched Sibley 2016 and the community trials; summaries confirm N = 128 ethnically diverse teens (78.5% Hispanic) in the 2016 efficacy RCT, 278 adolescents and 82 community therapists double-randomised in the effectiveness trial (JAACAP 2021, PubMed 32861773), and that at 3 years (PubMed 39442667) STAND did not outperform usual care in ITT but group-by-licensure interactions showed gains in ADHD symptoms, organisation/time-management/planning and parent-teen conflict. The 'medium-to-large' wording for 2016, the seven primary outcomes at 5 and 10 months, and the 22% licensed figure were not visible in the summaries."
+    },
+    {
+      "id": "C14",
+      "verdict": "supported",
+      "notes": "Searched Gaastra et al. 2016 (PLoS ONE 11(2), PubMed 26886218); summary confirms separate meta-analyses of 24 within-subjects and 76 single-subject studies, with largest effects for consequence-based interventions (MSMD = 1.82, within-subjects) and self-regulation interventions (MSMD = 3.61, single-subject designs), matching the claim and its caveat. The separate 10-study self-monitoring review was not checked.",
+      "corrected_numbers": "Add: consequence-based MSMD = 1.82 in within-subjects designs; 24 within-subjects and 76 single-subject studies."
+    }
+  ],
+  "skipped": [
+    {"id": "C5", "reason": "key_numbers say exact g values not shown; not checked per instructions"},
+    {"id": "C6", "reason": "key_numbers say exact effect sizes not shown; not checked per instructions"},
+    {"id": "C8", "reason": "guideline with no effect size or percentage; not searched within the 12-search budget"}
+  ]
+}

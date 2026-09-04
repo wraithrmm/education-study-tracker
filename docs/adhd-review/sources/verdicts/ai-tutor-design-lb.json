@@ -1,0 +1,67 @@
+{
+  "area": "ai-tutor-design",
+  "verdicts": [
+    {
+      "id": "C1",
+      "verdict": "supported",
+      "notes": "Searched the VanLehn 2011 abstract (Educational Psychologist 46(4), 197-221). The abstract states human tutoring d = 0.79 and intelligent tutoring systems d = 0.76, 'nearly as effective as human tutoring', and that the prior beliefs of d = 0.3 (answer-based), 1.0 (ITS) and 2.0 (human) were contradicted, so every number in the claim matches. Note that the review covers pre-LLM step-based ITS with mostly college-age samples; 'a well-structured AI tutor can substitute for much of the parent's teaching time' is the file's inference, not something VanLehn tested."
+    },
+    {
+      "id": "C2",
+      "verdict": "supported",
+      "notes": "Searched the Kulik & Fletcher 2016 abstract (Review of Educational Research 86(1)). It confirms 50 controlled evaluations, a median effect of 0.66 SD (50th to 75th percentile), and that improvement 'depended to a great extent' on whether it was measured on locally developed or standardised tests, with test-instruction alignment called 'a critical determinant'. The size of the local-versus-standardised gap was not visible in the summary, so the claim's 'much larger' rests on the abstract's wording rather than on a visible pair of figures."
+    },
+    {
+      "id": "C4",
+      "verdict": "partial",
+      "notes": "Searched the Bastani et al. 2025 PNAS abstract and summaries. The 48% (GPT Base) and 127% (GPT Tutor) practice improvements are confirmed, and the figure the file could not see is now visible: with AI removed, the GPT Base group scored 17% worse than controls on the unassisted exam. The abstract describes the harm as 'largely mitigated' by GPT Tutor's safeguards (teacher-designed hints instead of answers), i.e. mostly but not fully removed, which matches the claim's 'removes most of that harm'.",
+      "corrected_numbers": "Field experiment with nearly 1,000 students across three grades, about 15% of the curriculum; practice +48% (GPT Base) and +127% (GPT Tutor); unassisted exam 17% lower than control for GPT Base; GPT Tutor's exam decrement 'largely mitigated' (not eliminated)."
+    },
+    {
+      "id": "C5",
+      "verdict": "supported",
+      "notes": "Searched the Kestin et al. 2025 Scientific Reports paper and summaries. Confirmed: 194 Harvard students, two-week crossover in a physics course, AI-tutored students 'learn more than twice as much in less time', with higher self-reported engagement and motivation; a secondary summary adds post-test scores about 30% higher. No effect size in SD units was visible in any summary, so that figure stays unseen; the sample remains adults at an elite university, as the file already notes."
+    },
+    {
+      "id": "C7",
+      "verdict": "partial",
+      "notes": "Searched the primary paper (Fan et al., BJET, doi 10.1111/bjet.13544, online Dec 2024, in a 2025 issue). Confirmed: 117 Chinese students in a laboratory experiment reading, writing and revising an essay in English (non-native); the ChatGPT group outperformed on essay-score improvement. But knowledge gain and transfer were NOT significantly different between groups, there was no difference in post-task intrinsic motivation, and the authors say ChatGPT 'may promote dependence... and potentially trigger metacognitive laziness', a hedged inference from process data rather than a demonstrated loss of durable knowledge; whether allocation was randomised was not visible. The claim's 'showed metacognitive laziness, offloading the thinking that produces durable knowledge' overstates this, and the file cites a news article rather than the paper.",
+      "corrected_source": "Fan, Y. et al. (2024/2025). Beware of metacognitive laziness: Effects of generative artificial intelligence on learning motivation, processes, and performance. British Journal of Educational Technology.",
+      "corrected_url": "https://bera-journals.onlinelibrary.wiley.com/doi/10.1111/bjet.13544",
+      "corrected_numbers": "117 students; ChatGPT group better on essay-score improvement only; knowledge gain and transfer not significantly different; no motivation difference; 'metacognitive laziness' presented as a potential risk, not a measured outcome; randomisation not visible."
+    },
+    {
+      "id": "C8",
+      "verdict": "partial",
+      "notes": "Searched the PMC/MDPI record. The review exists: Tsakeni, Nwafor, Mosia & Egara (University of the Free State), Journal of Intelligence 13(11):148, published 15 Nov 2025; a convergent mixed-methods design with 135 peer-reviewed articles (Scopus and Web of Science, Biblioshiny/VOSviewer) and 24 studies selected under PRISMA 2020 for in-depth review. The visible findings concern human-centred versus posthumanist framings of metacognition and AI as a 'co-regulator' of learning; the claim's specific 'over-reliance and over-trust that can disrupt planning and monitoring' was not visible in the summary and should be treated as unconfirmed for this source.",
+      "corrected_source": "Tsakeni, M., Nwafor, S. C., Mosia, M. & Egara, F. O. (2025). Mapping the Scaffolding of Metacognition and Learning by AI Tools in STEM Classrooms: A Bibliometric-Systematic Review Approach (2005-2025). Journal of Intelligence 13(11), 148.",
+      "corrected_numbers": "135 articles in the bibliometric corpus; 24 studies in the qualitative systematic review; no effect sizes."
+    },
+    {
+      "id": "C9",
+      "verdict": "partial",
+      "notes": "Two searches on the Gabay, Shahbari-Khateb & Mendelsohn 2018 paper (Scientific Reports 8:15524, University of Haifa). Direction confirmed: ADHD participants learned as well as controls in the delayed-feedback conditions, in both learning and test phases, but worse when feedback was immediate, and symptom severity correlated negatively with learning from immediate feedback. The abstract describes the delays only as 'immediately or with a short/long delay', so the 3 s and 6 s values are unconfirmed, and no sample size was visible in either search.",
+      "corrected_numbers": "Delays: immediate / short / long (3 s and 6 s not visible); sample size not visible; adults only; laboratory cue-outcome task."
+    },
+    {
+      "id": "C11",
+      "verdict": "partial",
+      "notes": "Searched the W3C news and TR records. Confirmed: 'Making Content Usable for People with Cognitive and Learning Disabilities' was published as a Working Group Note on 29 April 2021 by the COGA Task Force of the APA and AG Working Groups, covers aims and objectives, design patterns, personas and user needs, and is supplemental guidance beyond WCAG that is not required for conformance. The named objectives and patterns in the claim (help users focus, avoid distraction, make each step clear, do not rely on memory) were not visible in any search result, so they remain the file's prior knowledge rather than verified quotations.",
+      "corrected_url": "https://www.w3.org/TR/2021/NOTE-coga-usable-20210429/",
+      "corrected_numbers": "Working Group Note dated 29 April 2021; objective and pattern names unverified."
+    },
+    {
+      "id": "C13",
+      "verdict": "partial",
+      "notes": "Searched the UXPA Magazine article. It is by Lorna McKnight, who reports finding no existing guidelines and, without access to children with ADHD, deriving 15 guidelines from a literature survey and general usability principles, which she found 'compare closely with usability guidelines in many cases'. That confirms and if anything strengthens the claim's 'expert consensus, not trial evidence' framing, but the year and the specific items the claim lists (single-task screens, chunked content, progressive disclosure, always-visible progress) were not visible in the summary and should be quoted from the article itself.",
+      "corrected_source": "McKnight, L. Designing for Children with ADHD: The Search for Guidelines for Non-Experts. User Experience (UXPA Magazine); companion academic paper 'Designing for ADHD: in search of guidelines' (McKnight, c. 2010, year not visible in results).",
+      "corrected_numbers": "15 proposed guidelines; derived from literature, no empirical testing with ADHD children."
+    },
+    {
+      "id": "C14",
+      "verdict": "partial",
+      "notes": "Two searches on the APA advisory (June 2025). Confirmed: the advisory states adolescents are 'less likely than adults to question the accuracy and intent of information offered by a bot as compared with a human', warns that AI can become a substitute for human connection, says AI systems giving health information should ensure accuracy or give explicit repeated warnings, and directs recommendations at parents, educators, platforms and policymakers. The sentence naming ChatGPT, Gemini and Claude as 'not designed for mental-health support' was not visible in the advisory and appears to come from a secondary source, so it should not be attributed to the APA.",
+      "corrected_numbers": "Advisory dated June 2025; the named-chatbot statement is unattributed; the 76% data-collection figure is correctly excluded."
+    }
+  ]
+}
