@@ -136,9 +136,14 @@ fi
 
 board="$("${CURL[@]}" "$BASE/s/maths/practice")"
 contains "the practice board renders an activity picker" "$board" 'class="tiles"'
-contains "and invites an activity with nothing logged rather than filtering to nothing" \
-  "$board" 'not played yet'
 contains "and offers a rolling date window rather than two date boxes" "$board" 'window=30d'
+if [ "$REMOTE" = 0 ]; then
+  # Whether any activity is still unplayed is a fact about the record, not about
+  # the page, so it is only safe where the record is seeded. On production every
+  # registered maths activity has runs and no card is an invitation.
+  contains "and invites an activity with nothing logged rather than filtering to nothing" \
+    "$board" 'not played yet'
+fi
 contains "and names the activities registered for the subject" "$board" "Tutoring session"
 
 page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"
