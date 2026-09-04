@@ -12,6 +12,10 @@ if (!defined('TRACKER')) {
     exit;
 }
 
+// The practice scoreboard's configuration constants are read during migration,
+// so they have to be loaded before a Store is ever constructed.
+require_once __DIR__ . '/practice.php';
+
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
 const STATUS_LABEL = [
@@ -227,7 +231,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 2;
+    private const SCHEMA_VERSION = 3;
 
     private function migrate(): void
     {
@@ -313,6 +317,135 @@ final class Store
             }
             $this->mergeSeededMathsPapers();
             return;
+        }
+
+        if ($v === 3) {
+            // Practice: Spanish app games and maths tutoring sessions. Same
+            // shape of thing — she did some practice, here is how it went — so
+            // one storage model and one scoreboard engine serve both.
+            $this->createPracticeTables();
+
+            foreach (PRACTICE_SOURCE_SEED as $source) {
+                $this->upsertPracticeSource($source);
+            }
+
+            // The Spanish board is seeded rather than left to the fallback,
+            // because it has to reproduce the app's view exactly and that is
+            // a fixture, not a starting point. A subject that does not exist
+            // here yet picks the same configuration up from the code-side
+            // default until someone writes one with tracker_set_scoreboard.
+            foreach (practice_seeded_scoreboards() as $slug => $config) {
+                if ($this->getSubject($slug) && $this->getScoreboard($slug) === null) {
+                    $this->setScoreboard($slug, $config, 'Seeded by schema step 3.');
+                }
+            }
+            return;
+        }
+    }
+
+    /**
+     * The practice tables. `attempted` is held to equal correct +
+     * correct_after_retry + incorrect by a CHECK constraint as well as by the
+     * tool, because the arithmetic is the whole basis of every figure the
+     * board shows.
+     *
+     * accuracy and solve_rate are generated columns so anyone reading the
+     * database directly sees them, but nothing in this service depends on
+     * them — every figure is computed from the raw counts — so a SQLite too
+     * old for generated columns (pre-3.31) gets the same table without them
+     * rather than a migration that throws and takes the service down.
+     */
+    private function createPracticeTables(): void
+    {
+        $version   = (string) $this->db->query('SELECT sqlite_version()')->fetchColumn();
+        $generated = version_compare($version, '3.31.0', '>=')
+            ? "               accuracy   NUMERIC GENERATED ALWAYS AS (CAST(correct AS REAL) / nullif(attempted, 0)) VIRTUAL,\n"
+              . "               solve_rate NUMERIC GENERATED ALWAYS AS (CAST(correct + correct_after_retry AS REAL) / nullif(attempted, 0)) VIRTUAL,\n"
+            : '';
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS practice_source (
+               key            TEXT PRIMARY KEY,
+               display_name   TEXT NOT NULL,
+               -- Null means the source works in any subject: a general quiz
+               -- activity should not need re-registering per subject.
+               subject_slug   TEXT,
+               metrics_schema TEXT NOT NULL DEFAULT '{}',
+               created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS practice_run (
+               id            INTEGER PRIMARY KEY AUTOINCREMENT,
+               subject_slug  TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
+               -- Idempotency key from the client, unique per subject.
+               client_run_id TEXT NOT NULL,
+               source        TEXT NOT NULL,
+               label         TEXT NOT NULL,
+               played_at     TEXT NOT NULL DEFAULT (datetime('now')),
+               attempted     INTEGER NOT NULL CHECK (attempted >= 0),
+               correct       INTEGER NOT NULL CHECK (correct >= 0),
+               correct_after_retry INTEGER NOT NULL DEFAULT 0 CHECK (correct_after_retry >= 0),
+               incorrect     INTEGER NOT NULL CHECK (incorrect >= 0),
+"
+            . $generated
+            . "               duration_seconds INTEGER,
+               -- Source-specific numbers. top_speed is meaningful for a
+               -- falling-word game and meaningless for maths, so it lives
+               -- here rather than in a column most rows would ignore.
+               metrics       TEXT NOT NULL DEFAULT '{}',
+               -- Non-null excludes the run from every statistic; the row stays.
+               void_reason   TEXT,
+               created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+               -- The arithmetic every figure on the board is built on.
+               CHECK (attempted = correct + correct_after_retry + incorrect),
+               UNIQUE (subject_slug, client_run_id)
+             )"
+        );
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS practice_item (
+               id              INTEGER PRIMARY KEY AUTOINCREMENT,
+               practice_run_id INTEGER NOT NULL REFERENCES practice_run(id) ON DELETE CASCADE,
+               position        INTEGER,
+               prompt          TEXT,
+               topic_ref       TEXT,
+               outcome         TEXT NOT NULL CHECK (outcome IN ('correct', 'retry', 'incorrect')),
+               attempts_taken  INTEGER,
+               note            TEXT
+             )"
+        );
+
+        $this->db->exec(
+            'CREATE TABLE IF NOT EXISTS practice_run_topic (
+               practice_run_id INTEGER NOT NULL REFERENCES practice_run(id) ON DELETE CASCADE,
+               topic_ref       TEXT NOT NULL,
+               PRIMARY KEY (practice_run_id, topic_ref)
+             )'
+        );
+
+        // Panel instances are configuration, panel types are code. Rows are
+        // appended, never replaced, so a bad edit can be read back out.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS scoreboard_config (
+               id           INTEGER PRIMARY KEY AUTOINCREMENT,
+               subject_slug TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
+               config       TEXT NOT NULL,
+               note         TEXT,
+               created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+
+        foreach ([
+            'CREATE INDEX IF NOT EXISTS idx_practice_subject ON practice_run(subject_slug, played_at DESC)',
+            'CREATE INDEX IF NOT EXISTS idx_practice_source ON practice_run(subject_slug, source, played_at DESC)',
+            'CREATE INDEX IF NOT EXISTS idx_practice_item_run ON practice_item(practice_run_id, position)',
+            'CREATE INDEX IF NOT EXISTS idx_practice_item_topic ON practice_item(topic_ref)',
+            'CREATE INDEX IF NOT EXISTS idx_practice_run_topic_ref ON practice_run_topic(topic_ref)',
+            'CREATE INDEX IF NOT EXISTS idx_scoreboard_subject ON scoreboard_config(subject_slug, id DESC)',
+        ] as $sql) {
+            $this->db->exec($sql);
         }
     }
 
@@ -613,7 +746,8 @@ final class Store
     {
         $out = [];
         foreach (['topics', 'attempts', 'attempt_papers', 'attempt_questions',
-                  'sessions', 'topic_changes', 'resources'] as $t) {
+                  'sessions', 'topic_changes', 'resources', 'practice_run',
+                  'practice_item'] as $t) {
             $row     = $this->one("SELECT COUNT(*) AS n FROM $t");
             $out[$t] = (int) ($row['n'] ?? 0);
         }
@@ -971,6 +1105,330 @@ final class Store
             ':topics_touched' => $s['topics_touched'] ?? null,
             ':next_steps'     => $s['next_steps'] ?? null,
         ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    // ---- practice --------------------------------------------------------
+    //
+    // A practice run is one bounded stretch of practice: one Shooting Gallery
+    // game, one tutoring session. It is deliberately NOT an attempt — attempts
+    // are marked papers that carry a grade and drive projections, and practice
+    // arrives dozens per week with no mark scheme. Mixing them would drown the
+    // mock history.
+
+    /** The declared source registry. A source may be subject-scoped or global. */
+    public function listPracticeSources(?string $slug = null): array
+    {
+        if ($slug === null) {
+            return $this->all('SELECT * FROM practice_source ORDER BY key');
+        }
+        return $this->all(
+            'SELECT * FROM practice_source WHERE subject_slug IS NULL OR subject_slug = ? ORDER BY key',
+            [$slug]
+        );
+    }
+
+    public function practiceSource(string $key): ?array
+    {
+        return $this->one('SELECT * FROM practice_source WHERE key = ?', [$key]);
+    }
+
+    public function upsertPracticeSource(array $s): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO practice_source (key, display_name, subject_slug, metrics_schema)
+             VALUES (:key, :display_name, :subject_slug, :metrics_schema)
+             ON CONFLICT(key) DO UPDATE SET
+               display_name = excluded.display_name,
+               subject_slug = excluded.subject_slug,
+               metrics_schema = excluded.metrics_schema'
+        );
+        $st->execute([
+            ':key'            => $s['key'],
+            ':display_name'   => $s['display_name'],
+            ':subject_slug'   => $s['subject_slug'] ?? null,
+            ':metrics_schema' => json_encode((object) ($s['metrics_schema'] ?? [])),
+        ]);
+    }
+
+    /**
+     * Store one run, its items and its run-level topic refs.
+     *
+     * A duplicate client_run_id is a silent no-op returning the existing row,
+     * never an error and never a second row: the Spanish app retries failed
+     * reports and a model-driven tool call can fire twice, and one retry would
+     * otherwise put a phantom spike in the trend line.
+     *
+     * @return array{status:'stored'|'duplicate', id:int}
+     */
+    public function addPracticeRun(array $r): array
+    {
+        $slug     = (string) $r['subject_slug'];
+        $clientId = (string) $r['client_run_id'];
+
+        $existing = $this->one(
+            'SELECT id FROM practice_run WHERE subject_slug = ? AND client_run_id = ?',
+            [$slug, $clientId]
+        );
+        if ($existing) {
+            return ['status' => 'duplicate', 'id' => (int) $existing['id']];
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $st = $this->db->prepare(
+                'INSERT INTO practice_run
+                   (subject_slug, client_run_id, source, label, played_at, attempted, correct,
+                    correct_after_retry, incorrect, duration_seconds, metrics)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $slug, $clientId, $r['source'], $r['label'],
+                $r['played_at'] ?? gmdate('Y-m-d H:i:s'),
+                (int) $r['attempted'], (int) $r['correct'],
+                (int) ($r['correct_after_retry'] ?? 0), (int) $r['incorrect'],
+                $r['duration_seconds'] ?? null,
+                json_encode((object) ($r['metrics'] ?? [])),
+            ]);
+            $runId = (int) $this->db->lastInsertId();
+
+            foreach (array_values($r['items'] ?? []) as $i => $item) {
+                $st = $this->db->prepare(
+                    'INSERT INTO practice_item
+                       (practice_run_id, position, prompt, topic_ref, outcome, attempts_taken, note)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                $st->execute([
+                    $runId,
+                    $item['position'] ?? $i,
+                    $item['prompt'] ?? null,
+                    $item['topic_ref'] ?? null,
+                    $item['outcome'],
+                    $item['attempts_taken'] ?? null,
+                    $item['note'] ?? null,
+                ]);
+            }
+
+            foreach (array_unique($r['topic_refs'] ?? []) as $ref) {
+                $st = $this->db->prepare(
+                    'INSERT OR IGNORE INTO practice_run_topic (practice_run_id, topic_ref) VALUES (?, ?)'
+                );
+                $st->execute([$runId, $ref]);
+            }
+
+            $this->db->commit();
+            return ['status' => 'stored', 'id' => $runId];
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            // Two calls racing on the same client_run_id: the unique index is
+            // what actually decides, and the loser reports the winner's row
+            // rather than an error the client would retry forever.
+            $row = $this->one(
+                'SELECT id FROM practice_run WHERE subject_slug = ? AND client_run_id = ?',
+                [$slug, $clientId]
+            );
+            if ($row) {
+                return ['status' => 'duplicate', 'id' => (int) $row['id']];
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Runs newest first.
+     *
+     * @param array{source?:string,since?:string,until?:string,ref?:string,
+     *              limit?:int,include_void?:bool} $filter
+     */
+    public function listPracticeRuns(string $slug, array $filter = []): array
+    {
+        $sql    = 'SELECT * FROM practice_run WHERE subject_slug = ?';
+        $params = [$slug];
+        if (!empty($filter['source'])) {
+            $sql .= ' AND source = ?';
+            $params[] = $filter['source'];
+        }
+        if (!empty($filter['since'])) {
+            $sql .= ' AND date(played_at) >= ?';
+            $params[] = $filter['since'];
+        }
+        if (!empty($filter['until'])) {
+            $sql .= ' AND date(played_at) <= ?';
+            $params[] = $filter['until'];
+        }
+        if (!empty($filter['ref'])) {
+            // A run "touches" a topic through either route: a per-item ref or a
+            // run-level one.
+            $sql .= ' AND (id IN (SELECT practice_run_id FROM practice_item WHERE topic_ref = ?)
+                        OR id IN (SELECT practice_run_id FROM practice_run_topic WHERE topic_ref = ?))';
+            $params[] = $filter['ref'];
+            $params[] = $filter['ref'];
+        }
+        if (empty($filter['include_void'])) {
+            $sql .= ' AND void_reason IS NULL';
+        }
+        $sql .= ' ORDER BY played_at DESC, id DESC';
+        if (!empty($filter['limit'])) {
+            $sql .= ' LIMIT ' . (int) $filter['limit'];
+        }
+        $rows = $this->all($sql, $params);
+        foreach ($rows as &$row) {
+            $row['metrics'] = json_decode((string) ($row['metrics'] ?: '{}'), true) ?: [];
+        }
+        return $rows;
+    }
+
+    public function getPracticeRun(string $slug, int $id): ?array
+    {
+        $row = $this->one('SELECT * FROM practice_run WHERE subject_slug = ? AND id = ?', [$slug, $id]);
+        if (!$row) {
+            return null;
+        }
+        $row['metrics'] = json_decode((string) ($row['metrics'] ?: '{}'), true) ?: [];
+        $row['items']   = $this->practiceItems($id);
+        $row['topics']  = array_column($this->practiceRunTopics($id), 'topic_ref');
+        return $row;
+    }
+
+    public function practiceItems(int $runId): array
+    {
+        return $this->all(
+            'SELECT * FROM practice_item WHERE practice_run_id = ? ORDER BY position, id',
+            [$runId]
+        );
+    }
+
+    public function practiceRunTopics(int $runId): array
+    {
+        return $this->all(
+            'SELECT * FROM practice_run_topic WHERE practice_run_id = ? ORDER BY topic_ref',
+            [$runId]
+        );
+    }
+
+    /** Non-null reason excludes the run from every statistic; the row stays. */
+    public function voidPracticeRun(string $slug, int $id, ?string $reason): bool
+    {
+        $st = $this->db->prepare(
+            'UPDATE practice_run SET void_reason = ? WHERE subject_slug = ? AND id = ?'
+        );
+        $st->execute([$reason, $slug, $id]);
+        return $st->rowCount() > 0;
+    }
+
+    /**
+     * Per-topic practice counts.
+     *
+     * The rollup rule, in one place because two places would eventually
+     * disagree: when a run has items carrying topic refs, roll up from the
+     * items; otherwise apportion the run's totals evenly across its run-level
+     * refs. Never both for the same run, or the counts double.
+     *
+     * @param array $filter as listPracticeRuns
+     * @return array<string,array{ref:string,runs:int,attempted:float,correct:float,
+     *                            retry:float,incorrect:float}>
+     */
+    public function practiceTopicRollup(string $slug, array $filter = []): array
+    {
+        $runs = $this->listPracticeRuns($slug, $filter);
+        if (!$runs) {
+            return [];
+        }
+        $ids = array_map(static fn($r) => (int) $r['id'], $runs);
+        $in  = implode(',', $ids);
+
+        $itemsByRun = [];
+        foreach ($this->all(
+            "SELECT practice_run_id, topic_ref, outcome, COUNT(*) AS n
+             FROM practice_item
+             WHERE practice_run_id IN ($in) AND topic_ref IS NOT NULL AND topic_ref <> ''
+             GROUP BY practice_run_id, topic_ref, outcome"
+        ) as $row) {
+            $itemsByRun[(int) $row['practice_run_id']][] = $row;
+        }
+
+        $refsByRun = [];
+        foreach ($this->all("SELECT * FROM practice_run_topic WHERE practice_run_id IN ($in)") as $row) {
+            $refsByRun[(int) $row['practice_run_id']][] = (string) $row['topic_ref'];
+        }
+
+        $out  = [];
+        $bump = static function (array &$out, string $ref): void {
+            if (!isset($out[$ref])) {
+                $out[$ref] = ['ref' => $ref, 'runs' => 0, 'attempted' => 0.0,
+                              'correct' => 0.0, 'retry' => 0.0, 'incorrect' => 0.0];
+            }
+        };
+
+        foreach ($runs as $run) {
+            $id = (int) $run['id'];
+
+            if (!empty($itemsByRun[$id])) {
+                $seen = [];
+                foreach ($itemsByRun[$id] as $row) {
+                    $ref = (string) $row['topic_ref'];
+                    $n   = (float) $row['n'];
+                    $bump($out, $ref);
+                    if (!isset($seen[$ref])) {
+                        $out[$ref]['runs']++;
+                        $seen[$ref] = true;
+                    }
+                    $out[$ref]['attempted'] += $n;
+                    $key = match ((string) $row['outcome']) {
+                        'correct'   => 'correct',
+                        'retry'     => 'retry',
+                        default     => 'incorrect',
+                    };
+                    $out[$ref][$key] += $n;
+                }
+                continue;
+            }
+
+            $refs = $refsByRun[$id] ?? [];
+            if (!$refs) {
+                continue;
+            }
+            $share = 1 / count($refs);
+            foreach ($refs as $ref) {
+                $bump($out, $ref);
+                $out[$ref]['runs']++;
+                $out[$ref]['attempted'] += (float) $run['attempted'] * $share;
+                $out[$ref]['correct']   += (float) $run['correct'] * $share;
+                $out[$ref]['retry']     += (float) $run['correct_after_retry'] * $share;
+                $out[$ref]['incorrect'] += (float) $run['incorrect'] * $share;
+            }
+        }
+
+        ksort($out);
+        return $out;
+    }
+
+    // ---- scoreboard configuration ---------------------------------------
+
+    /**
+     * The current configuration, or null if the subject has never had one
+     * stored. Rows are appended rather than replaced, so a bad edit can be
+     * read back out of the history.
+     */
+    public function getScoreboard(string $slug): ?array
+    {
+        $row = $this->one(
+            'SELECT * FROM scoreboard_config WHERE subject_slug = ? ORDER BY id DESC LIMIT 1',
+            [$slug]
+        );
+        if (!$row) {
+            return null;
+        }
+        $config = json_decode((string) $row['config'], true);
+        return is_array($config) ? $config : null;
+    }
+
+    public function setScoreboard(string $slug, array $config, ?string $note = null): int
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO scoreboard_config (subject_slug, config, note) VALUES (?, ?, ?)'
+        );
+        $st->execute([$slug, json_encode($config, JSON_UNESCAPED_SLASHES), $note]);
         return (int) $this->db->lastInsertId();
     }
 }

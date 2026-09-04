@@ -72,6 +72,14 @@ tr.full td:first-child{box-shadow:inset 3px 0 0 #10b981}
 tr.part td:first-child{box-shadow:inset 3px 0 0 #fbbf24}
 tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .tablewrap{overflow-x:auto}
+.chartbox{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.75rem}
+.chartdata{margin-top:.4rem}
+.chartdata summary{cursor:pointer;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin:1rem 0}
+.filters label{display:flex;flex-direction:column;gap:.15rem}
+.filters input,.filters select,.filters button{font:inherit;font-size:.85rem;padding:.3rem .5rem;
+  border:1px solid var(--line);border-radius:6px;background:#fff}
+.filters button{cursor:pointer;padding:.35rem .8rem}
 CSS;
 
 function dash_shell(string $title, string $body): string
@@ -139,6 +147,10 @@ function render_subject(Store $store, array $subject): string
     }
 
     $withResources = $store->refsWithResources($subject['slug']);
+
+    // The first four panels of the subject's scoreboard, plus a link to the
+    // rest. Empty when nothing has been practised, rather than an empty board.
+    $practiceHtml = practice_dashboard_section($store, $subject);
 
     $strandRows = '';
     $chipGroups = '';
@@ -350,6 +362,8 @@ function render_subject(Store $store, array $subject): string
 </div>
 
 {$ageingHtml}
+
+{$practiceHtml}
 
 <h2>Strands</h2>{$strandRows}
 <div class="legend">{$legend}</div>

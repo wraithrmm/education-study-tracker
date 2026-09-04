@@ -25,3 +25,10 @@ jobs:
       # enforce. This is the check that has to stay green.
       - name: Smoke test
         run: bash deploy/smoke-test.sh
+
+      # The Spanish scoreboard has to reproduce the app's view exactly, so it
+      # is a golden snapshot: render it against a fixed fixture and fail on any
+      # diff. Also covers the practice arithmetic, the idempotency key and the
+      # topic rollup rule.
+      - name: Practice acceptance tests and golden snapshots
+        run: php deploy/practice-test.php

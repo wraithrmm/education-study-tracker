@@ -111,11 +111,12 @@ if ($password === '') {
 $dashboardPublic = (getenv('DASHBOARD_PUBLIC') ?: 'true') !== 'false';
 $dbPath = (string) (getenv('DB_PATH') ?: (dirname(__DIR__) . '/tracker-shared/data/tracker.db'));
 
-require __DIR__ . '/lib/store.php';
-require __DIR__ . '/lib/seed.php';
-require __DIR__ . '/lib/oauth.php';
-require __DIR__ . '/lib/mcp.php';
-require __DIR__ . '/lib/dashboard.php';
+require_once __DIR__ . '/lib/store.php';
+require_once __DIR__ . '/lib/practice.php';
+require_once __DIR__ . '/lib/seed.php';
+require_once __DIR__ . '/lib/oauth.php';
+require_once __DIR__ . '/lib/mcp.php';
+require_once __DIR__ . '/lib/dashboard.php';
 
 try {
     $store = new Store($dbPath);
@@ -303,6 +304,17 @@ if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
         send_html(render_index($store), 404);
     }
     send_html(render_subject($store, $subject));
+}
+
+// The practice scoreboard: every panel the subject's configuration asks for,
+// filterable by activity, date range and topic.
+if (preg_match('#^/s/([^/]+)/practice$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    send_html(render_practice_board($store, $subject, $_GET));
 }
 
 // Drill-downs. Everything the tools can report, the page can now show: one
