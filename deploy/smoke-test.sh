@@ -101,6 +101,7 @@ check "maths dashboard renders" "$code" "200"
 # so they are safe to assert against the live record too; the seeded content
 # below them is only asserted locally, where the record is known.
 body="$("${CURL[@]}" "$BASE/s/maths")"
+contains "the subject page links back to the index" "$body" 'All subjects</a>'
 contains "the dashboard groups sessions by week" "$body" "Sessions, by week"
 contains "the dashboard has an attempts section" "$body" "Papers &amp; checks"
 contains "the dashboard links into attempts" "$body" "/a/"
