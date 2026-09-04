@@ -134,7 +134,8 @@ else
 fi
 
 board="$("${CURL[@]}" "$BASE/s/maths/practice")"
-contains "the practice board renders its filters" "$board" 'name="source"'
+contains "the practice board renders an activity card per source" "$board" 'class="tile"'
+contains "and a rolling date window rather than two date boxes" "$board" 'window=30d'
 contains "and names the activities registered for the subject" "$board" "Tutoring session"
 
 page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"

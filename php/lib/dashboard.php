@@ -75,6 +75,43 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .chartbox{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.75rem}
 .chartdata{margin-top:.4rem}
 .chartdata summary{cursor:pointer;color:var(--muted)}
+/* The activity picker: cards in place of a dropdown, chips in place of two
+   date boxes, and the date boxes themselves kept behind a disclosure. */
+.picker{margin:1.2rem 0 .2rem}
+.picker .plabel{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  margin:0 0 .5rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(11.5rem,1fr));gap:.7rem}
+.tile{position:relative;isolation:isolate;display:grid;gap:.3rem;align-content:start;
+  padding:.8rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--card);
+  text-decoration:none;color:inherit;transition:transform .16s ease,box-shadow .16s ease}
+.tile:hover{transform:translateY(-3px);box-shadow:0 8px 18px -10px rgba(28,25,23,.5)}
+.tile .tname{display:flex;justify-self:start;align-items:center;gap:.45rem;
+  font-weight:700;font-size:.95rem}
+.tile .tname svg{flex:none}
+.tile .tnum{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:1.5rem;
+  font-weight:700;line-height:1.1}
+.tile .tsub{font-size:.74rem;color:var(--muted)}
+.tile[aria-current] .tname{position:relative}
+.tile[aria-current] .tname::before{content:"";position:absolute;z-index:-1;
+  inset:-.15em -.3em -.1em -.3em;background:#fde68a;border-radius:3px;transform:rotate(-.7deg)}
+.tile[aria-current]{border-color:#292524;box-shadow:inset 0 0 0 1px #292524}
+.tile.empty{border-style:dashed;background:transparent;opacity:.7}
+.tile.empty:hover{transform:none;box-shadow:none}
+.meter{height:6px;border-radius:999px;background:#eceae5;overflow:hidden;margin-top:.15rem}
+.meter>i{display:block;height:100%;background:#7c3aed;border-radius:999px}
+.ranges{display:flex;flex-wrap:wrap;gap:.4rem;align-items:flex-start;margin-top:.65rem}
+.rangechip,.pickdates>summary{font-size:.8rem;padding:.28rem .7rem;border:1px solid var(--line);
+  border-radius:999px;background:var(--card);text-decoration:none;color:var(--ink);cursor:pointer}
+.rangechip:hover,.pickdates>summary:hover{border-color:#a8a29e}
+.rangechip[aria-current]{background:#292524;border-color:#292524;color:#fcfcf9}
+.pickdates>summary{list-style:none;display:inline-block}
+.pickdates>summary::-webkit-details-marker{display:none}
+.pickdates[open]{flex-basis:100%}
+.pickdates[open]>summary{background:#f5f5f4}
+.pickdates .filters{margin:.6rem 0 0}
+.ranges .clear{margin-left:.2rem}
+.tile:focus-visible,.rangechip:focus-visible,.pickdates>summary:focus-visible{
+  outline:2px solid #7c3aed;outline-offset:2px}
 .filters{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin:1rem 0}
 .filters label{display:flex;flex-direction:column;gap:.15rem}
 .filters input,.filters select,.filters button{font:inherit;font-size:.85rem;padding:.3rem .5rem;
