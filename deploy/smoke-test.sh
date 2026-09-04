@@ -244,7 +244,9 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_list_attempts tracker_get_attempt tracker_history \
             tracker_export_markdown tracker_update_topic tracker_log_session \
             tracker_amend_session tracker_log_attempt tracker_create_subject \
-            tracker_list_resources tracker_add_resource tracker_remove_resource; do
+            tracker_list_resources tracker_add_resource tracker_remove_resource \
+            tracker_log_practice tracker_list_practice tracker_practice_stats \
+            tracker_void_practice tracker_get_scoreboard tracker_set_scoreboard; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -255,10 +257,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 15 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 21 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 15 of 15)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 21 of 21)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -439,6 +441,103 @@ body="$(call tracker_remove_resource '{"subject":"maths","ref":"A17","title":"BB
 contains "tracker_remove_resource deletes one" "$body" "Removed"
 body="$(call tracker_remove_resource '{"subject":"maths","ref":"A17","title":"BBC Bitesize: Solving linear equations"}')"
 contains "removing a missing resource reports it" "$body" "No resource titled"
+
+echo
+echo "== practice =="
+
+# Practice is not an attempt: it carries no mark scheme and never touches a
+# topic status. Both of those are checked below rather than trusted.
+before_state="$(call tracker_get_state '{"subject":"maths"}')"
+
+runs='{"subject":"maths","runs":[
+  {"client_run_id":"smoke-1","source":"maths_session","label":"Circle theorems","played_at":"2026-06-01T10:00:00Z","attempted":12,"correct":7,"correct_after_retry":3,"incorrect":2,"duration_seconds":2700,"metrics":{"hints_used":4},"items":[{"topic_ref":"A17","outcome":"correct","attempts_taken":1},{"topic_ref":"A17","outcome":"retry","attempts_taken":2},{"topic_ref":"A4","outcome":"incorrect","attempts_taken":3}]},
+  {"client_run_id":"smoke-2","source":"maths_session","label":"Rearranging formulae","played_at":"2026-06-02T10:00:00Z","attempted":8,"correct":6,"correct_after_retry":1,"incorrect":1,"topic_refs":["A5"]},
+  {"client_run_id":"smoke-3","source":"maths_session","label":"Mixed starter","played_at":"2026-06-03T10:00:00Z","attempted":5,"correct":5,"incorrect":0}
+]}'
+body="$(call tracker_log_practice "$runs")"
+contains "tracker_log_practice stores a batch of runs" "$body" "3 stored, 0 already recorded"
+
+# The first acceptance test: a retried report must not put a phantom spike in
+# the trend line.
+body="$(call tracker_log_practice "$runs")"
+contains "replaying the identical call stores nothing further" "$body" "0 stored, 3 already recorded"
+contains "and reports each run as a duplicate" "$body" "duplicate — already recorded"
+
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-bad","source":"maths_session","label":"Does not add up","attempted":12,"correct":7,"correct_after_retry":3,"incorrect":1}]}')"
+contains "a run that does not add up is refused" "$body" "does not add up"
+contains "and the refusal names the discrepancy" "$body" "out by 1"
+
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-src","source":"nope_gallery","label":"Unknown activity","attempted":1,"correct":1,"incorrect":0}]}')"
+contains "an unregistered source is refused with the registry" "$body" "not registered"
+
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-odd","source":"maths_session","label":"Typos","played_at":"2026-06-04T10:00:00Z","attempted":1,"correct":1,"incorrect":0,"topic_refs":["NOPE"],"metrics":{"unicorns":3}}]}')"
+contains "an unknown topic ref is flagged, not refused" "$body" "no topic with reference NOPE"
+contains "an unknown metric key is flagged, not refused" "$body" "unicorns on maths_session"
+contains "and the run still stores" "$body" "1 stored"
+
+after_state="$(call tracker_get_state '{"subject":"maths"}')"
+if [ "$before_state" = "$after_state" ]; then
+  pass "logging practice leaves every topic status untouched"
+else
+  fail "logging practice changed the topic state"
+fi
+
+body="$(call tracker_list_practice '{"subject":"maths"}')"
+contains "tracker_list_practice lists the runs newest first" "$body" "Circle theorems"
+contains "and reports each run's accuracy" "$body" "58.3%"
+
+body="$(call tracker_practice_stats '{"subject":"maths","days":3650}')"
+contains "tracker_practice_stats totals the window" "$body" "items attempted"
+contains "and reports pooled accuracy rather than a mean of percentages" "$body" "pooled"
+contains "and breaks it down by topic, weakest first" "$body" "By topic, weakest first"
+contains "joined to the topic status" "$body" "| A17 |"
+
+# Voided runs count towards nothing but stay in the record.
+# The tool's table arrives inside a JSON string, so the id is pulled out of
+# the row rather than off the start of a line.
+run_id="$(printf '%s' "$(call tracker_list_practice '{"subject":"maths","limit":1}')" | grep -o '| [0-9][0-9]* | 2026-' | grep -o '[0-9][0-9]*' | head -1)"
+body="$(call tracker_void_practice "{\"subject\":\"maths\",\"run_id\":$run_id,\"void_reason\":\"smoke test: not a real run\"}")"
+contains "a practice run can be voided with a reason" "$body" "voided"
+body="$(call tracker_list_practice '{"subject":"maths"}')"
+contains "a voided run is still listed, marked VOID" "$body" "VOID"
+body="$(call tracker_void_practice "{\"subject\":\"maths\",\"run_id\":$run_id,\"void_reason\":null}")"
+contains "voiding can be undone" "$body" "un-voided"
+
+body="$(call tracker_void_practice '{"subject":"maths","run_id":99999,"void_reason":"nope"}')"
+contains "voiding an unknown run is reported" "$body" "No practice run 99999"
+
+echo
+echo "== scoreboards =="
+body="$(call tracker_get_scoreboard '{"subject":"maths"}')"
+contains "tracker_get_scoreboard returns the panels as JSON" "$body" 'panels'
+contains "the maths board carries its split panel" "$body" 'split'
+
+# One invalid panel rejects the whole configuration, so a bad edit cannot
+# half-apply and leave a broken board.
+body="$(call tracker_set_scoreboard '{"subject":"maths","config":{"version":1,"panels":[{"type":"stat","title":"Runs","metric":"count","window":"all"},{"type":"sparkline","title":"Not a type"}]}}')"
+contains "an invalid panel rejects the whole configuration" "$body" "Rejected"
+contains "and says the stored one is unchanged" "$body" "stored configuration is unchanged"
+body="$(call tracker_get_scoreboard '{"subject":"maths"}')"
+contains "the stored configuration really is untouched" "$body" 'split'
+
+body="$(call tracker_set_scoreboard '{"subject":"maths","config":{"version":1,"panels":[{"type":"stat","title":"Runs","metric":"count","window":"all"},{"type":"table","title":"Recent sessions","limit":10,"columns":["date","label","attempted","correct","solve_rate"]}]},"note":"smoke test"}')"
+contains "a valid configuration saves" "$body" "saved as version"
+body="$(call tracker_get_scoreboard '{"subject":"maths"}')"
+contains "and it is what reads back" "$body" 'Recent sessions'
+
+if [ "$REMOTE" = 0 ]; then
+  code="$("${CURL[@]}" -o "$WORK/board.html" -w '%{http_code}' "$BASE/s/maths/practice")"
+  check "the practice board renders" "$code" "200"
+  board="$(cat "$WORK/board.html")"
+  contains "the board renders its panels" "$board" "Recent sessions"
+  contains "the board offers its filters" "$board" 'name="source"'
+  contains "the board lists what was voided and why" "$board" "Practice"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/practice?source=maths_session&from=2026-01-01&ref=A17")"
+  check "the board filters by activity, date and topic" "$code" "200"
+  body="$("${CURL[@]}" "$BASE/s/maths")"
+  contains "the subject dashboard carries a practice panel" "$body" "the whole board"
+  contains "which links to the full board" "$body" "/s/maths/practice"
+fi
 
 echo
 echo "== subjects =="

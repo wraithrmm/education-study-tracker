@@ -136,10 +136,14 @@ the database has no subjects, so later deploys never touch real progress.
 
 ```bash
 bash deploy/smoke-test.sh
+php deploy/practice-test.php
 ```
 
-That boots the service on PHP's built-in server against a throwaway database
-and exercises everything. To poke at it by hand:
+The first boots the service on PHP's built-in server against a throwaway
+database and exercises every endpoint and tool. The second runs the practice
+acceptance tests and diffs the scoreboard golden snapshots in `tests/golden`
+— run it after any change to a panel type, and `--update` to rewrite the
+snapshots on purpose. Both run in CI on every push. To poke at it by hand:
 
 ```bash
 mkdir -p /tmp/tracker/tracker-shared/data

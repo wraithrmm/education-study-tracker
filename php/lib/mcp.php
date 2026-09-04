@@ -159,6 +159,26 @@ function mcp_date(array $a, string $k, ?string $default = null): ?string
     return $v;
 }
 
+/**
+ * A practice run's played_at. The clients send ISO 8601 with a zone; the
+ * record is UTC throughout, and the board's date is the first ten characters
+ * of it, so the conversion happens once, here.
+ */
+function mcp_practice_when(mixed $v, string $at): string
+{
+    if ($v === null || $v === '') {
+        return gmdate('Y-m-d H:i:s');
+    }
+    if (!is_string($v)) {
+        throw new McpError("$at played_at must be an ISO 8601 string.");
+    }
+    $t = strtotime($v);
+    if ($t === false) {
+        throw new McpError("$at played_at \"$v\" is not a date I can read. Use ISO 8601, e.g. 2026-09-04T18:30:00Z.");
+    }
+    return gmdate('Y-m-d H:i:s', $t);
+}
+
 // ---- tool definitions ---------------------------------------------------
 
 function mcp_tools(): array
@@ -614,6 +634,208 @@ function mcp_tools(): array
                     ],
                 ],
                 'required'   => ['slug', 'name', 'strands', 'topics'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_log_practice',
+            'title' => 'Log practice runs (games, drills, tutoring sessions)',
+            'description' =>
+                "Records practice: one row per run, where a run is one bounded stretch of practice — one Shooting Gallery game, one maths tutoring session — with how many items were attempted, right first time, right after a retry, and never got.\n\n"
+                . "USE WHEN: a practice session or a set of app games has finished and you are reporting what happened. "
+                . "Send every run of the session in ONE call at the end, not one call per game.\n\n"
+                . "FOR PRACTICE ONLY. A marked paper is not practice: mocks, past papers and topic checks go to tracker_log_attempt, "
+                . "which carries a mark scheme and drives the grade projection. Practice arrives dozens per week and would drown that record.\n\n"
+                . "Every run needs a client_run_id: a stable id made by the client at the start of the run. Repeating a call with the same "
+                . "client_run_id is a silent no-op that returns the existing row, so a retry after a failed report is always safe.\n\n"
+                . "attempted must equal correct + correct_after_retry + incorrect, or the whole call is refused naming the discrepancy.\n\n"
+                . "Args: subject, runs[] of { client_run_id, source, label, attempted, correct, incorrect, correct_after_retry?, "
+                . "played_at?, duration_seconds?, metrics?, topic_refs?, items?[] }. "
+                . "source is a key from the registry (tracker_practice_stats lists them). "
+                . "Each item is { outcome (correct|retry|incorrect), prompt?, topic_ref?, attempts_taken?, position?, note? } — "
+                . "supply items where you know them per question; the per-topic breakdown is built from them.\n\n"
+                . 'Logging practice never changes a topic status: that happens through tracker_log_session only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'runs'    => [
+                        'type'     => 'array',
+                        'minItems' => 1,
+                        'maxItems' => 50,
+                        'description' => 'Every run of this session, in one call',
+                        'items'    => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'client_run_id' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64,
+                                    'description' => 'Stable id from the client. Repeats are a no-op.'],
+                                'source'        => ['type' => 'string', 'minLength' => 1, 'maxLength' => 60,
+                                    'description' => "Registry key, e.g. 'spanish_gallery' or 'maths_session'"],
+                                'label'         => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200,
+                                    'description' => "Human name, e.g. 'Set 34: Free Time 1' or 'Circle theorems'"],
+                                'attempted'     => ['type' => 'integer', 'minimum' => 0,
+                                    'description' => 'Items presented. Must equal correct + correct_after_retry + incorrect.'],
+                                'correct'       => ['type' => 'integer', 'minimum' => 0,
+                                    'description' => 'Right without help or retry'],
+                                'correct_after_retry' => ['type' => 'integer', 'minimum' => 0, 'default' => 0,
+                                    'description' => 'Right eventually, after a retry, hint or reteach'],
+                                'incorrect'     => ['type' => 'integer', 'minimum' => 0,
+                                    'description' => 'Never got there'],
+                                'played_at'     => ['type' => 'string', 'maxLength' => 40,
+                                    'description' => 'ISO 8601. Defaults to now.'],
+                                'duration_seconds' => ['type' => 'integer', 'minimum' => 0],
+                                'metrics'       => ['type' => 'object',
+                                    'description' => 'Source-specific numbers, e.g. { "top_speed": 8.4 }'],
+                                'topic_refs'    => ['type' => 'array', 'maxItems' => 20,
+                                    'items' => ['type' => 'string', 'maxLength' => 40],
+                                    'description' => 'Topics this run covered, when you know them for the run but not per item'],
+                                'items'         => [
+                                    'type'     => 'array',
+                                    'maxItems' => 200,
+                                    'items'    => [
+                                        'type'       => 'object',
+                                        'properties' => [
+                                            'prompt'    => ['type' => 'string', 'maxLength' => 500,
+                                                'description' => 'The word shown, or the question asked'],
+                                            'topic_ref' => ['type' => 'string', 'maxLength' => 40],
+                                            'outcome'   => ['type' => 'string', 'enum' => PRACTICE_OUTCOMES],
+                                            'attempts_taken' => ['type' => 'integer', 'minimum' => 1,
+                                                'description' => '1 = first time'],
+                                            'position'  => ['type' => 'integer', 'minimum' => 0],
+                                            'note'      => ['type' => 'string', 'maxLength' => 300,
+                                                'description' => 'Why it went the way it did'],
+                                        ],
+                                        'required'   => ['outcome'],
+                                    ],
+                                ],
+                            ],
+                            'required'   => ['client_run_id', 'source', 'label', 'attempted', 'correct', 'incorrect'],
+                        ],
+                    ],
+                ],
+                'required'   => ['subject', 'runs'],
+            ],
+            'annotations' => [
+                'readOnlyHint'    => false,
+                'destructiveHint' => false,
+                // Replaying the same client_run_ids stores nothing further.
+                'idempotentHint'  => true,
+                'openWorldHint'   => false,
+            ],
+        ],
+        [
+            'name'  => 'tracker_list_practice',
+            'title' => 'List practice runs',
+            'description' =>
+                "Practice runs for a subject, newest first: date, activity, label, the counts and the accuracy of each.\n\n"
+                . "USE WHEN: asked what practice has been done lately, which games or sessions were played, or to check a run before voiding it.\n\n"
+                . "Voided runs are listed and marked VOID; they count towards nothing. For the figures rather than the list, use tracker_practice_stats.\n\n"
+                . "Args: subject. Optional source (registry key), since (YYYY-MM-DD), ref (only runs touching that topic), limit (default 20).\n"
+                . 'Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'source'  => ['type' => 'string', 'maxLength' => 60,
+                        'description' => "Registry key, e.g. 'spanish_gallery'"],
+                    'since'   => $isoDate,
+                    'ref'     => ['type' => 'string', 'maxLength' => 40,
+                        'description' => "Only runs touching this topic, e.g. 'G14'"],
+                    'limit'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20],
+                ],
+                'required'   => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_practice_stats',
+            'title' => 'How practice is going',
+            'description' =>
+                "The figures behind a subject's practice scoreboard: totals, best run, accuracy and solve rate over the window and over the last 10, "
+                . "the best of each source-specific metric, and a per-topic table joined to each topic's current status.\n\n"
+                . "USE WHEN: asked how she is getting on with the app or with practice, whether it is improving, which topics practice keeps catching out, "
+                . "or when planning what to drill next. The per-topic table sorted weakest-first is the teaching information.\n\n"
+                . "Accuracy is right-first-time (correct / attempted); solve rate counts the ones she got to with a retry or a hint. "
+                . "Both are pooled over all the runs in the window, not the mean of per-run percentages.\n\n"
+                . "Args: subject. Optional days (default 90), source, ref.\n"
+                . 'Read-only. Practice figures never affect a grade projection.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'days'    => ['type' => 'integer', 'minimum' => 1, 'maximum' => 3650, 'default' => 90],
+                    'source'  => ['type' => 'string', 'maxLength' => 60],
+                    'ref'     => ['type' => 'string', 'maxLength' => 40],
+                ],
+                'required'   => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_void_practice',
+            'title' => 'Void a practice run',
+            'description' =>
+                "Marks one practice run as not counting, with a reason. The row is kept and still listed, marked VOID, and drops out of every statistic.\n\n"
+                . "USE WHEN: a run was logged in error, someone else played it, or the numbers are wrong. Pass void_reason null to un-void one.\n\n"
+                . "Practice is never hard-deleted, for the same reason a session is not: a record that can lose entries is not one.\n\n"
+                . 'Args: subject, run_id (from tracker_list_practice), void_reason (null un-voids).',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject'     => $subjectArg,
+                    'run_id'      => ['type' => 'integer', 'minimum' => 1,
+                        'description' => 'The id shown by tracker_list_practice'],
+                    'void_reason' => ['type' => ['string', 'null'], 'maxLength' => 500,
+                        'description' => 'Why it should not count. null un-voids it.'],
+                ],
+                'required'   => ['subject', 'run_id'],
+            ],
+            'annotations' => [
+                'readOnlyHint'    => false,
+                'destructiveHint' => false,
+                'idempotentHint'  => true,
+                'openWorldHint'   => false,
+            ],
+        ],
+        [
+            'name'  => 'tracker_get_scoreboard',
+            'title' => "Read a subject's scoreboard configuration",
+            'description' =>
+                "The ordered list of panels a subject's practice board renders, as JSON, and whether it is the stored configuration or the built-in default.\n\n"
+                . "USE WHEN: about to change what a board shows, or asked why a board shows what it does. Always read before writing: "
+                . "tracker_set_scoreboard replaces the whole configuration.\n\n"
+                . "Panel types are code, panel instances are configuration: " . implode(', ', PRACTICE_PANEL_TYPES) . ".\n\n"
+                . "Args: subject.\n"
+                . 'Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => ['subject' => $subjectArg],
+                'required'   => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_set_scoreboard',
+            'title' => "Write a subject's scoreboard configuration",
+            'description' =>
+                "Replaces the panels a subject's practice board renders. This is how a new chart is added for a new activity or a new need, without a deploy.\n\n"
+                . "USE WHEN: asked to change, add or reorder what the practice board shows. Call tracker_get_scoreboard first and send the whole "
+                . "configuration back with your change applied — this replaces it, it does not merge.\n\n"
+                . "One invalid panel rejects the WHOLE configuration and leaves the stored one untouched, so a bad edit cannot half-apply.\n\n"
+                . "Panel types: stat (one tile), line (time series), table (recent runs), topics (per-topic breakdown), split (correct / retry / incorrect). "
+                . "Every panel takes title and an optional source filter. Metrics are " . implode(', ', PRACTICE_BASE_METRICS)
+                . ", or metrics.<key> for a source-specific number.\n\n"
+                . 'Args: subject, config { version, panels[] }. Optional note saying why it changed.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'config'  => ['type' => 'object',
+                        'description' => 'The whole configuration: { "version": 1, "panels": [ … ] }'],
+                    'note'    => ['type' => 'string', 'maxLength' => 500,
+                        'description' => 'Why it changed, kept with the stored version'],
+                ],
+                'required'   => ['subject', 'config'],
             ],
             'annotations' => $write,
         ],
@@ -1419,6 +1641,419 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text($existing
                 ? "Updated $name. Topics: $before → $after (" . ($after - $before) . ' added; existing statuses untouched).'
                 : "Created $name with $after topics. Dashboard: /s/$slug");
+        }
+
+        case 'tracker_log_practice': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $s    = $r['subject'];
+            $runs = is_array($a['runs'] ?? null) ? $a['runs'] : [];
+            if (!$runs) {
+                throw new McpError('runs must be a non-empty array of practice runs.');
+            }
+            if (count($runs) > 50) {
+                throw new McpError('runs may contain at most 50 entries. Split the session across calls.');
+            }
+
+            $sources = [];
+            foreach ($store->listPracticeSources($slug) as $src) {
+                $sources[$src['key']] = json_decode((string) ($src['metrics_schema'] ?: '{}'), true) ?: [];
+            }
+            $knownRefs = array_column($store->listTopics($slug), 'ref');
+
+            // Everything is validated before anything is written. A batch that
+            // half-stores is worse than one that is refused: the client would
+            // retry the whole batch and the idempotency key is the only thing
+            // making that safe.
+            $clean    = [];
+            $unknownR = [];
+            $unknownM = [];
+            $dropped  = [];
+            $seenIds  = [];
+
+            foreach (array_values($runs) as $i => $run) {
+                if (!is_array($run)) {
+                    throw new McpError('each run must be an object.');
+                }
+                $at        = 'run ' . ($i + 1);
+                $clientId  = mcp_str($run, 'client_run_id', true, 1, 64);
+                $source    = mcp_str($run, 'source', true, 1, 60);
+                $label     = mcp_str($run, 'label', true, 1, 200);
+                $attempted = (int) mcp_num($run, 'attempted', true, 0);
+                $correct   = (int) mcp_num($run, 'correct', true, 0);
+                $retry     = (int) mcp_num($run, 'correct_after_retry', false, 0, null, 0);
+                $incorrect = (int) mcp_num($run, 'incorrect', true, 0);
+
+                if (isset($seenIds[$clientId])) {
+                    throw new McpError("$at repeats client_run_id \"$clientId\" from earlier in the same call.");
+                }
+                $seenIds[$clientId] = true;
+
+                if (!isset($sources[$source])) {
+                    throw new McpError("$at has source \"$source\", which is not registered for $slug. "
+                        . 'Registered sources: ' . (implode(', ', array_keys($sources)) ?: 'none') . '.');
+                }
+
+                // The arithmetic is the basis of every figure the board shows,
+                // so a run that does not add up is refused, naming the gap.
+                $sum = $correct + $retry + $incorrect;
+                if ($sum !== $attempted) {
+                    return mcp_text("$at (\"$label\") does not add up: attempted $attempted, but correct $correct"
+                        . " + correct_after_retry $retry + incorrect $incorrect = $sum"
+                        . ' — out by ' . abs($attempted - $sum) . '. Nothing was stored; fix the figures and send the call again.');
+                }
+
+                $metrics = [];
+                if (isset($run['metrics'])) {
+                    if (!is_array($run['metrics'])) {
+                        throw new McpError("$at metrics must be an object of numbers.");
+                    }
+                    foreach ($run['metrics'] as $k => $v) {
+                        if (!is_numeric($v)) {
+                            // The metric is lost, not the run.
+                            $dropped[] = "$k (not a number)";
+                            continue;
+                        }
+                        if (!array_key_exists($k, $sources[$source])) {
+                            $unknownM[] = "$k on $source";
+                        }
+                        $metrics[$k] = $v + 0;
+                    }
+                }
+
+                $refs = [];
+                if (isset($run['topic_refs'])) {
+                    if (!is_array($run['topic_refs'])) {
+                        throw new McpError("$at topic_refs must be an array of topic references.");
+                    }
+                    if (count($run['topic_refs']) > 20) {
+                        throw new McpError("$at topic_refs may hold at most 20 entries.");
+                    }
+                    foreach ($run['topic_refs'] as $ref) {
+                        if (!is_string($ref) || $ref === '') {
+                            throw new McpError("$at topic_refs entries must be non-empty strings.");
+                        }
+                        if (!in_array($ref, $knownRefs, true)) {
+                            $unknownR[] = $ref;
+                        }
+                        $refs[] = $ref;
+                    }
+                }
+
+                $items = is_array($run['items'] ?? null) ? $run['items'] : [];
+                if (count($items) > 200) {
+                    throw new McpError("$at may hold at most 200 items.");
+                }
+                $cleanItems = [];
+                foreach (array_values($items) as $j => $item) {
+                    if (!is_array($item)) {
+                        throw new McpError("$at item " . ($j + 1) . ' must be an object.');
+                    }
+                    $outcome = $item['outcome'] ?? null;
+                    if (!in_array($outcome, PRACTICE_OUTCOMES, true)) {
+                        throw new McpError("$at item " . ($j + 1) . ' outcome must be one of: '
+                            . implode(', ', PRACTICE_OUTCOMES) . '.');
+                    }
+                    $itemRef = mcp_str($item, 'topic_ref', false, 0, 40);
+                    if ($itemRef !== null && !in_array($itemRef, $knownRefs, true)) {
+                        $unknownR[] = $itemRef;
+                    }
+                    $cleanItems[] = [
+                        'prompt'         => mcp_str($item, 'prompt', false, 0, 500),
+                        'topic_ref'      => $itemRef,
+                        'outcome'        => (string) $outcome,
+                        'attempts_taken' => isset($item['attempts_taken'])
+                            ? (int) mcp_num($item, 'attempts_taken', false, 1) : null,
+                        'position'       => isset($item['position'])
+                            ? (int) mcp_num($item, 'position', false, 0) : $j,
+                        'note'           => mcp_str($item, 'note', false, 0, 300),
+                    ];
+                }
+
+                $clean[] = [
+                    'subject_slug'        => $slug,
+                    'client_run_id'       => $clientId,
+                    'source'              => $source,
+                    'label'               => $label,
+                    'played_at'           => mcp_practice_when($run['played_at'] ?? null, $at),
+                    'attempted'           => $attempted,
+                    'correct'             => $correct,
+                    'correct_after_retry' => $retry,
+                    'incorrect'           => $incorrect,
+                    'duration_seconds'    => isset($run['duration_seconds'])
+                        ? (int) mcp_num($run, 'duration_seconds', false, 0) : null,
+                    'metrics'             => $metrics,
+                    'topic_refs'          => $refs,
+                    'items'               => $cleanItems,
+                ];
+            }
+
+            $rows   = [];
+            $stored = 0;
+            $dupes  = 0;
+            foreach ($clean as $run) {
+                $res = $store->addPracticeRun($run);
+                $res['status'] === 'stored' ? $stored++ : $dupes++;
+                $rows[] = '| ' . $res['id'] . ' | ' . str_replace('|', '/', $run['label'])
+                    . ' | ' . $run['source'] . ' | ' . $run['attempted']
+                    . ' | ' . $run['correct'] . '/' . $run['correct_after_retry'] . '/' . $run['incorrect']
+                    . ' | ' . ($res['status'] === 'stored' ? 'stored' : 'duplicate — already recorded') . ' |';
+            }
+
+            $lines = [
+                'Practice for ' . $s['name'] . ': ' . $stored . ' stored, ' . $dupes
+                    . ' already recorded (a duplicate client_run_id is a no-op, never a second row).',
+                '',
+                '| Run | Label | Activity | Attempted | First/Retry/Not got | Result |',
+                '|---|---|---|---|---|---|',
+            ];
+            $lines = array_merge($lines, $rows);
+            if ($unknownR) {
+                $lines[] = '';
+                $lines[] = 'Note: no topic with reference ' . implode(', ', array_unique($unknownR))
+                    . ' exists in this subject. The runs are stored, but those refs will not join to a topic'
+                    . ' in the per-topic breakdown — check them with tracker_get_state.';
+            }
+            if ($unknownM) {
+                $lines[] = 'Note: metric ' . implode(', ', array_unique($unknownM))
+                    . ' is not declared in that source\'s metrics schema. It is stored anyway, so nothing is lost,'
+                    . ' but check the key if a panel expects it.';
+            }
+            if ($dropped) {
+                $lines[] = 'Note: dropped non-numeric metric ' . implode(', ', array_unique($dropped))
+                    . '. The run is stored without it.';
+            }
+            $lines[] = '';
+            $lines[] = 'No topic status was changed: practice never moves a status. Use tracker_log_session for that.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_list_practice': {
+            $slug  = mcp_str($a, 'subject', true, 1);
+            $limit = (int) mcp_num($a, 'limit', false, 1, 100, 20);
+            $r     = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $filter = ['limit' => $limit, 'include_void' => true];
+            if (!empty($a['source'])) {
+                $filter['source'] = mcp_str($a, 'source', false, 0, 60);
+            }
+            if (!empty($a['ref'])) {
+                $filter['ref'] = mcp_str($a, 'ref', false, 0, 40);
+            }
+            $since = mcp_date($a, 'since');
+            if ($since !== null) {
+                $filter['since'] = $since;
+            }
+            $rows = $store->listPracticeRuns($slug, $filter);
+            if (!$rows) {
+                return mcp_text('No practice runs match. Log some with tracker_log_practice, or widen the filters.');
+            }
+            $out = ['**Practice — ' . $r['subject']['name'] . '**', '',
+                    '| # | Date | Activity | Label | Attempted | First time | After retry | Not got | Accuracy |',
+                    '|---|---|---|---|---|---|---|---|---|'];
+            foreach ($rows as $x) {
+                $acc  = practice_run_metric($x, 'accuracy');
+                $out[] = '| ' . $x['id'] . ' | ' . practice_run_date($x)
+                    . ($x['void_reason'] ? ' VOID' : '')
+                    . ' | ' . $x['source'] . ' | ' . str_replace('|', '/', (string) $x['label'])
+                    . ' | ' . $x['attempted'] . ' | ' . $x['correct'] . ' | ' . $x['correct_after_retry']
+                    . ' | ' . $x['incorrect'] . ' | ' . practice_format($acc, 'percent1') . ' |';
+            }
+            $voided = array_values(array_filter($rows, static fn($x) => $x['void_reason'] !== null));
+            foreach ($voided as $x) {
+                $out[] = '';
+                $out[] = 'Run ' . $x['id'] . ' is VOID: ' . $x['void_reason'] . ' — it counts towards nothing.';
+            }
+            return mcp_text(implode("\n", $out));
+        }
+
+        case 'tracker_practice_stats': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $days = (int) mcp_num($a, 'days', false, 1, 3650, 90);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $filter = ['since' => gmdate('Y-m-d', time() - $days * 86400)];
+            if (!empty($a['source'])) {
+                $filter['source'] = mcp_str($a, 'source', false, 0, 60);
+            }
+            if (!empty($a['ref'])) {
+                $filter['ref'] = mcp_str($a, 'ref', false, 0, 40);
+            }
+            $runs = $store->listPracticeRuns($slug, $filter);
+            if (!$runs) {
+                $registered = array_column($store->listPracticeSources($slug), 'key');
+                return mcp_text('No practice logged for ' . $r['subject']['name'] . " in the last $days days."
+                    . ($registered ? ' Registered activities: ' . implode(', ', $registered) . '.' : ''));
+            }
+
+            $totals = ['attempted' => 0, 'correct' => 0, 'correct_after_retry' => 0, 'incorrect' => 0];
+            foreach ($runs as $x) {
+                foreach ($totals as $k => $_) {
+                    $totals[$k] += (int) $x[$k];
+                }
+            }
+            $best = null;
+            foreach ($runs as $x) {
+                if ($best === null || (int) $x['correct'] > (int) $best['correct']) {
+                    $best = $x;
+                }
+            }
+            $last10 = practice_window_runs($runs, 'last10');
+
+            $parts = [
+                '**Practice — ' . $r['subject']['name'] . '**'
+                    . (!empty($filter['source']) ? ' · ' . $filter['source'] : '')
+                    . (!empty($filter['ref']) ? ' · topic ' . $filter['ref'] : '')
+                    . " · last $days days",
+                '',
+                count($runs) . ' run' . (count($runs) === 1 ? '' : 's') . ' · '
+                    . $totals['attempted'] . ' items attempted · ' . $totals['correct'] . ' right first time · '
+                    . $totals['correct_after_retry'] . ' after a retry · ' . $totals['incorrect'] . ' not got.',
+                'Accuracy ' . practice_format(practice_stat_value($runs, 'accuracy', 'pooled'), 'percent1')
+                    . ' over the window, '
+                    . practice_format(practice_stat_value($last10, 'accuracy', 'pooled'), 'percent1')
+                    . ' over the last ' . count($last10) . '.',
+                'Solve rate ' . practice_format(practice_stat_value($runs, 'solve_rate', 'pooled'), 'percent1')
+                    . ' over the window, '
+                    . practice_format(practice_stat_value($last10, 'solve_rate', 'pooled'), 'percent1')
+                    . ' over the last ' . count($last10) . '.',
+                'Both are pooled — total right ÷ total attempted — not the mean of the per-run percentages,'
+                    . ' which differ and would flatter a run of short games.',
+            ];
+            if ($best) {
+                $parts[] = 'Best run: ' . $best['correct'] . ' right in "' . $best['label'] . '" on '
+                    . practice_run_date($best) . ' (' . $best['source'] . ').';
+            }
+
+            // Source-specific extremes: only where the source actually declares
+            // the metric, so maths is never asked for a top speed.
+            $extremes = [];
+            foreach ($store->listPracticeSources($slug) as $src) {
+                $schema = json_decode((string) ($src['metrics_schema'] ?: '{}'), true) ?: [];
+                foreach (array_keys($schema) as $key) {
+                    $ofSource = array_values(array_filter($runs, static fn($x) => $x['source'] === $src['key']));
+                    $value    = practice_stat_value($ofSource, 'metrics.' . $key, 'max');
+                    if ($value !== null) {
+                        $extremes[] = 'best ' . $key . ' ' . practice_format($value, 'decimal1')
+                            . ' (' . $src['display_name'] . ')';
+                    }
+                }
+            }
+            if ($extremes) {
+                $parts[] = ucfirst(implode(', ', $extremes)) . '.';
+            }
+
+            $roll = $store->practiceTopicRollup($slug, $filter);
+            if ($roll) {
+                $topics = [];
+                foreach ($store->listTopics($slug) as $t) {
+                    $topics[$t['ref']] = $t;
+                }
+                $rows = [];
+                foreach ($roll as $ref => $x) {
+                    $acc   = $x['attempted'] > 0 ? $x['correct'] / $x['attempted'] : null;
+                    $solve = $x['attempted'] > 0 ? ($x['correct'] + $x['retry']) / $x['attempted'] : null;
+                    $rows[] = ['ref' => $ref, 'acc' => $acc, 'solve' => $solve, 'x' => $x,
+                               'name' => $topics[$ref]['name'] ?? '(not in the syllabus)',
+                               'status' => $topics[$ref]['status'] ?? null];
+                }
+                usort($rows, static function ($p, $q) {
+                    $cmp = practice_nullcmp($p['acc'], $q['acc']);
+                    return $cmp !== 0 ? $cmp : strcmp($p['ref'], $q['ref']);
+                });
+                $parts[] = '';
+                $parts[] = '### By topic, weakest first';
+                $parts[] = '| Topic | Name | Runs | Items | Right first time | Solve rate | Status |';
+                $parts[] = '|---|---|---|---|---|---|---|';
+                foreach ($rows as $row) {
+                    $parts[] = '| ' . $row['ref'] . ' | ' . $row['name']
+                        . ' | ' . practice_format((float) $row['x']['runs'], 'integer')
+                        . ' | ' . practice_format((float) $row['x']['attempted'], 'integer')
+                        . ' | ' . practice_format($row['acc'], 'percent1')
+                        . ' | ' . practice_format($row['solve'], 'percent1')
+                        . ' | ' . ($row['status'] === null ? '—' : (STATUS_LABEL[$row['status']] ?? $row['status'])) . ' |';
+                }
+                $parts[] = '';
+                $parts[] = 'Topic figures roll up from per-item topic refs where a run has them, and are'
+                    . ' apportioned across the run-level refs otherwise — never both, or the counts would double.';
+            }
+            $parts[] = '';
+            $parts[] = 'Board: /s/' . $slug . '/practice';
+            return mcp_text(implode("\n", $parts));
+        }
+
+        case 'tracker_void_practice': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $id   = (int) mcp_num($a, 'run_id', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            if (!$store->getPracticeRun($slug, $id)) {
+                return mcp_text("No practice run $id in $slug. Call tracker_list_practice to see the ids.");
+            }
+            if (!array_key_exists('void_reason', $a)) {
+                throw new McpError('void_reason is required: say why the run should not count, or pass null to un-void it.');
+            }
+            $reason = $a['void_reason'] === null ? null : mcp_str($a, 'void_reason', false, 0, 500);
+            $store->voidPracticeRun($slug, $id, $reason);
+            return mcp_text($reason === null
+                ? "Run $id un-voided: it counts again."
+                : "Run $id voided: $reason. The row stays and is still listed, marked VOID, but counts towards nothing.");
+        }
+
+        case 'tracker_get_scoreboard': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $stored = $store->getScoreboard($slug);
+            $config = practice_scoreboard_for($store, $slug);
+            $where  = $stored !== null
+                ? 'Stored configuration for ' . $r['subject']['name'] . '.'
+                : 'No configuration stored for ' . $r['subject']['name'] . '; this is the built-in default,'
+                    . ' and writing it back with tracker_set_scoreboard is how you start editing it.';
+            return mcp_text($where . "\n\n```json\n"
+                . json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n```\n\n"
+                . 'Board: /s/' . $slug . '/practice');
+        }
+
+        case 'tracker_set_scoreboard': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $config = $a['config'] ?? null;
+            if (!is_array($config)) {
+                throw new McpError('config must be an object of { version, panels }.');
+            }
+            $errors = practice_validate_scoreboard(
+                $config,
+                array_column($store->listPracticeSources($slug), 'key')
+            );
+            if ($errors) {
+                // The whole configuration is rejected, so a bad edit cannot
+                // half-apply and leave a broken board.
+                return mcp_text('Rejected, and the stored configuration is unchanged:' . "\n- "
+                    . implode("\n- ", $errors)
+                    . "\n\nFix every line and send the whole configuration again.");
+            }
+            $note = mcp_str($a, 'note', false, 0, 500);
+            $id   = $store->setScoreboard($slug, $config, $note);
+            $types = array_map(static fn($p) => $p['type'], $config['panels']);
+            return mcp_text('Scoreboard for ' . $r['subject']['name'] . ' saved as version ' . $id . ': '
+                . count($config['panels']) . ' panels (' . implode(', ', $types) . ').'
+                . "\nThe previous configuration is kept, so it can be read back if this one turns out wrong."
+                . "\nBoard: /s/$slug/practice");
         }
     }
 

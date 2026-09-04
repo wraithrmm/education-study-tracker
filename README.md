@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -25,8 +25,9 @@ for the pipeline, the repository secrets it needs, why it is PHP rather than
 the Node service it began as, and what to check when a deploy goes red.
 
 To run it locally, `bash deploy/smoke-test.sh` boots it against a throwaway
-database and exercises every endpoint; DEPLOYMENT.md has the recipe for poking
-at it by hand.
+database and exercises every endpoint, and `php deploy/practice-test.php` runs
+the practice acceptance tests and the scoreboard golden snapshots;
+DEPLOYMENT.md has the recipe for poking at it by hand.
 
 | Variable | Purpose |
 |---|---|
@@ -71,6 +72,12 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
 | `tracker_remove_resource` | Delete one stored resource by title. |
 | `tracker_create_subject` | Add a subject, or extend one. Never resets existing topic statuses. |
+| `tracker_log_practice` | Record practice runs — app games, drills, tutoring sessions — in one batched call. |
+| `tracker_list_practice` | Every practice run, newest first, voided ones marked VOID. |
+| `tracker_practice_stats` | How practice is going: totals, best run, pooled accuracy, per-topic breakdown. |
+| `tracker_void_practice` | Mark one practice run as not counting, with a reason. Never hard-deletes. |
+| `tracker_get_scoreboard` | Read a subject's scoreboard panel configuration. |
+| `tracker_set_scoreboard` | Replace it. One invalid panel rejects the whole configuration. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -112,7 +119,100 @@ June 2022 foundation papers into the single sitting they actually were — held
 as three attempts, each 80-mark paper was scaled against the 240-mark boundary
 table on its own and reported a grade for an exam only a third sat. That step
 is guarded on the exact shape step 1 produces, so a database where those rows
-have since been edited or built on is left alone.
+have since been edited or built on is left alone. Step 3 adds the practice
+tables, seeds the source registry and pins the Spanish and maths scoreboards.
+
+## Practice
+
+A **practice run** is one bounded stretch of practice: one Shooting Gallery
+game in the Spanish app, one maths tutoring session. Both are the same shape of
+thing — *she did some practice, here is how it went* — so they share one
+storage model and one scoreboard engine.
+
+A run records what was **attempted**, what was **correct** first time, what was
+**correct_after_retry** (right eventually, after a retry, hint or reteach) and
+what was **incorrect**. Those three must add up to `attempted`, enforced by the
+tool and by a `CHECK` constraint, because every figure on the board is built on
+that arithmetic. Two rates come out of it: **accuracy** is `correct /
+attempted`, unassisted success; **solve rate** is `(correct +
+correct_after_retry) / attempted`, success with support.
+
+**A drill is not an attempt.** Attempts are marked papers that carry a grade
+and drive the projection. Practice arrives dozens per week, has no mark scheme,
+and is never grade-converted, never appears in `tracker_list_attempts`, and
+**never moves a topic status** — status moves through sessions only, where the
+thresholds and the no-downgrade rule already live. Two write paths for status
+is how a record stops being trustworthy.
+
+Ingest is one batched call at the end of a session rather than one call per
+game, and it goes through MCP rather than a POST: the Spanish app runs inside a
+Claude artifact sandbox that can only reach `api.anthropic.com`, so the model
+makes the call. Every run carries a `client_run_id` from the client; repeating
+a call with the same id is a silent no-op returning the existing row. The app
+retries failed reports and a model-driven tool call can fire twice, and without
+that one retry would put a phantom spike in the trend line.
+
+Per-item detail is optional and sparse-friendly: the Spanish app supplies items
+only for the words missed, a maths session supplies every question with its
+topic reference and how many attempts it took. Topic figures roll up **from the
+items when a run has them, and are apportioned across the run-level
+`topic_refs` otherwise — never both**, or the counts double. That rule is one
+function with tests behind it rather than logic scattered across queries.
+
+### Scoreboards
+
+Each subject's board is an ordered list of panels stored as JSON against the
+subject: panel *types* are code, panel *instances* are configuration. Types are
+`stat`, `line`, `table`, `topics` and `split`, every one of them taking a title
+and an optional `source` filter, so one subject can show separate panels per
+activity. `tracker_set_scoreboard` writes the configuration, which is the point
+— a new chart for a new need needs no deploy.
+
+| Type | Options beyond `title` and `source` |
+|---|---|
+| `stat` | `metric`, `window` (`all`, `lastN`, `Nd`), `agg`, `format`, `label` to replace the generated caption |
+| `line` | `metric`, `limit`, `y_axis` (`auto` or `percent`), `label_points`, `format` |
+| `table` | `columns`, `limit` |
+| `topics` | `sort`, `limit`, `metrics` — which columns the breakdown shows |
+| `split` | `limit`, `group_by` (`run`, `source` or `topic`) |
+
+An invalid panel rejects the whole configuration, so a bad edit cannot
+half-apply, and that includes an option the renderer does not read: a
+misspelled key is refused rather than silently ignored, because a key that does
+nothing is how a board ends up not matching the configuration someone believes
+they wrote. An unknown panel *type* in an already-stored configuration is a
+different case — it is skipped with a logged warning rather than breaking the
+page, so a board written by a newer version still renders everything else.
+
+The board is at `/s/<subject>/practice`, filterable by activity, date range and
+topic, with the first four panels also shown on the subject dashboard. It is
+server-rendered inline SVG: the app's chart is thirty lines of SVG, so the
+tracker matches it rather than adding a charting dependency. Every chart
+carries a `<title>` and repeats its numbers as a table — the chart is never the
+only route to the data.
+
+**The Spanish board is pinned.** It has to look and behave exactly as the app's
+own view does, because that view is the delivery she actually cares about and
+the reason she keeps playing. Its configuration is seeded by migration and
+covered by a golden snapshot in `tests/golden`, rendered against a fixed
+fixture and diffed on every build; the chart geometry — viewBox, padding,
+baseline, stroke, point radius, label offset — is pinned in `practice.php` and
+shared with the app. Any change to a panel type must re-run
+`php deploy/practice-test.php`: a refactor that improves the maths board and
+shifts the Spanish chart by two pixels is a failed change. Run it with
+`--update` to rewrite the snapshots deliberately, and read the diff before you
+commit it. Local browser history in the app stays as it is — the tracker is the
+durable copy, browser storage is the fast one, so her chart still renders
+instantly and offline even if the tracker is slow.
+
+Accuracy on the board is always **pooled** — total correct over total attempted
+— not the mean of the per-run percentages. Over the four fixture games those
+are 76.8% and 77.2%; they differ, and pooled is the honest one.
+
+There are deliberately no leaderboards, streaks, badges or nudges, no
+per-keystroke telemetry and no cross-subject comparison. The chart exists
+because she likes seeing progress, not to manufacture obligation, and comparing
+Spanish accuracy to maths accuracy would invite the wrong conclusion.
 
 ## Adding a subject
 
