@@ -111,6 +111,26 @@ const PRACTICE_SORTS   = ['accuracy_asc', 'accuracy_desc', 'solve_rate_asc', 'so
 const PRACTICE_COLUMNS = ['date', 'label', 'source', 'attempted', 'correct', 'correct_after_retry',
                           'incorrect', 'accuracy', 'solve_rate', 'duration_seconds'];
 const PRACTICE_OUTCOMES = ['correct', 'retry', 'incorrect'];
+/** Columns a topics panel can show, beyond the ref and name that identify the row. */
+const PRACTICE_TOPIC_METRICS = ['runs', 'items', 'correct', 'retry', 'incorrect',
+                                'accuracy', 'solve_rate', 'status'];
+const PRACTICE_TOPIC_METRICS_DEFAULT = ['runs', 'items', 'accuracy', 'solve_rate', 'status'];
+
+/**
+ * The options each panel type understands. Anything else in a panel is a typo
+ * or a setting from a newer version, and either way it would be silently
+ * ignored at render time — so tracker_set_scoreboard refuses it instead. Every
+ * key here is one this file actually reads.
+ */
+const PRACTICE_PANEL_KEYS = [
+    'stat'   => ['metric', 'window', 'agg', 'format', 'label'],
+    'line'   => ['metric', 'limit', 'y_axis', 'label_points', 'format'],
+    'table'  => ['columns', 'limit'],
+    'topics' => ['sort', 'limit', 'metrics'],
+    'split'  => ['limit', 'group_by'],
+];
+/** Accepted on every panel, whatever its type. */
+const PRACTICE_COMMON_KEYS = ['type', 'title', 'source'];
 
 /** Colours for the split bar, kept in step with the dashboard's status palette. */
 const PRACTICE_OUTCOME_COLOUR = [
@@ -181,6 +201,17 @@ function practice_validate_scoreboard(array $config, array $sourceKeys = []): ar
         }
         $at .= " ($type)";
 
+        // A key this renderer does not read would be accepted and then quietly
+        // do nothing, which is how a board ends up not matching the config
+        // someone believes they wrote.
+        $allowed = array_merge(PRACTICE_COMMON_KEYS, PRACTICE_PANEL_KEYS[$type]);
+        foreach (array_keys($panel) as $key) {
+            if (!in_array($key, $allowed, true)) {
+                $errors[] = "$at does not understand \"$key\"; a $type panel takes "
+                    . implode(', ', $allowed) . '.';
+            }
+        }
+
         if (isset($panel['title']) && !is_string($panel['title'])) {
             $errors[] = "$at title must be a string.";
         }
@@ -238,6 +269,21 @@ function practice_validate_scoreboard(array $config, array $sourceKeys = []): ar
         }
         if ($type === 'topics' && isset($panel['sort']) && !in_array($panel['sort'], PRACTICE_SORTS, true)) {
             $errors[] = "$at sort must be one of " . implode(', ', PRACTICE_SORTS) . '.';
+        }
+        if ($type === 'topics' && isset($panel['metrics'])) {
+            if (!is_array($panel['metrics']) || !$panel['metrics'] || !array_is_list($panel['metrics'])) {
+                $errors[] = "$at metrics must be a non-empty array of column names.";
+            } else {
+                foreach ($panel['metrics'] as $c) {
+                    if (!is_string($c) || !in_array($c, PRACTICE_TOPIC_METRICS, true)) {
+                        $errors[] = "$at metrics entry " . json_encode($c) . ' is not one of '
+                            . implode(', ', PRACTICE_TOPIC_METRICS) . '.';
+                    }
+                }
+            }
+        }
+        if ($type === 'stat' && isset($panel['label']) && !is_string($panel['label'])) {
+            $errors[] = "$at label must be a string.";
         }
         if ($type === 'split' && isset($panel['group_by'])
             && !in_array($panel['group_by'], ['run', 'source', 'topic'], true)) {
@@ -622,6 +668,10 @@ function practice_render_stat(array $panel, array $runs): string
         && ($panel['agg'] ?? 'pooled') === 'pooled') {
         $note .= ', pooled';
     }
+    // An explicit label replaces the caption the window would have generated.
+    if (isset($panel['label']) && is_string($panel['label'])) {
+        $note = $panel['label'];
+    }
 
     return '<div class="card"><p class="label">' . h((string) ($panel['title'] ?? practice_metric_label($metric)))
         . '</p><p class="big mono">' . h(practice_format($value, $format)) . '</p>'
@@ -832,18 +882,30 @@ function practice_render_topics(Store $store, array $subject, array $panel, arra
     });
     $rows = array_slice($rows, 0, max(1, $limit));
 
-    $out .= '<div class="tablewrap"><table><thead><tr><th>Topic</th><th>Name</th><th>Runs</th>'
-        . '<th>Items</th><th>Right first time</th><th>Solve rate</th><th>Status</th></tr></thead><tbody>';
+    // The ref and the name identify the row, so they are always there; the
+    // rest is the panel's choice.
+    $columns = $panel['metrics'] ?? PRACTICE_TOPIC_METRICS_DEFAULT;
+    $columns = array_values(array_filter(
+        (array) $columns,
+        static fn($c) => in_array($c, PRACTICE_TOPIC_METRICS, true)
+    ));
+
+    $out .= '<div class="tablewrap"><table><thead><tr><th>Topic</th><th>Name</th>';
+    foreach ($columns as $c) {
+        $out .= '<th>' . h(practice_topic_column_label($c)) . '</th>';
+    }
+    $out .= '</tr></thead><tbody>';
     foreach ($rows as $r) {
         $out .= '<tr><td class="mono"><a href="/s/' . h($slug) . '/t/' . rawurlencode((string) $r['ref'])
             . '">' . h((string) $r['ref']) . '</a></td>'
-            . '<td>' . h((string) $r['name']) . '</td>'
-            . '<td class="mono">' . h(practice_format((float) $r['runs'], 'integer')) . '</td>'
-            . '<td class="mono">' . h(practice_format((float) $r['attempted'], 'integer')) . '</td>'
-            . '<td class="mono">' . h(practice_format($r['accuracy'], 'percent1')) . '</td>'
-            . '<td class="mono">' . h(practice_format($r['solve_rate'], 'percent1')) . '</td>'
-            . '<td><small>' . h($r['status'] === null ? '—' : (STATUS_LABEL[$r['status']] ?? $r['status']))
-            . '</small></td></tr>';
+            . '<td>' . h((string) $r['name']) . '</td>';
+        foreach ($columns as $c) {
+            $out .= $c === 'status'
+                ? '<td><small>' . h($r['status'] === null ? '—' : (STATUS_LABEL[$r['status']] ?? $r['status']))
+                    . '</small></td>'
+                : '<td class="mono">' . h(practice_topic_cell($r, $c)) . '</td>';
+        }
+        $out .= '</tr>';
     }
     return $out . '</tbody></table></div>';
 }
@@ -864,6 +926,27 @@ function practice_panel_filter(array $filter, array $panel): array
         ? $panelSource
         : '\0no-such-source';
     return $filter;
+}
+
+function practice_topic_column_label(string $column): string
+{
+    return match ($column) {
+        'items'      => 'Items',
+        'accuracy'   => 'Right first time',
+        'solve_rate' => 'Solve rate',
+        'retry'      => 'After retry',
+        'incorrect'  => 'Not got',
+        default      => ucfirst($column),
+    };
+}
+
+function practice_topic_cell(array $row, string $column): string
+{
+    return match ($column) {
+        'accuracy', 'solve_rate' => practice_format($row[$column], 'percent1'),
+        'items'                  => practice_format((float) $row['attempted'], 'integer'),
+        default                  => practice_format((float) ($row[$column] ?? 0), 'integer'),
+    };
 }
 
 /** Sort helper: a topic with nothing attempted sorts last, not first. */

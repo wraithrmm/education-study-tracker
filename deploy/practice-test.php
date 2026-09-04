@@ -327,6 +327,55 @@ $body = call($store, 'tracker_get_scoreboard', ['subject' => 'spanish']);
 contains('the scoreboard reads back as JSON', $body, '"type": "line"');
 contains('and says where the configuration came from', $body, 'Stored configuration');
 
+// Every configuration this code ships has to survive its own validator, or a
+// board could be seeded in a state tracker_set_scoreboard would refuse.
+$sourceKeys = array_column($store->listPracticeSources(), 'key');
+foreach (['Spanish' => SPANISH_SCOREBOARD, 'maths' => MATHS_SCOREBOARD,
+          'fallback' => PRACTICE_FALLBACK_SCOREBOARD] as $name => $config) {
+    check("the built-in $name configuration passes validation",
+        practice_validate_scoreboard($config, $sourceKeys), []);
+}
+
+// A key the renderer does not read would be accepted and then quietly do
+// nothing, which is how a board ends up not matching the config someone
+// believes they wrote.
+$body = call($store, 'tracker_set_scoreboard', ['subject' => 'maths', 'config' => [
+    'version' => 1,
+    'panels'  => [['type' => 'stat', 'title' => 'Runs', 'metric' => 'count', 'windwo' => 'all']],
+]]);
+contains('a misspelled panel option is refused rather than ignored', $body, 'does not understand "windwo"');
+$body = call($store, 'tracker_set_scoreboard', ['subject' => 'maths', 'config' => [
+    'version' => 1,
+    'panels'  => [['type' => 'split', 'title' => 'Split', 'metric' => 'accuracy']],
+]]);
+contains('and so is an option that belongs to another panel type', $body, 'does not understand "metric"');
+
+echo "\n== panel options ==\n";
+$body = call($store, 'tracker_set_scoreboard', ['subject' => 'maths', 'config' => [
+    'version' => 1,
+    'panels'  => [['type' => 'topics', 'title' => 'Topics', 'metrics' => ['items', 'crumpets']]],
+]]);
+contains('an unknown topics column is refused', $body, 'is not one of');
+
+$topicsPanel = practice_render_topics($store, $store->getSubject('maths'),
+    ['type' => 'topics', 'title' => 'Topics', 'metrics' => ['items', 'retry', 'incorrect']], []);
+contains('a topics panel renders the columns it asks for', $topicsPanel, '<th>After retry</th>');
+contains('and the ones it asks for only', $topicsPanel, '<th>Not got</th>');
+lacks('leaving out the ones it does not', $topicsPanel, '<th>Solve rate</th>');
+contains('with the ref and name always there to identify the row', $topicsPanel, '<th>Topic</th><th>Name</th>');
+
+$defaultPanel = practice_render_topics($store, $store->getSubject('maths'),
+    ['type' => 'topics', 'title' => 'Topics'], []);
+contains('and the default set is unchanged when none is asked for', $defaultPanel,
+    '<th>Topic</th><th>Name</th><th>Runs</th><th>Items</th><th>Right first time</th><th>Solve rate</th><th>Status</th>');
+
+$tile = practice_render_stat(['type' => 'stat', 'title' => 'Best score', 'metric' => 'correct',
+    'window' => 'all', 'agg' => 'max', 'label' => 'since she started'], $store->listPracticeRuns('maths'));
+contains('a stat label replaces the caption the window would have written', $tile, 'since she started');
+lacks('so the generated one is gone', $tile, 'all time');
+
+$store->setScoreboard('maths', $stored, 'Restored after the panel-option tests.');
+
 echo "\n== unknown panel types are skipped, not fatal ==\n";
 $subject = $store->getSubject('spanish');
 $runs    = $store->listPracticeRuns('spanish');
