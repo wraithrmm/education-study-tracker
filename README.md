@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/s/<subject>/today` is the student's own page: the next thing to do, the last thing that went well, and her practice chart — no countdown, no coverage percentage, no grade.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -229,14 +229,18 @@ Accuracy on the board is always **pooled** — total correct over total attempte
 — not the mean of the per-run percentages. Over the four fixture games those
 are 76.8% and 77.2%; they differ, and pooled is the honest one.
 
-There are deliberately no leaderboards, streaks, badges or nudges, no
-per-keystroke telemetry and no cross-subject comparison. The gold star and the
-record line are the one concession, and they stay inside that rule: they mark
-her own best run against her own, which is the thing the chart was always for.
-Nothing on the board counts consecutive days or withholds anything for missing
-one. The chart exists
-because she likes seeing progress, not to manufacture obligation, and comparing
-Spanish accuracy to maths accuracy would invite the wrong conclusion.
+There are deliberately no leaderboards, streaks or attendance rewards, no
+cross-subject comparison and no per-keystroke telemetry. Nothing counts
+consecutive days or withholds anything for missing one: the board must never
+make a missed day cost more than a missed day. Rewards, where they exist, are
+for what she did — a personal best, a topic moved up — never for turning up.
+Cues are allowed: a visible next step, a personal best she can actually reach
+on a short game, and a reminder she has chosen herself. The gold star and the
+record line stay inside that rule because they compare her only with her own
+earlier runs; a record already at the top of its scale reads BEST rather than
+setting her a target she cannot beat. The chart exists because she likes seeing
+progress, not to manufacture obligation, and comparing Spanish accuracy to
+maths accuracy would invite the wrong conclusion.
 
 ## Adding a subject
 

@@ -2,6 +2,8 @@
 
 Each block names the file and the section it replaces or extends, quotes the current text where it is being replaced, and gives the new text. The skills live in the synced skills directory, not in this repository, so nothing here has been applied. Numbers refer to the proposals in [README.md](README.md).
 
+**Every block below is now also available as a complete, installable file** in [skills/](skills/) — the whole skill with the change already applied, rather than the fragment and the text it replaces. Use this file to see *what* changed and why; use `skills/` to install it.
+
 Skill files:
 - `maths-tutor-session/SKILL.md`
 - `gcse-progress-tracker/SKILL.md` and `references/subjects/maths.md`, `references/subjects/spanish.md`

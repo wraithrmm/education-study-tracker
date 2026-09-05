@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "panels": [
+    {"type": "stat", "title": "Questions this week", "metric": "attempted", "window": "7d", "agg": "sum"},
+    {"type": "stat", "title": "Time practised this week", "metric": "duration_seconds", "window": "7d", "agg": "sum", "format": "duration"},
+    {"type": "stat", "title": "Best ever", "metric": "correct", "window": "all", "agg": "max", "label": "most right first time in one session"},
+    {"type": "stat", "title": "Right first time", "metric": "accuracy", "window": "last10", "format": "percent0"},
+    {"type": "stat", "title": "Working not shown", "metric": "metrics.working_not_shown", "window": "30d", "agg": "sum", "label": "times in the last 30 days"},
+    {"type": "stat", "title": "Blanks", "metric": "metrics.left_blank", "window": "30d", "agg": "sum", "label": "questions left blank, last 30 days"},
+    {"type": "line", "title": "Blanks per session", "metric": "metrics.left_blank", "limit": 20, "label_points": true},
+    {"type": "line", "title": "Working not shown per session", "metric": "metrics.working_not_shown", "limit": 20, "label_points": true},
+    {"type": "split", "title": "How questions went", "limit": 12},
+    {"type": "table", "title": "Recent sessions", "limit": 20,
+     "columns": ["date", "label", "attempted", "correct", "solve_rate", "duration_seconds", "metrics.working_not_shown", "metrics.left_blank", "metrics.ran_out"]},
+    {"type": "topics", "title": "Topics practised", "sort": "accuracy_asc", "limit": 15}
+  ]
+}
