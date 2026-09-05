@@ -117,6 +117,32 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .filters input,.filters select,.filters button{font:inherit;font-size:.85rem;padding:.3rem .5rem;
   border:1px solid var(--line);border-radius:6px;background:#fff}
 .filters button{cursor:pointer;padding:.35rem .8rem}
+/* The student page: one screen, phone first. What to do next, what happened
+   last time, what has moved this week — and none of the parent's view, which
+   is one link away. */
+.today{max-width:34rem}
+.today h1{font-size:1.6rem;margin:.1rem 0 .2rem}
+.today .when{color:var(--muted);font-size:.85rem}
+.next{border:2px solid #292524;border-radius:12px;padding:1.1rem 1.2rem;background:var(--card);margin:1.2rem 0}
+.next p.label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 .4rem}
+.next p.do{font-size:1.15rem;margin:0 0 .5rem;line-height:1.45}
+.next .then{font-size:.95rem;color:var(--ink)}
+.today .card{margin-top:.9rem}
+.today .row{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.35rem}
+.fig{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;flex:1 1 7rem}
+.fig b{display:block;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:1.5rem;line-height:1.15}
+.fig small{color:var(--muted)}
+.moved{display:inline-flex;align-items:center;gap:.35rem;background:#ecfdf5;border:1px solid #10b981;
+  border-radius:999px;padding:.15rem .6rem;font-size:.8rem;margin:.2rem .2rem 0 0}
+.recap{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .6rem;
+  font-size:.8rem;margin:.2rem .2rem 0 0;background:var(--card);text-decoration:none;color:inherit}
+.today footer{margin-top:2rem}
+@media(max-width:480px){
+  .wrap{padding:1.25rem .9rem 3rem}
+  .today h1{font-size:1.4rem}
+  .next p.do{font-size:1.05rem}
+  small{font-size:.82rem}
+}
 CSS;
 
 function dash_shell(string $title, string $body): string
@@ -384,7 +410,8 @@ function render_subject(Store $store, array $subject): string
     $trail       = array_filter([h((string) ($subject['spec_code'] ?? '')),
                                  h((string) ($subject['tier'] ?? ''))], static fn($p) => $p !== '');
     $kicker      = '<a href="/">← All subjects</a>'
-                 . ($trail ? ' · ' . implode(' · ', $trail) : '');
+                 . ($trail ? ' · ' . implode(' · ', $trail) : '')
+                 . ' · <a href="/s/' . h($subject['slug']) . '/today">her page →</a>';
     $when        = h(gmdate('Y-m-d H:i'));
     $notes       = $subject['notes'] ? '<br>' . h($subject['notes']) : '';
     $subjectName = h($subject['name']);
@@ -428,6 +455,244 @@ function render_subject(Store $store, array $subject): string
 HTML;
 
     return dash_shell($subject['name'] . ' tracker', $body);
+}
+
+// ---- the student page ---------------------------------------------------
+//
+// Every other page in this service is the audit record: it opens with a red
+// day-count, a coverage percentage that two full sessions cannot visibly move,
+// the last paper's grade, and her habits narrated in the third person. That is
+// the right page for a parent reading backwards and the wrong one for a
+// 13-year-old asking "what do I do now".
+//
+// This page answers that question and nothing else. Everything on it is
+// already in the database; the work is deciding what to leave out.
+
+/** The first $n sentences of a string, so a tutor's paragraph fits on a card. */
+function today_first_sentences(string $text, int $n = 2): string
+{
+    $text = trim(preg_replace('/\s+/', ' ', $text) ?? '');
+    if ($text === '') {
+        return '';
+    }
+    $parts = preg_split('/(?<=[.!?])\s+/', $text) ?: [$text];
+    return trim(implode(' ', array_slice($parts, 0, $n)));
+}
+
+/** Foundation first, then the order the syllabus was seeded in. */
+function today_teach_order(array $a, array $b): int
+{
+    return [$a['tier'], (int) $a['sort_order']] <=> [$b['tier'], (int) $b['sort_order']];
+}
+
+function render_today(Store $store, array $subject): string
+{
+    $slug   = $subject['slug'];
+    $topics = $store->listTopics($slug);
+    $names  = [];
+    foreach ($topics as $t) {
+        $names[$t['ref']] = $t['name'];
+    }
+
+    // ---- next time -------------------------------------------------------
+    // The tutor already writes this at the end of every session, at the moment
+    // it knows most. Until now it was rendered in italic small print at the
+    // very bottom of the subject page, under sixty-four topic chips.
+    $sessions = array_values(array_filter(
+        $store->listSessions($slug, 10),
+        static fn($s) => empty($s['void_reason'])
+    ));
+    $last     = $sessions[0] ?? null;
+    $nextLine = $last ? today_first_sentences((string) ($last['next_steps'] ?? ''), 2) : '';
+
+    $gaps = array_values(array_filter($topics, static fn($t) => $t['status'] === 'gap'));
+    usort($gaps, 'today_teach_order');
+    $then = $gaps[0] ?? null;
+    if (!$then) {
+        // No gaps left: the next thing is the first topic not yet started, so
+        // the page never goes blank the way the review queue does.
+        $fresh = array_values(array_filter($topics, static fn($t) => $t['status'] === 'notstarted'));
+        usort($fresh, 'today_teach_order');
+        $then = $fresh[0] ?? null;
+    }
+
+    $thenHtml = '';
+    if ($then) {
+        $link = '';
+        foreach ($store->resourcesForTopic($slug, (string) $then['ref']) as $r) {
+            if ($r['ref'] === $then['ref'] && $r['url']) {
+                $link = ' · <a href="' . h((string) $r['url']) . '" rel="noopener noreferrer">'
+                    . h((string) $r['title']) . '</a>';
+                break;
+            }
+        }
+        $thenHtml = '<div class="then">Then: <a href="/s/' . h($slug) . '/t/'
+            . rawurlencode((string) $then['ref']) . '"><b class="mono">' . h((string) $then['ref'])
+            . '</b> ' . h((string) $then['name']) . '</a>' . $link . '</div>';
+    }
+
+    if ($nextLine === '' && !$then) {
+        $nextLine = 'Nothing planned yet — ask Claude for a session and it will start here.';
+    }
+
+    $nextHtml = '<div class="next"><p class="label">Next time</p>'
+        . ($nextLine !== '' ? '<p class="do">' . h($nextLine) . '</p>' : '')
+        . $thenHtml . '</div>';
+
+    // ---- last time and this week ----------------------------------------
+    $runs = array_values(array_filter(
+        $store->listPracticeRuns($slug),
+        static fn($r) => empty($r['void_reason'])
+    ));
+
+    $lastHtml = '';
+    if ($runs) {
+        $day     = practice_run_date($runs[0]);
+        $dayRuns = array_values(array_filter($runs, static fn($r) => practice_run_date($r) === $day));
+        $att     = array_sum(array_map(static fn($r) => (int) $r['attempted'], $dayRuns));
+        $right   = array_sum(array_map(static fn($r) => (int) $r['correct'], $dayRuns));
+        $retry   = array_sum(array_map(static fn($r) => (int) $r['correct_after_retry'], $dayRuns));
+
+        // What moved that day, from the sessions logged on it.
+        $moved = [];
+        foreach ($sessions as $s) {
+            if (substr((string) $s['date'], 0, 10) !== $day) {
+                continue;
+            }
+            foreach ($store->changesForSession((int) $s['id']) as $c) {
+                $from = STATUS_POINTS[$c['from_status'] ?? ''] ?? 0;
+                $to   = STATUS_POINTS[$c['to_status']] ?? 0;
+                if ($to > $from) {
+                    $moved[$c['ref']] = true;
+                }
+            }
+        }
+
+        $lastHtml = '<div class="card"><p class="label">Last time · ' . h($day) . '</p>'
+            . '<div class="row">'
+            . '<div class="fig"><b class="mono">' . $att . '</b><small>questions</small></div>'
+            . '<div class="fig"><b class="mono">' . $right . '</b><small>right first time</small></div>'
+            . ($retry > 0
+                ? '<div class="fig"><b class="mono">' . $retry . '</b><small>got there in the end</small></div>'
+                : '')
+            . '</div>';
+        if ($moved) {
+            $chips = '';
+            foreach (array_keys($moved) as $ref) {
+                $chips .= '<span class="moved">↑ <b class="mono">' . h((string) $ref) . '</b> '
+                    . h($names[$ref] ?? '') . '</span>';
+            }
+            $lastHtml .= '<div style="margin-top:.5rem">' . $chips . '</div>';
+        }
+        $lastHtml .= '</div>';
+    }
+
+    // This week, on the household's clock rather than UTC.
+    $monday    = local_week_monday();
+    $weekRuns  = array_values(array_filter($runs, static fn($r) => practice_run_date($r) >= $monday));
+    $weekAtt   = array_sum(array_map(static fn($r) => (int) $r['attempted'], $weekRuns));
+    $weekRight = array_sum(array_map(static fn($r) => (int) $r['correct'], $weekRuns));
+    $weekMoved = [];
+    foreach ($store->listChanges($slug, 200) as $c) {
+        if (substr((string) $c['changed_at'], 0, 10) < $monday) {
+            continue;
+        }
+        $from = STATUS_POINTS[$c['from_status'] ?? ''] ?? 0;
+        $to   = STATUS_POINTS[$c['to_status']] ?? 0;
+        if ($to > $from) {
+            $weekMoved[$c['ref']] = true;
+        }
+    }
+    $weekHtml = '<div class="card"><p class="label">This week</p><div class="row">'
+        . '<div class="fig"><b class="mono">' . $weekAtt . '</b><small>questions</small></div>'
+        . '<div class="fig"><b class="mono">' . $weekRight . '</b><small>right first time</small></div>'
+        . '<div class="fig"><b class="mono">' . count($weekMoved) . '</b><small>topics moved up</small></div>'
+        . '</div></div>';
+
+    // ---- personal bests --------------------------------------------------
+    // Her own record against her own, which is the one game-like element the
+    // evidence supports. No streak: nothing here counts consecutive days.
+    $bestHtml = '';
+    if ($runs) {
+        $best    = practice_stat_value($runs, 'correct', 'max');
+        $bestAcc = practice_stat_value(practice_window_runs($runs, 'last10'), 'accuracy', 'pooled');
+        $bits    = '';
+        if ($best !== null) {
+            $bits .= '<div class="fig"><b class="mono">' . (int) $best . '</b><small>most right in one go</small></div>';
+        }
+        if ($bestAcc !== null) {
+            $bits .= '<div class="fig"><b class="mono">' . round($bestAcc * 100) . '%</b><small>right first time, last 10</small></div>';
+        }
+        if ($bits !== '') {
+            $bestHtml = '<div class="card"><p class="label">Your best</p><div class="row">' . $bits . '</div></div>';
+        }
+    }
+
+    // ---- a quick recap ---------------------------------------------------
+    // The same topics the parent's page flags with "demote it to developing".
+    // Here they are four chips and an invitation.
+    $ageing = [];
+    foreach ($topics as $t) {
+        if ($t['status'] !== 'secure' && $t['status'] !== 'examready') {
+            continue;
+        }
+        $w = weeksSince($t['last_touched']);
+        if ($w !== null && $w >= 8) {
+            $ageing[] = $t;
+        }
+    }
+    $recapHtml = '';
+    if ($ageing) {
+        $chips = '';
+        foreach (array_slice($ageing, 0, 4) as $t) {
+            $chips .= '<a class="recap" href="/s/' . h($slug) . '/t/' . rawurlencode((string) $t['ref'])
+                . '"><b class="mono">' . h((string) $t['ref']) . '</b> ' . h((string) $t['name']) . '</a>';
+        }
+        $recapHtml = '<div class="card"><p class="label">Ready for a quick recap</p>'
+            . '<p><small>You had these before the summer. Two minutes each keeps them.</small></p>'
+            . $chips . '</div>';
+    }
+
+    // ---- her chart -------------------------------------------------------
+    // The first line panel of the subject's own board. On the Spanish subject
+    // page this sits behind a small link; the one thing known to bring her
+    // back should not be one more click away.
+    $chartHtml = '';
+    if ($runs) {
+        $config = practice_scoreboard_for($store, $slug);
+        foreach (($config['panels'] ?? []) as $panel) {
+            if (($panel['type'] ?? '') === 'line') {
+                $chartHtml = practice_render_panels($store, $subject, ['panels' => [$panel]], $runs);
+                break;
+            }
+        }
+    }
+
+    $name = h((string) $subject['name']);
+    $when = $subject['exam_date']
+        ? '<p class="when">Exam: ' . h(gmdate('D j M Y', (int) strtotime((string) $subject['exam_date']))) . '</p>'
+        : '';
+
+    $body = <<<HTML
+<div class="today">
+<header style="display:block;border-bottom:1px solid var(--line);padding-bottom:.7rem">
+  <p class="kicker">Today</p>
+  <h1>{$name}</h1>
+  {$when}
+</header>
+
+{$nextHtml}
+{$lastHtml}
+{$weekHtml}
+{$bestHtml}
+{$chartHtml}
+{$recapHtml}
+
+<footer><a href="/s/{$subject['slug']}">The full record →</a></footer>
+</div>
+HTML;
+
+    return dash_shell($subject['name'] . ' — today', $body);
 }
 
 // ---- detail pages -------------------------------------------------------

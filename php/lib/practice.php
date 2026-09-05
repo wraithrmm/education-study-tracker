@@ -557,6 +557,11 @@ function practice_line_svg(array $points, string $title, bool $labelPoints, bool
     // no record at all, and the gold would be meaningless.
     $best    = max($values);
     $hasBest = $best > min($values);
+    // On a percentage axis the ceiling is 100%, where a record can be equalled
+    // but never beaten. "100.0% TO BEAT" is then an impossible target sitting
+    // over her chart, and "best yet!" fires on every run that ties it. Mark it
+    // as held instead, and keep the congratulation for a record she moved.
+    $atCeiling = $percent && $best >= $maxValue;
     $bestY   = 192 - (min($best, $maxValue) / $maxValue) * 132;
     $bestAt  = $hasBest ? array_keys($values, $best, true) : [];
 
@@ -591,7 +596,8 @@ function practice_line_svg(array $points, string $title, bool $labelPoints, bool
             . '" stroke="#f5a623" stroke-width="1.5" stroke-dasharray="5 5"/>'
             . '<text x="566" y="' . practice_coord($bestY - 8) . '" text-anchor="end" font-size="12"'
             . ' font-weight="700" letter-spacing="1" fill="#b45309">'
-            . h($points[$bestAt[count($bestAt) - 1]]['text']) . ' TO BEAT</text>';
+            . h($points[$bestAt[count($bestAt) - 1]]['text'])
+            . ($atCeiling ? ' BEST' : ' TO BEAT') . '</text>';
     }
 
     $svg .= '<polyline points="' . implode(' ', $line) . '" fill="none" stroke="#7c3aed" stroke-width="3"'
@@ -630,7 +636,7 @@ function practice_line_svg(array $points, string $title, bool $labelPoints, bool
 
     // One margin note, in the page's own italic rather than a webfont, and
     // only when there is room for it.
-    if ($hasBest && !$dense) {
+    if ($hasBest && !$dense && !$atCeiling) {
         $bi   = $bestAt[count($bestAt) - 1];
         $side = $xs[$bi] > 300 ? -1 : 1;
         $svg .= '<text x="' . practice_coord($xs[$bi] + $side * 32) . '" y="'

@@ -1452,6 +1452,27 @@ function gradeFor(array $subject, float $score, float $max, string $tier): strin
 }
 
 /** Whole weeks since an ISO date, or null if never touched. */
+/**
+ * The household's clock. Stored timestamps stay UTC — that is right for an
+ * audit trail — but "today" and "this week" on a page have to agree with the
+ * clock on the wall, or a session at half past midnight in summer files itself
+ * under yesterday and a weekly count rolls over an hour late.
+ */
+const TRACKER_TZ = 'Europe/London';
+
+function local_today(?int $at = null): string
+{
+    $now = new DateTimeImmutable('@' . ($at ?? time()));
+    return $now->setTimezone(new DateTimeZone(TRACKER_TZ))->format('Y-m-d');
+}
+
+/** Monday of the local ISO week containing $date (defaults to today). */
+function local_week_monday(?string $date = null): string
+{
+    $d = new DateTimeImmutable(($date ?? local_today()) . ' 12:00:00', new DateTimeZone(TRACKER_TZ));
+    return $d->modify('-' . ((int) $d->format('N') - 1) . ' days')->format('Y-m-d');
+}
+
 function weeksSince(?string $iso): ?int
 {
     if (!$iso) {

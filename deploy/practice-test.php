@@ -529,6 +529,12 @@ if (!$UPDATE) {
     contains('and the same numbers appear as a table', $spanishHtml, 'Chart data');
     contains('the maths board draws its split bar', $mathsHtml, 'How questions went');
     contains('the maths accuracy line is fixed to a 0-100 scale', $mathsHtml, 'Right first time');
+    // A record that is already the top of the scale cannot be beaten. Saying
+    // "TO BEAT" over it sets her an impossible target, and "best yet!" then
+    // fires on every run that merely ties it.
+    contains('a record at the ceiling reads BEST, not TO BEAT', $mathsHtml, '>100.0% BEST</text>');
+    lacks('and a tie at the ceiling is not celebrated as a new record', $mathsHtml, 'best yet!');
+    contains('a record below the ceiling still says what to beat', $spanishHtml, '>56 TO BEAT</text>');
 }
 
 echo "\n";

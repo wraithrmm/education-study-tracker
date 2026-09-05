@@ -317,6 +317,18 @@ if (preg_match('#^/s/([^/]+)/practice$#', $path, $m)) {
     send_html(render_practice_board($store, $subject, $_GET));
 }
 
+// The student's page: one screen answering "what do I do now", fed entirely
+// from what the tutor has already logged. Read-only, like every other page —
+// writing still goes through the evidence-checked tools.
+if (preg_match('#^/s/([^/]+)/today$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    send_html(render_today($store, $subject));
+}
+
 // Drill-downs. Everything the tools can report, the page can now show: one
 // sitting question by question, one session and what it changed, and one
 // topic's whole history. A missing id falls back to the subject page rather

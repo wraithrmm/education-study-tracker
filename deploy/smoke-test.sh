@@ -40,6 +40,9 @@ pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 check() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (expected '$3', got '$2')"; fi; }
 contains() { if printf '%s' "$2" | grep -qF "$3"; then pass "$1"; else fail "$1 — missing '$3'"; fi; }
+# What a page must NOT say is as much a requirement as what it must: the
+# student page earns its place by leaving things out.
+lacks()    { if printf '%s' "$2" | grep -qF "$3"; then fail "$1 — found '$3'"; else pass "$1"; fi; }
 
 if [ "$REMOTE" = 1 ]; then
   BASE="${BASE:?set BASE for a remote run}"
@@ -154,6 +157,24 @@ code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/a/999999")"
 check "an unknown attempt id is a 404" "$code" "404"
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/t/NOPE")"
 check "an unknown topic ref is a 404" "$code" "404"
+
+# The student page. What it leaves out is the point, so the absences are
+# asserted as firmly as the contents.
+echo
+echo "== the student page =="
+page="$("${CURL[@]}" "$BASE/s/maths/today")"
+contains "the student page opens with what to do next" "$page" "Next time"
+contains "and names the topic that follows" "$page" "Then:"
+contains "and shows what moved this week" "$page" "This week"
+contains "and offers an old topic for a recap" "$page" "quick recap"
+contains "and links back to the full record" "$page" "The full record"
+lacks "and never counts down to the exam" "$page" "days to the exam"
+lacks "and shows her no grade" "$page" "grade"
+lacks "and no coverage percentage" "$page" "Spec conquered"
+lacks "and never says demote" "$page" "demote"
+contains "the parent's dashboard links to her page" "$body" "/today"
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/no-such-subject/today")"
+check "an unknown subject's today page is a 404" "$code" "404"
 
 echo
 echo "== discovery =="
