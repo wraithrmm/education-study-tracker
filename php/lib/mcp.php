@@ -678,13 +678,20 @@ function mcp_tools(): array
         ],
         [
             'name'  => 'tracker_create_subject',
-            'title' => 'Create a subject, or extend its syllabus',
+            'title' => 'Create a subject, extend its syllabus, or correct its details',
             'description' =>
-                "Sets up a subject with its strands, grade boundaries and full topic list — the syllabus.\n\n"
-                . "USE WHEN: asked to start tracking a new subject, or to add topics to an existing one.\n\n"
-                . "Re-running it for an existing subject updates the metadata and adds new topics, but NEVER resets the status of a topic that already exists — "
-                . "progress cannot be lost by re-seeding, so extending a syllabus is safe.\n\n"
-                . "Args: slug, name, strands (key to display name), topics[] of { ref, name, strand, tier?, status?, watch? }. "
+                "Sets up a subject with its strands, grade boundaries and full topic list — the syllabus — "
+                . "and is also how one field of an existing subject gets corrected.\n\n"
+                . "USE WHEN: asked to start tracking a new subject, to add topics to an existing one, or to "
+                . "fix a subject's details — an exam date for the wrong year, a spec code, a note.\n\n"
+                . "Creating needs slug, name, strands and topics. Amending needs only slug and the fields you "
+                . "are changing: anything you leave out keeps the value it has, so correcting an exam date is "
+                . "one call and does not disturb a hundred topics. Re-running it for an existing subject adds "
+                . "new topics but NEVER resets the status of one that already exists — progress cannot be lost "
+                . "by re-seeding, so extending a syllabus is safe.\n\n"
+                . "DO NOT re-send a whole syllabus to change one field, and do not send topics at all unless "
+                . "you mean to add or update them.\n\n"
+                . "Args to create: slug, name, strands (key to display name), topics[] of { ref, name, strand, tier?, status?, watch? }. "
                 . 'Optional spec_code, tier, exam_date, notes, boundary_max (default 240), boundaries (tier to [[grade, mark], …]).',
             'inputSchema' => [
                 'type'       => 'object',
@@ -722,7 +729,7 @@ function mcp_tools(): array
                         ],
                     ],
                 ],
-                'required'   => ['slug', 'name', 'strands', 'topics'],
+                'required'   => ['slug'],
             ],
             'annotations' => $write,
         ],
@@ -2256,33 +2263,51 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
                 throw new McpError('slug must use lowercase letters, numbers and hyphens only.');
             }
-            $name = mcp_str($a, 'name', true, 1, 120);
-            if (!is_array($a['strands'] ?? null) || !$a['strands']) {
-                throw new McpError('strands must be an object of strand key to display name.');
+            $existing = $store->getSubject($slug);
+
+            // Creating needs the whole picture. Amending one that exists does
+            // not: a wrong exam date should be one call, not a re-send of a
+            // hundred topics that only risks disturbing them.
+            if (!$existing) {
+                if (!is_array($a['strands'] ?? null) || !$a['strands']) {
+                    throw new McpError('strands must be an object of strand key to display name.');
+                }
+                if (!is_array($a['topics'] ?? null) || !$a['topics']) {
+                    throw new McpError('topics must be a non-empty array.');
+                }
             }
-            if (!is_array($a['topics'] ?? null) || !$a['topics']) {
-                throw new McpError('topics must be a non-empty array.');
-            }
-            if (count($a['topics']) > 400) {
+            $name = mcp_str($a, 'name', !$existing, 1, 120);
+            if (is_array($a['topics'] ?? null) && count($a['topics']) > 400) {
                 throw new McpError('topics may contain at most 400 entries.');
             }
+            $before = $existing ? count($store->listTopics($slug)) : 0;
 
-            $existing = $store->getSubject($slug);
-            $before   = $existing ? count($store->listTopics($slug)) : 0;
+            // Only the keys actually supplied are passed on, so everything
+            // else keeps the value it already had.
+            $fields = ['slug' => $slug];
+            if ($name !== null) {
+                $fields['name'] = $name;
+            }
+            foreach (['spec_code' => 60, 'tier' => 30, 'notes' => 2000] as $key => $max) {
+                if (array_key_exists($key, $a)) {
+                    $fields[$key] = mcp_str($a, $key, false, 0, $max);
+                }
+            }
+            if (array_key_exists('exam_date', $a)) {
+                $fields['exam_date'] = mcp_date($a, 'exam_date');
+            }
+            if (is_array($a['strands'] ?? null)) {
+                $fields['strands'] = $a['strands'];
+            }
+            if (is_array($a['boundaries'] ?? null)) {
+                $fields['boundaries'] = $a['boundaries'];
+            }
+            if (array_key_exists('boundary_max', $a)) {
+                $fields['boundary_max'] = (int) mcp_num($a, 'boundary_max', false, 1);
+            }
+            $store->upsertSubject($fields);
 
-            $store->upsertSubject([
-                'slug'         => $slug,
-                'name'         => $name,
-                'spec_code'    => mcp_str($a, 'spec_code', false, 0, 60),
-                'tier'         => mcp_str($a, 'tier', false, 0, 30),
-                'exam_date'    => mcp_date($a, 'exam_date'),
-                'strands'      => $a['strands'],
-                'boundaries'   => is_array($a['boundaries'] ?? null) ? $a['boundaries'] : [],
-                'boundary_max' => (int) mcp_num($a, 'boundary_max', false, 1, null, 240),
-                'notes'        => mcp_str($a, 'notes', false, 0, 2000),
-            ]);
-
-            foreach (array_values($a['topics']) as $i => $t) {
+            foreach (array_values($a['topics'] ?? []) as $i => $t) {
                 if (!is_array($t)) {
                     throw new McpError('each topic must be an object.');
                 }
@@ -2298,10 +2323,24 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 ]);
             }
 
-            $after = count($store->listTopics($slug));
-            return mcp_text($existing
-                ? "Updated $name. Topics: $before → $after (" . ($after - $before) . ' added; existing statuses untouched).'
-                : "Created $name with $after topics. Dashboard: /s/$slug");
+            $after   = count($store->listTopics($slug));
+            $subject = $store->getSubject($slug);
+            if (!$existing) {
+                return mcp_text("Created {$subject['name']} with $after topics. Dashboard: /s/$slug");
+            }
+            $line = "Updated {$subject['name']}.";
+            if ($after !== $before) {
+                $line .= " Topics: $before → $after (" . ($after - $before)
+                    . ' added; existing statuses untouched).';
+            } elseif (!isset($a['topics'])) {
+                $line .= " No topics were sent, so all $after are untouched.";
+            } else {
+                $line .= " Topics: $after, all already present and untouched.";
+            }
+            if (array_key_exists('exam_date', $a)) {
+                $line .= ' Exam date is now ' . ($subject['exam_date'] ?? 'unset') . '.';
+            }
+            return mcp_text($line);
         }
 
         case 'tracker_log_practice': {

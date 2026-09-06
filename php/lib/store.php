@@ -951,35 +951,59 @@ final class Store
         ];
     }
 
+    /**
+     * Create a subject, or amend the fields of one that exists.
+     *
+     * A key that is absent is left as it was; a key that is present is
+     * written, empty or not. That is what lets one field be corrected — an
+     * exam date that turned out to be for the wrong year — without re-sending
+     * a hundred topics and a strand map just to stand still. The merge is done
+     * here rather than in SQL because ON CONFLICT sees the defaulted value in
+     * `excluded`, not the absent one, so COALESCE there silently overwrites.
+     */
     public function upsertSubject(array $s): array
     {
+        $slug = $s['slug'];
+        $old  = $this->one('SELECT * FROM subjects WHERE slug = ?', [$slug]);
+
+        $keep = static fn(string $key, mixed $fallback): mixed =>
+            array_key_exists($key, $s) && $s[$key] !== null ? $s[$key] : $fallback;
+
+        // JSON_FORCE_OBJECT keeps an empty map as {} rather than [], which is
+        // what the Node version wrote and what hydrateSubject expects.
+        $json = static fn(mixed $v): string => json_encode((object) ($v ?? []));
+
+        $row = [
+            ':slug'         => $slug,
+            ':name'         => $keep('name', $old['name'] ?? $slug),
+            ':spec_code'    => $keep('spec_code', $old['spec_code'] ?? null),
+            ':tier'         => $keep('tier', $old['tier'] ?? null),
+            ':exam_date'    => $keep('exam_date', $old['exam_date'] ?? null),
+            ':strands'      => array_key_exists('strands', $s)
+                ? $json($s['strands']) : ($old['strands'] ?? '{}'),
+            ':boundaries'   => array_key_exists('boundaries', $s)
+                ? $json($s['boundaries']) : ($old['boundaries'] ?? '{}'),
+            ':boundary_max' => $keep('boundary_max', $old['boundary_max'] ?? 240),
+            ':notes'        => $keep('notes', $old['notes'] ?? null),
+        ];
+
         $st = $this->db->prepare(
-            'INSERT INTO subjects (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes)
-             VALUES (:slug, :name, :spec_code, :tier, :exam_date, :strands, :boundaries, :boundary_max, :notes)
+            'INSERT INTO subjects
+               (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes)
+             VALUES (:slug, :name, :spec_code, :tier, :exam_date, :strands, :boundaries,
+                     :boundary_max, :notes)
              ON CONFLICT(slug) DO UPDATE SET
                name = excluded.name,
-               spec_code = COALESCE(excluded.spec_code, subjects.spec_code),
-               tier = COALESCE(excluded.tier, subjects.tier),
-               exam_date = COALESCE(excluded.exam_date, subjects.exam_date),
+               spec_code = excluded.spec_code,
+               tier = excluded.tier,
+               exam_date = excluded.exam_date,
                strands = excluded.strands,
                boundaries = excluded.boundaries,
                boundary_max = excluded.boundary_max,
-               notes = COALESCE(excluded.notes, subjects.notes)'
+               notes = excluded.notes'
         );
-        $st->execute([
-            ':slug'         => $s['slug'],
-            ':name'         => $s['name'],
-            ':spec_code'    => $s['spec_code'] ?? null,
-            ':tier'         => $s['tier'] ?? null,
-            ':exam_date'    => $s['exam_date'] ?? null,
-            // JSON_FORCE_OBJECT keeps an empty map as {} rather than [], which
-            // is what the Node version wrote and what hydrateSubject expects.
-            ':strands'      => json_encode((object) ($s['strands'] ?? [])),
-            ':boundaries'   => json_encode((object) ($s['boundaries'] ?? [])),
-            ':boundary_max' => $s['boundary_max'] ?? 240,
-            ':notes'        => $s['notes'] ?? null,
-        ]);
-        return $this->getSubject($s['slug']);
+        $st->execute($row);
+        return $this->getSubject($slug);
     }
 
     // ---- topics ---------------------------------------------------------

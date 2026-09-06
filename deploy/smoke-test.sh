@@ -572,6 +572,22 @@ contains "tracker_create_subject creates a subject" "$body" "Created Smoke Scien
 body="$(call tracker_create_subject '{"slug":"smoke-science","name":"Smoke Science","strands":{"B":"Biology"},"topics":[{"ref":"B1","name":"Cells","strand":"B"},{"ref":"B2","name":"Enzymes","strand":"B"}]}')"
 contains "re-running it adds topics without resetting progress" "$body" "existing statuses untouched"
 
+# One field, one call. Correcting an exam date must not mean re-sending a
+# syllabus — the risk of disturbing it is the whole reason this path exists.
+body="$(call tracker_create_subject '{"slug":"smoke-science","exam_date":"2028-06-01","notes":"Sat in the 2028 series, not 2027. Exact date TO CONFIRM."}')"
+contains "a subject's exam date can be corrected on its own" "$body" "Exam date is now 2028-06-01"
+contains "and no topics need to be sent to do it" "$body" "No topics were sent"
+body="$(call tracker_list_subjects '{}')"
+contains "the corrected date is what reads back" "$body" "2028-06-01"
+body="$(call tracker_get_state '{"subject":"smoke-science"}')"
+contains "and the syllabus is untouched by the correction" "$body" "Enzymes"
+# The strand display names only surface in the export, which groups by them.
+body="$(call tracker_export_markdown '{"subject":"smoke-science"}')"
+contains "and its strand names survive too" "$body" "## Biology"
+
+body="$(call tracker_create_subject '{"slug":"smoke-nothing","name":"Nothing"}')"
+contains "creating a subject still needs its strands" "$body" "strands must be"
+
 body="$(call tracker_get_state '{"subject":"nonexistent"}')"
 contains "an unknown subject is reported helpfully" "$body" "Known subjects"
 
