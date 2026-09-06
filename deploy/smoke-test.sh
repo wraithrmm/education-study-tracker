@@ -714,6 +714,42 @@ if [ "$REMOTE" = 0 ]; then
   check "the migration applies to an empty database" "$fresh" "4"
 fi
 
+if [ "$REMOTE" = 0 ]; then
+  # The board on the page, judged from the same week the tools were checked
+  # against. Assertions are on the aria-label text, not on colour: colour is
+  # never the only cue, so the words are what has to be right.
+  code="$("${CURL[@]}" -o "$WORK/index.html" -w '%{http_code}' "$BASE/")"
+  check "the index page renders" "$code" "200"
+  page="$(cat "$WORK/index.html")"
+  contains "the timetable is on the index page" "$page" 'class="tt"'
+  contains "and it leads the page" "$page" "<h1>This week</h1>"
+  contains "with the subjects list still below it" "$page" "<h2>Subjects</h2>"
+  contains "and the date it thinks it is, in monospace" "$page" 'class="tt-stamp mono"'
+
+  for d in a b c; do
+    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/?design=$d")"
+    check "?design=$d renders" "$code" "200"
+  done
+
+  code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
+  check "a past week renders on its own page" "$code" "200"
+  week="$(cat "$WORK/week.html")"
+  contains "the done block says so in words" "$week" 'aria-label="Maths — new topic 09:45 — done"'
+  contains "the missed block says so in words" "$week" 'aria-label="English Literature — set text 11:15 — missed"'
+  contains "a ticked movement block is done" "$week" 'aria-label="Move — walk, bike or dance 09:00 — done"'
+  contains "a break is a rule, not a chip" "$week" 'class="brk"'
+  contains "the done block links to the work that made it done" "$week" '/session/'
+  contains "and the week totals are spelled out" "$week" "blocks so far"
+
+  # A missed block must not offer a way to log work: the page is public and
+  # unauthenticated, so there is nothing safe for it to link to.
+  missed_link="$(printf '%s' "$week" | grep -o '<a class="blk s-missed"' | wc -l | tr -d ' ')"
+  check "a missed block links nowhere" "$missed_link" "0"
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
+  check "a malformed week is a 404" "$code" "404"
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
   echo "SMOKE PASS"

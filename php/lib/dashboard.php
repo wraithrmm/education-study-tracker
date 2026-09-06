@@ -117,6 +117,77 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .filters input,.filters select,.filters button{font:inherit;font-size:.85rem;padding:.3rem .5rem;
   border:1px solid var(--line);border-radius:6px;background:#fff}
 .filters button{cursor:pointer;padding:.35rem .8rem}
+/* ---- the weekly timetable ------------------------------------------------
+   One status vocabulary, three layouts. Shape differs per status as well as
+   colour, so the board is readable without colour vision; every mark carries
+   an aria-label saying the block and its status in words. */
+.tt{margin:1.5rem 0 0}
+.tt-head{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:baseline;justify-content:space-between}
+.tt-head h2{margin:0;font-size:1.15rem}
+.tt-stamp{font-size:.78rem;color:var(--muted);margin:0}
+.tt .mk{flex:none;display:block}
+.tt .markwrap{display:flex;flex-direction:column;align-items:center;gap:0;flex:none;line-height:1}
+.tt .shortcap{font-size:.56rem;font-weight:700;letter-spacing:.04em;color:#b45309;
+  font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
+.mk.pulse{animation:ttpulse 2.2s ease-in-out infinite;transform-origin:center}
+@keyframes ttpulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.mk.pulse{animation:none}}
+.tt-ribbon{display:block;font-size:.7rem;line-height:1.35;padding:.25rem .45rem;border-radius:5px;
+  background:#f5f5f4;border:1px solid var(--line);color:#57534e;margin:0 0 .35rem}
+.tt-ribbon.req{background:transparent;border-style:dashed}
+.tt-ribbon b{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
+.tt-quiet{background:var(--card);border:1px dashed var(--line);border-radius:10px;
+  padding:.8rem 1rem;font-size:.9rem;color:#57534e;margin:.5rem 0 0}
+.tt-total{margin:.9rem 0 0;padding-top:.6rem;border-top:1px solid var(--line);
+  font-size:.78rem;color:#57534e}
+.tt-total .sep{color:#a8a29e;padding:0 .25rem}
+.tt-total b{color:var(--ink)}
+.tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.7rem;color:var(--muted)}
+.tt-legend span{display:flex;align-items:center;gap:.25rem}
+
+/* Design A — the week strip. Five columns on a laptop; on a phone one
+   snap-scrolling strip that opens on today. */
+.wk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-top:.5rem;
+  align-items:start}
+.wkcol{background:var(--card);border:1px solid var(--line);border-radius:9px;
+  padding:.45rem .45rem .5rem;position:relative}
+.wkcol.is-today{border-color:#292524;box-shadow:0 1px 0 #292524,3px 4px 10px -6px rgba(28,25,23,.55)}
+.wkcol.is-past{background:#fdfdfc}
+.daytab{position:absolute;top:-.62rem;left:.5rem;font-size:.58rem;font-weight:700;letter-spacing:.14em;
+  font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;color:#b91c1c;background:#fcfcf9;
+  border:1.5px solid #dc2626;border-radius:4px;padding:0 .3rem;transform:rotate(-1.6deg)}
+.dhead{display:flex;align-items:baseline;justify-content:space-between;gap:.3rem;
+  padding:.15rem .15rem .35rem;border-bottom:1px solid #ededea;margin-bottom:.15rem}
+.dhead .dn{font-weight:700;font-size:.82rem}
+.dhead .dd{font-size:.66rem;color:var(--muted)}
+.blk{display:flex;align-items:center;gap:.4rem;padding:.28rem .3rem .28rem .45rem;
+  border-left:3px solid var(--acc,#d6d3d1);border-radius:0 4px 4px 0;margin:.14rem 0;
+  text-decoration:none;color:inherit}
+.blk .bt{font-size:.62rem;color:var(--muted);flex:none;width:2.15rem;
+  font-variant-numeric:tabular-nums}
+.blk .bl{flex:1;min-width:0;font-size:.72rem;line-height:1.22;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.blk.s-missed{background:rgba(220,38,38,.055)}
+.blk.s-now{background:rgba(124,58,237,.07);box-shadow:inset 0 0 0 1px rgba(124,58,237,.28);
+  border-radius:4px}
+.blk.s-done .bl,.blk.s-excused .bl{color:#57534e}
+.blk.s-excused .bl{text-decoration:line-through;text-decoration-color:#a8a29e}
+.blk.s-upcoming,.blk.s-pending{opacity:.66}
+a.blk:hover{background:#faf9f5}
+.brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
+.tt-extras{margin:.3rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
+  font-size:.66rem;color:#57534e}
+.tt-extras b{display:block;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted)}
+.tt-extras div{display:flex;gap:.3rem;align-items:center;margin-top:.15rem}
+.tt-extras a{color:inherit}
+/* Phone first in behaviour, if not in source order: below 40rem the five
+   columns become one strip, and the page scrolls it to today. */
+@media (max-width:40rem){
+  .wk{display:flex;align-items:flex-start;overflow-x:auto;gap:.5rem;padding:.7rem 0 .5rem;
+    scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .wkcol{flex:0 0 78%;scroll-snap-align:center}
+}
 CSS;
 
 function dash_shell(string $title, string $body): string
@@ -129,10 +200,374 @@ function dash_shell(string $title, string $body): string
         . "<body><div class=\"wrap\">$body</div></body></html>";
 }
 
-function render_index(Store $store): string
+// ---- the weekly timetable ------------------------------------------------
+//
+// One judge_week() call, one status vocabulary, three layouts. Only the markup
+// differs between designs, so a status can never mean one thing on design A
+// and something else on design B.
+
+/**
+ * Accent hue per subject. The five tracked subjects get chosen hues that stay
+ * clear of the semantic status colours — emerald, amber and red mean done,
+ * short and missed, and a subject that borrowed one of them would read as a
+ * status. Anything added later gets a stable hue off its slug.
+ */
+const SUBJECT_ACCENT = [
+    'maths'              => '#7c3aed',
+    'english-literature' => '#0f766e',
+    'english-language'   => '#1d4ed8',
+    'computer-science'   => '#4d7c0f',
+    'spanish'            => '#a21caf',
+];
+
+/**
+ * Slug to the name a person would say. "GCSE " is dropped because the board
+ * has no room for it and every subject on it is a GCSE.
+ *
+ * @return array<string,string>
+ */
+function tt_subject_names(Store $store): array
+{
+    $out = [];
+    foreach ($store->listSubjects() as $s) {
+        $out[$s['slug']] = preg_replace('/^GCSE\s+/i', '', (string) $s['name']);
+    }
+    return $out;
+}
+
+function tt_accent(array $subjects): string
+{
+    if (count($subjects) !== 1) {
+        return '#a8a29e';
+    }
+    $slug = $subjects[0];
+    if (isset(SUBJECT_ACCENT[$slug])) {
+        return SUBJECT_ACCENT[$slug];
+    }
+    return 'hsl(' . (crc32($slug) % 360) . ' 45% 40%)';
+}
+
+/** Which design this request renders. ?design= wins, for one request only. */
+function tt_design(Store $store, array $query): string
+{
+    $d = strtolower((string) ($query['design'] ?? ''));
+    if (in_array($d, ['a', 'b', 'c'], true)) {
+        return $d;
+    }
+    $stored = strtolower((string) ($store->meta('timetable_design') ?? 'a'));
+    return in_array($stored, ['a', 'b', 'c'], true) ? $stored : 'a';
+}
+
+/**
+ * A status mark. Shape carries the status as well as colour, and the
+ * aria-label says it in words, so neither colour vision nor the legend is
+ * needed to read the board.
+ */
+function tt_mark(array $b): string
+{
+    $name = $b['label'] . ' ' . $b['start'];
+    $svg  = static function (string $inner, string $label, string $cls = ''): string {
+        return '<svg class="mk' . ($cls ? ' ' . $cls : '') . '" width="16" height="16" '
+            . 'viewBox="0 0 18 18" role="img" aria-label="' . h($label) . '">' . $inner . '</svg>';
+    };
+    $wrap = static fn(string $inner): string => '<span class="markwrap">' . $inner . '</span>';
+
+    switch ($b['status']) {
+        case 'done':
+            if (!empty($b['short'])) {
+                return $wrap($svg(
+                    '<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#d97706" '
+                    . 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+                    "$name — done, but short: {$b['minutes']} minutes of {$b['length']}"
+                ) . '<span class="shortcap">short</span>');
+            }
+            return $wrap($svg(
+                '<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#059669" '
+                . 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+                "$name — done"
+            ));
+        case 'now':
+            return $wrap($svg(
+                '<circle cx="9" cy="9" r="6.3" fill="none" stroke="' . h($b['accent'])
+                . '" stroke-width="2.2"/><circle cx="9" cy="9" r="2" fill="' . h($b['accent']) . '"/>',
+                "$name — happening now, ends {$b['end']}", 'pulse'
+            ));
+        case 'pending':
+            return $wrap($svg(
+                '<circle cx="9" cy="9" r="6.3" fill="none" stroke="#a8a29e" stroke-width="1.5"/>',
+                "$name — later today, nothing logged yet"
+            ));
+        case 'missed':
+            return $wrap($svg(
+                '<g transform="rotate(-2 9 9)">'
+                . '<path d="M4.1 4.5 13.9 13.7" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/>'
+                . '<path d="M13.7 4.3 4.3 13.9" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/>'
+                . '</g>',
+                "$name — missed"
+            ));
+        case 'excused':
+            return $wrap($svg(
+                '<path d="M3.2 9.2 14.8 8.8" stroke="#a8a29e" stroke-width="2.2" stroke-linecap="round"/>',
+                "$name — excused: " . ($b['reason'] ?? 'no reason given')
+            ));
+        case 'day_off':
+            return $wrap($svg(
+                '<path d="M4.4 9 13.6 9" stroke="#d6d3d1" stroke-width="2" stroke-linecap="round"/>',
+                "$name — day off"
+            ));
+        case 'upcoming':
+            return $wrap($svg(
+                '<circle cx="9" cy="9" r="2.2" fill="#d6d3d1"/>', "$name — still to come"
+            ));
+        default:
+            return '';
+    }
+}
+
+function tt_extra_mark(): string
+{
+    return '<svg class="mk" width="16" height="16" viewBox="0 0 18 18" role="img" '
+        . 'aria-label="extra work, outside the timetable">'
+        . '<circle cx="9" cy="9" r="6.3" fill="none" stroke="#059669" stroke-width="1.4"/>'
+        . '<path d="M9 5.6 9 12.4M5.6 9 12.4 9" stroke="#059669" stroke-width="1.6" '
+        . 'stroke-linecap="round"/></svg>';
+}
+
+/** A day off, labelled. Approved is solid; merely requested is outlined. */
+function tt_ribbon(?array $off): string
+{
+    if (!$off || $off['status'] === 'declined') {
+        return '';
+    }
+    $approved = $off['status'] === 'approved';
+    $text     = $approved
+        ? $off['reason']
+        : $off['reason'] . ' — awaiting Dad';
+    return '<p class="tt-ribbon' . ($approved ? '' : ' req') . '" title="'
+        . h(($approved ? 'Day off: ' : 'Day off requested: ') . $text) . '"><b>'
+        . ($approved ? 'Day off' : 'Requested') . '</b>' . h($text) . '</p>';
+}
+
+/**
+ * Where a mark points. A done block links to the work that made it done; a
+ * missed one links nowhere. The page is public and unauthenticated, so it
+ * must never offer "log a session" — that would be an invitation to anyone.
+ */
+function tt_evidence_href(array $ev, ?string $subject): ?string
+{
+    if ($subject === null || !isset($ev['type'])) {
+        return null;
+    }
+    return match ($ev['type']) {
+        'session'  => '/s/' . rawurlencode($subject) . '/session/' . (int) $ev['id'],
+        'attempt'  => '/s/' . rawurlencode($subject) . '/a/' . (int) $ev['id'],
+        'practice' => '/s/' . rawurlencode($subject) . '/practice',
+        default    => null,
+    };
+}
+
+/** The one line under the board. Blocks done, blocks left, hours by subject. */
+function tt_total_line(array $w, array $names): string
+{
+    $c     = $w['counts'];
+    $soFar = $c['done'] + $c['missed'] + $c['excused'] + $c['now'] + $c['pending'];
+    $ahead = $c['upcoming'] + $c['day_off'];
+    $parts = ['<b>this week</b>', $c['done'] . ' of ' . $soFar . ' blocks so far'];
+    if ($ahead) {
+        $parts[] = $ahead . ' still to come';
+    }
+    foreach ($w['hours_by_subject'] as $slug => $hours) {
+        $parts[] = h($names[$slug] ?? $slug) . ' ' . number_format($hours, 1) . 'h';
+    }
+    return '<p class="tt-total mono">' . implode('<span class="sep">·</span>', $parts) . '</p>';
+}
+
+function tt_legend(): string
+{
+    $rows = [
+        ['done', 'done'], ['short', ''], ['now', 'now'], ['pending', 'pending'],
+        ['missed', 'missed'], ['excused', 'excused'], ['upcoming', 'to come'],
+    ];
+    $out = '<p class="tt-legend">';
+    foreach ($rows as [$status, $text]) {
+        $b = ['status' => $status === 'short' ? 'done' : $status, 'short' => $status === 'short',
+              'label' => $text ?: 'short', 'start' => '', 'end' => '', 'accent' => '#7c3aed',
+              'minutes' => 0, 'length' => 0, 'reason' => null];
+        $out .= '<span>' . tt_mark($b) . h($text) . '</span>';
+    }
+    return $out . '<span>' . tt_extra_mark() . 'extra</span></p>';
+}
+
+/**
+ * Design A — the week strip.
+ *
+ * Five columns of thin chips, today's lifted off the paper under a red-pencil
+ * tab. The parent's question is comparative across five days, so a vertical
+ * run of marks answers it before a word is read.
+ */
+function tt_design_a(array $w, array $names): string
+{
+    $out = '<div class="wk">';
+    foreach ($w['days'] as $day) {
+        $judged = array_values(array_filter(
+            $day['blocks'], static fn(array $b): bool => $b['status'] !== 'n/a'
+        ));
+        if (!$judged && !$day['extras']) {
+            continue;   // Saturday and Sunday, until the timetable has blocks there.
+        }
+        $out .= '<div class="wkcol' . ($day['is_today'] ? ' is-today' : '')
+            . ($day['date'] < tt_today() ? ' is-past' : '') . '">';
+        if ($day['is_today']) {
+            $out .= '<span class="daytab">TODAY</span>';
+        }
+        $out .= '<p class="dhead"><span class="dn">' . substr($day['day_name'], 0, 3) . '</span>'
+            . '<span class="dd mono">' . h(tt_short_date($day['date'])) . '</span></p>'
+            . tt_ribbon($day['day_off']);
+
+        foreach ($day['blocks'] as $b) {
+            if ($b['status'] === 'n/a') {
+                $out .= '<div class="brk" role="separator" aria-label="'
+                    . h($b['label'] . ' ' . $b['start'] . '–' . $b['end']) . '"></div>';
+                continue;
+            }
+            $b['accent'] = tt_accent($b['subjects']);
+            $href = null;
+            foreach ($b['evidence'] as $ev) {
+                $href = tt_evidence_href($ev, $b['subject']);
+            }
+            $tag   = $href ? 'a' : 'div';
+            $attrs = 'class="blk s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
+            if ($href) {
+                $attrs .= ' href="' . h($href) . '"';
+            }
+            if ($b['status'] === 'excused' && $b['reason']) {
+                $attrs .= ' title="' . h('Excused: ' . $b['reason']) . '"';
+            }
+            $out .= "<$tag $attrs><span class=\"bt mono\">" . h($b['start']) . '</span>'
+                . '<span class="bl">' . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
+        }
+
+        if ($day['extras']) {
+            $out .= '<div class="tt-extras"><b>extra</b>';
+            foreach ($day['extras'] as $e) {
+                $href = tt_evidence_href($e, $e['subject']);
+                $text = h(($names[$e['subject']] ?? $e['subject']) . ' — ' . $e['label']);
+                $out .= '<div>' . tt_extra_mark()
+                    . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
+            }
+            $out .= '</div>';
+        }
+        $out .= '</div>';
+    }
+    return $out . '</div>';
+}
+
+/** '7 Sep', for a column head. */
+function tt_short_date(string $date): string
+{
+    return (new DateTimeImmutable($date, tt_zone()))->format('j M');
+}
+
+/**
+ * The whole section: heading, the chosen design, the totals line and the
+ * legend. `$week` is any date inside the week to render.
+ */
+function render_timetable_section(Store $store, string $dateInWeek, string $design, bool $isThisWeek): string
+{
+    $version = $store->timetableVersionOn($dateInWeek);
+    if (!$version) {
+        return '';   // No timetable set yet: show nothing rather than an empty grid.
+    }
+    $w   = $store->judgeWeek($dateInWeek);
+    $now = tt_now();
+
+    $names = tt_subject_names($store);
+    $body  = '<section class="tt" aria-label="Weekly timetable">';
+
+    // Saturday and Sunday have no blocks, so say what is next instead of
+    // rendering an empty board.
+    if ($isThisWeek && $w['days'][(int) $now->format('N') - 1]['blocks'] === []) {
+        $body .= '<p class="tt-quiet">No blocks today — <b>Monday 09:00</b> next.</p>';
+    }
+
+    // Designs B and C land next; until then the switch resolves to A, so
+    // ?design= is already live and the stored setting already means something.
+    $body .= match ($design) {
+        default => tt_design_a($w, $names),
+    };
+
+    $body .= tt_total_line($w, $names) . tt_legend();
+    if ($isThisWeek) {
+        $body .= '<p><small><a href="/week/' . h($w['week']) . '">This week as its own page</a>'
+            . ' · <a href="/week/' . h(tt_iso_week(tt_add_days($w['monday'], -7)))
+            . '">last week</a></small></p>';
+    }
+    // Enhancement only: without it the strip simply starts on Monday, which
+    // is correct, just not where she is.
+    if ($isThisWeek) {
+        $body .= '<script>(function(){var s=document.currentScript.previousElementSibling;'
+            . 'while(s&&!s.classList.contains("wk"))s=s.previousElementSibling;'
+            . 'if(!s)return;var t=s.querySelector(".wkcol.is-today");'
+            . 'if(t&&s.scrollWidth>s.clientWidth)s.scrollLeft=t.offsetLeft-s.offsetLeft-8;})();</script>';
+    }
+    return $body . '</section>';
+}
+
+/**
+ * The date the page thinks it is, for the page header. `$monday` is only
+ * needed for a week that is not this one — asking for it unconditionally
+ * would mean judging the week twice on the busiest page on the site.
+ */
+function tt_stamp(?string $monday, bool $isThisWeek): string
+{
+    if ($isThisWeek) {
+        $now = tt_now();
+        return $now->format('l j F Y') . ' · ' . $now->format('H:i') . ' · Europe/London';
+    }
+    return tt_pretty($monday) . ' to ' . tt_pretty(tt_add_days($monday, 6));
+}
+
+/** /week/{iso} — the same component, for a week that is not this one. */
+function render_week_page(Store $store, string $iso, array $query): string
+{
+    $monday = tt_week_monday($iso);
+    if ($monday === null) {
+        return dash_shell('Study trackers', '<header><div><p class="kicker">Study tracker</p>'
+            . '<h1>Not a week</h1></div></header><p>Weeks look like <code>2026-W37</code>.</p>'
+            . '<p><a href="/">Back to the subjects</a></p>');
+    }
+    $isThisWeek = $monday === tt_monday(tt_today());
+    $section    = render_timetable_section($store, $monday, tt_design($store, $query), $isThisWeek);
+    if ($section === '') {
+        $section = '<p><small>No timetable was in force that week.</small></p>';
+    }
+    $stamp = $section === ''
+        ? ''
+        : '<p class="tt-stamp mono">' . h(tt_stamp($monday, $isThisWeek)) . '</p>';
+    return dash_shell(
+        'Week ' . $iso,
+        '<header><div><p class="kicker">Study tracker</p><h1>Week ' . h($iso) . '</h1></div>'
+        . '<div>' . $stamp . '<p><small><a href="/">All subjects</a></small></p></div></header>'
+        . $section
+    );
+}
+
+function render_index(Store $store, array $query = []): string
 {
     $subjects = $store->listSubjects();
-    $body     = '';
+    // The timetable goes above the subjects list: what she is in now is a more
+    // urgent question than how far through a syllabus she is. It also takes
+    // over the page heading, because that is what the page now leads with.
+    $timetable = render_timetable_section(
+        $store, tt_today(), tt_design($store, $query), true
+    );
+    $title = $timetable === '' ? 'Subjects' : 'This week';
+    $stamp = '';
+    if ($timetable !== '') {
+        $stamp = '<p class="tt-stamp mono">'
+            . h(tt_stamp(null, true)) . '</p>';
+    }
+    $body = $timetable . ($timetable === '' ? '' : '<h2>Subjects</h2>');
     if ($subjects) {
         foreach ($subjects as $s) {
             $p    = progressFor($store, $s['slug']);
@@ -150,7 +585,8 @@ function render_index(Store $store): string
 
     return dash_shell(
         'Study trackers',
-        '<header><div><p class="kicker">Study tracker</p><h1>Subjects</h1></div></header>' . $body
+        '<header><div><p class="kicker">Study tracker</p><h1>' . h($title) . '</h1></div>'
+        . '<div>' . $stamp . '</div></header>' . $body
     );
 }
 
