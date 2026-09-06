@@ -387,14 +387,14 @@ if ($path === '/tt/block' && $method === 'POST') {
 
 if ($path === '/') {
     $dashboardGuard();
-    send_html(render_index($store, $_GET, parent_signed_in($store, $password)));
+    send_html(render_index($store, parent_signed_in($store, $password)));
 }
 
 // Any week, past or present, on the same component as the index page. The
 // ISO week is the identifier because that is what the review talks in.
 if (preg_match('#^/week/(\d{4}-W\d{2})$#', $path, $m)) {
     $dashboardGuard();
-    send_html(render_week_page($store, $m[1], $_GET, parent_signed_in($store, $password)));
+    send_html(render_week_page($store, $m[1], parent_signed_in($store, $password)));
 }
 
 if (preg_match('#^/s/([^/]+)$#', $path, $m)) {

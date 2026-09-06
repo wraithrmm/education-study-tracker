@@ -587,8 +587,11 @@ final class Store
                 $this->db->exec('ALTER TABLE practice_run ADD COLUMN block_key INTEGER');
             }
 
-            // Design A is the one the parent approved to run first. All three
-            // ship behind this switch; ?design= overrides it per request.
+            // Vestigial: three designs were built behind a switch, and only
+            // the week strip was kept. Nothing reads this key any more. The
+            // write stays because this step has already run against the live
+            // database, and an applied migration is a record of what happened
+            // rather than something to tidy up afterwards.
             if ($this->meta('timetable_design') === null) {
                 $this->setMeta('timetable_design', 'a');
             }

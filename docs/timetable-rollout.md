@@ -39,19 +39,16 @@ yet. The note on the row says so, and it needs replacing with the real date
 once AQA publishes it. Until then every projection off that date is indicative
 only.
 
-## 3. The design switch
+## 3. The board
 
-`meta.timetable_design` is set to `a` by the migration — the week strip, which
-is what was approved to run first. All three designs are built and stay behind
-the switch until someone says otherwise:
+There is one board: the week strip, five columns of thin chips with today's
+lifted off the paper. Two other designs were drawn and compared in
+`design/timetable-abc/` before it was chosen; neither was kept, and neither
+exists in the code.
 
-- `?design=a` — week strip (the stored default)
-- `?design=b` — now / next, then the week
-- `?design=c` — the register
-
-`?design=` overrides the stored setting for one request only, so a design can
-be tried without changing what anyone else sees. To change the default, set
-`meta.timetable_design`.
+Signed in as the parent (`/login`, `TRACKER_PASSWORD`), each day header offers
+a day off and each status mark opens a small menu — done anyway, skipped,
+clear. Signed out, the board is read-only.
 
 ## Still outstanding
 

@@ -746,11 +746,6 @@ if [ "$REMOTE" = 0 ]; then
   contains "with the subjects list still below it" "$page" "<h2>Subjects</h2>"
   contains "and the date it thinks it is, in monospace" "$page" 'class="tt-stamp mono"'
 
-  for d in a b c; do
-    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/?design=$d")"
-    check "?design=$d renders" "$code" "200"
-  done
-
   code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
   check "a past week renders on its own page" "$code" "200"
   week="$(cat "$WORK/week.html")"
@@ -781,46 +776,11 @@ if [ "$REMOTE" = 0 ]; then
   check "a missed block links nowhere" "$missed_link" "0"
 
 
-  # The three designs are three layouts over one judge and one status
-  # vocabulary. The same block, on the same week, must say the same words in
-  # all three — only the markup around them differs.
-  mark='aria-label="Maths — new topic 09:45 — done"'
-  for d in a b c; do
-    code="$("${CURL[@]}" -o "$WORK/w-$d.html" -w '%{http_code}' "$BASE/week/2024-W37?design=$d")"
-    check "design $d renders a past week" "$code" "200"
-    contains "design $d says the block is done, in the same words" "$(cat "$WORK/w-$d.html")" "$mark"
-  done
-
-  contains "design A is the week strip" "$(cat "$WORK/w-a.html")" 'class="wk"'
-  contains "design B is the day list and the week dot-row" "$(cat "$WORK/w-b.html")" 'class="dotrow"'
-  contains "and B expands a day in place, without script" "$(cat "$WORK/w-b.html")" '<details class="dotday'
-  contains "design C is the register" "$(cat "$WORK/w-c.html")" 'class="reg'
-  contains "and C counts each day in a footer" "$(cat "$WORK/w-c.html")" '<td class="t">done</td>'
-  contains "C prints" "$(cat "$WORK/w-c.html")" '@media print'
-
-  # C collapses to one column on a phone — but only where there is a today to
-  # collapse to. A week that is already over shows whole and scrolls.
-  lacks "a past week has no today, so C shows it whole" "$(cat "$WORK/w-c.html")" 'class="reg oneday"'
-  this_c="$("${CURL[@]}" "$BASE/?design=c")"
-  if printf '%s' "$this_c" | grep -qF 'class="reg oneday"'; then
-    pass "C collapses to today on a phone"
-  elif printf '%s' "$this_c" | grep -qF 'No blocks today'; then
-    pass "C collapses to today on a phone (nothing scheduled today, so it says so)"
-  else
-    fail "C neither collapsed to today nor said there was nothing on"
-  fi
-  this_c_week="$("${CURL[@]}" "$BASE/?design=c&week=1")"
-  lacks "and the toggle opens the whole week again" "$this_c_week" 'class="reg oneday"'
-
-  # B's time bar is a CSS animation with a server-computed delay: the block's
-  # remaining time is visible with no JavaScript at all.
-  body="$("${CURL[@]}" "$BASE/?design=b")"
-  check "the index renders design B" "$?" "0"
-  if printf '%s' "$body" | grep -q 'class="nowcard"\|class="tt-quiet"\|class="dotrow"'; then
-    pass "design B leads with the current block, or says there is none"
-  else
-    fail "design B rendered neither a now card nor a reason there is none"
-  fi
+  # There is one board. The status vocabulary it speaks is the same on the
+  # index page and on any other week's page, because both render the one
+  # component from the one judge.
+  contains "the week page is the week strip" "$week" 'class="wk"'
+  contains "and it prints" "$week" '@media print'
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
   check "a malformed week is a 404" "$code" "404"
