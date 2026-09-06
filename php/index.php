@@ -297,10 +297,22 @@ if ($path === '/') {
     send_html(render_index($store, $_GET));
 }
 
+// The term as a ledger: one row per ISO week, newest first, with ?from= for
+// the terms before the twenty-six the table caps at.
+if ($path === '/weeks') {
+    $dashboardGuard();
+    send_html(render_weeks($store, $_GET));
+}
+
 // Any week, past or present, on the same component as the index page. The
-// ISO week is the identifier because that is what the review talks in.
+// ISO week is the identifier because that is what the review talks in. An
+// impossible week (2026-W99) falls back to the ledger with a 404, the way a
+// missing attempt falls back to its subject rather than to a dead end.
 if (preg_match('#^/week/(\d{4}-W\d{2})$#', $path, $m)) {
     $dashboardGuard();
+    if (tt_week_monday($m[1]) === null) {
+        send_html(render_weeks($store, $_GET), 404);
+    }
     send_html(render_week_page($store, $m[1], $_GET));
 }
 

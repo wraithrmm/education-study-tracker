@@ -916,6 +916,93 @@ if [ "$REMOTE" = 0 ]; then
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
   check "a malformed week is a 404" "$code" "404"
+
+  # ---- the weekly report, on the page --------------------------------------
+  # The ledger half: the page must read the same partitioned counts the tools
+  # reported, name every miss in words, and never make colour the only cue.
+  report="$(call tracker_week_report '{"week":"2024-W37"}')"
+  fraction="$(printf '%s' "$report" | grep -o 'Study blocks [0-9]* of [0-9]* done' \
+    | head -1 | sed 's/Study blocks //;s/ done//')"
+  code="$("${CURL[@]}" -o "$WORK/report.html" -w '%{http_code}' "$BASE/week/2024-W37")"
+  check "the weekly report renders" "$code" "200"
+  week="$(cat "$WORK/report.html")"
+  contains "the headline counts study blocks only, exactly as the tools count them" \
+    "$week" "<p class=\"big mono\">$fraction</p>"
+  contains "with movement counted separately" "$week" "movement 1 of 5"
+  contains "and the review block separately again" "$week" "review block not ticked"
+  contains "the segmented bar says the counts in words, not in colour" "$week" \
+    'aria-label="21 study blocks: 1 done, 19 missed, 1 excused"'
+  contains "hours are read against the timetable's planned hours" "$week" "1.45 / 4.83"
+  contains "and the bar says which side of the plan it is on, in words" "$week" \
+    "under the timetable"
+
+  contains "a missed block is named with its day and time" "$week" \
+    'Tue 10 Sep · 13:00–14:00'
+  contains "and with its label" "$week" "<b>Timed handwritten practice</b>"
+  contains "and with what was absent" "$week" "no attempt logged that day"
+  contains "a missed Spanish block says practice was what was missing" "$week" \
+    "no practice logged that day"
+  contains "the excused block shows the parent's reason" "$week" \
+    'aria-label="Spanish — vocab + listening 09:45 — excused: Dentist"'
+  lacks "and an excused block is not named as missed" "$week" \
+    '<b>Spanish — vocab + listening</b> — no practice logged'
+  contains "the extra is on the page as an extra" "$week" \
+    'aria-label="extra work, outside the timetable"'
+  contains "the decisions are read-only, decided in the chat" "$week" \
+    "Decided in the review chat, never here"
+  contains "and the recorded decision names what Dad said" "$week" "excused — dentist"
+
+  # The written half: the stamp, the versions, and the drift between them.
+  contains "the saved review leaves its stamp on the page" "$week" '<p class="stamp"'
+  contains "and the stamp says it was reviewed" "$week" "Reviewed with Dad"
+  contains "the margin carries what was written" "$week" \
+    "Reviewed with Dad: the Wednesday Spanish slot went to the dentist."
+  contains "and one carry-forward line per subject" "$week" "Wednesday lost to the dentist."
+  contains "excusing a block after the save puts the drift line on the page" "$week" \
+    "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
+  contains "and the drift line quotes the counts the note was written against" "$week" \
+    "(20 missed · 0 excused)"
+
+  v1="$("${CURL[@]}" "$BASE/week/2024-W37?v=1")"
+  contains "?v=1 shows the first version" "$v1" "Eighteen of twenty-one study blocks held"
+  contains "and stamps it as the draft it is" "$v1" '<p class="stamp draft"'
+  contains "with both version chips" "$v1" 'aria-current="true"'
+  contains "and the later one still a link" "$v1" '/week/2024-W37?v=2'
+
+  # A week whose note was written against the record as it stands says nothing
+  # about drift at all: silence means the two still agree.
+  call tracker_log_session '{"subject":"maths","date":"2024-09-16","summary":"Maths consolidation, cut short after twenty minutes","block_key":3,"duration_minutes":20}' > /dev/null
+  call tracker_log_session '{"subject":"maths","date":"2024-08-28","summary":"Algebra revision, logged before the timetable existed","duration_minutes":45}' > /dev/null
+  clean='{"held":"Monday ran, and the maths block was logged even though it was cut short.","slipped":"The block was twenty minutes of the seventy-five it was given.","next":"Tuesday opens with the timed handwritten piece.","carry_forward":{"maths":"Finish the consolidation block that was cut short."},"rotation_next":"Maths section"}'
+  body="$(call tracker_save_weekly_review "{\"week\":\"2024-W38\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$clean}")"
+  contains "a note can be saved for the following week" "$body" "Saved version 1 (draft) for 2024-W38"
+  w38="$("${CURL[@]}" "$BASE/week/2024-W38")"
+  contains "a short block is named with the minutes it actually ran" "$w38" \
+    "20 minutes of 75 logged"
+  contains "and is not counted as plainly done" "$w38" "1 short"
+  contains "the draft stamp is dashed and says who claims to have written it" "$w38" \
+    '<p class="stamp draft"'
+  lacks "no drift line when the note still matches the record" "$w38" "Since then:"
+  contains "which is silence, not a sentence saying nothing changed" "$w38" \
+    "Written from the record at"
+
+  # The term ledger.
+  ledger="$("${CURL[@]}" "$BASE/weeks?from=2024-W38")"
+  contains "/weeks lists the week" "$ledger" "2024-W37"
+  contains "and links to it" "$ledger" 'href="/week/2024-W37"'
+  contains "and carries its stamp" "$ledger" 'class="ministamp"'
+  contains "with the same study-block fraction the week page shows" "$ledger" ">1/21<"
+  contains "and a mark saying the record has moved since the note" "$ledger" \
+    'aria-label="the record has moved since this note was written"'
+  contains "weeks before the first timetable say so" "$ledger" "no timetable yet"
+  contains "and still show the work that was logged in them" "$ledger" "0.8 / —"
+  contains "the ledger says the Review column is the only written one" "$ledger" \
+    "the only thing a person or the routine ever writes"
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/2026-W99")"
+  check "an impossible week falls back to the ledger with a 404" "$code" "404"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/weeks/nonsense")"
+  check "and /weeks takes no path under it" "$code" "404"
 fi
 
 echo

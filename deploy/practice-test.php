@@ -31,6 +31,7 @@ if (!function_exists('h')) {
 require_once __DIR__ . '/../php/lib/store.php';
 require_once __DIR__ . '/../php/lib/practice.php';
 require_once __DIR__ . '/../php/lib/mcp.php';
+require_once __DIR__ . '/../php/lib/dashboard.php';
 
 $UPDATE   = in_array('--update', $argv, true);
 $GOLDEN   = __DIR__ . '/../tests/golden';
@@ -65,6 +66,36 @@ function contains(string $what, string $haystack, string $needle): void
 function lacks(string $what, string $haystack, string $needle): void
 {
     str_contains($haystack, $needle) ? fail($what, "unexpectedly present: $needle") : pass($what);
+}
+
+/**
+ * One golden file: written under --update, compared with a readable diff
+ * otherwise. Shared by the scoreboards and the weekly report so there is one
+ * mechanism, and --update stays a deliberate act whose diff is read.
+ */
+function golden(string $file, string $rendered): void
+{
+    global $UPDATE, $GOLDEN;
+    $path = "$GOLDEN/$file";
+    if ($UPDATE) {
+        file_put_contents($path, $rendered . "\n");
+        printf("  wrote %s\n", $file);
+        return;
+    }
+    if (!is_file($path)) {
+        fail("$file has a committed reference", 'no golden file; run with --update to create one');
+        return;
+    }
+    $want = rtrim((string) file_get_contents($path), "\n");
+    if ($want === $rendered) {
+        pass("$file matches its committed reference exactly");
+        return;
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'golden');
+    file_put_contents($tmp, $rendered . "\n");
+    $diff = shell_exec('diff -u ' . escapeshellarg($path) . ' ' . escapeshellarg($tmp) . ' 2>&1');
+    @unlink($tmp);
+    fail("$file matches its committed reference exactly", (string) $diff);
 }
 
 /** Call a tool the way the MCP endpoint would, and return its text. */
@@ -482,26 +513,7 @@ $snapshots = [
     'maths-scoreboard.html'   => $mathsHtml,
 ];
 foreach ($snapshots as $file => $rendered) {
-    $path = "$GOLDEN/$file";
-    if ($UPDATE) {
-        file_put_contents($path, $rendered . "\n");
-        printf("  wrote %s\n", $file);
-        continue;
-    }
-    if (!is_file($path)) {
-        fail("$file has a committed reference", 'no golden file; run with --update to create one');
-        continue;
-    }
-    $want = rtrim((string) file_get_contents($path), "\n");
-    if ($want === $rendered) {
-        pass("$file matches its committed reference exactly");
-        continue;
-    }
-    $tmp = tempnam(sys_get_temp_dir(), 'golden');
-    file_put_contents($tmp, $rendered . "\n");
-    $diff = shell_exec('diff -u ' . escapeshellarg($path) . ' ' . escapeshellarg($tmp) . ' 2>&1');
-    @unlink($tmp);
-    fail("$file matches its committed reference exactly", (string) $diff);
+    golden($file, $rendered);
 }
 
 if (!$UPDATE) {
@@ -530,6 +542,178 @@ if (!$UPDATE) {
     contains('the maths board draws its split bar', $mathsHtml, 'How questions went');
     contains('the maths accuracy line is fixed to a 0-100 scale', $mathsHtml, 'Right first time');
 }
+
+echo "\n== the weekly report golden ==\n";
+// A second throwaway database, because the report has to be pinned against a
+// week that cannot move. The clock is frozen with TRACKER_NOW, the note's
+// timestamps and its snapshot's are set rather than taken from the wall
+// clock, and no topic is left secure — a queue line that counts weeks since
+// today would put the real date into a committed file.
+$weekDb = sys_get_temp_dir() . '/week-report-test-' . getmypid() . '.db';
+@unlink($weekDb);
+register_shutdown_function(static function () use ($weekDb) {
+    @unlink($weekDb);
+    @unlink($weekDb . '-wal');
+    @unlink($weekDb . '-shm');
+});
+putenv('TRACKER_NOW=2026-09-06 20:00');
+$wstore = new Store($weekDb);
+
+call($wstore, 'tracker_create_subject', [
+    'slug' => 'maths', 'name' => 'GCSE Mathematics', 'spec_code' => 'AQA 8300', 'tier' => 'Higher',
+    'strands' => ['A' => 'Algebra'],
+    'topics'  => [
+        ['ref' => 'A4', 'name' => 'Simplify, expand, factorise', 'strand' => 'A',
+            'status' => 'developing', 'watch' => 'retest 2 of 2 still outstanding'],
+        ['ref' => 'A17', 'name' => 'Solving linear equations', 'strand' => 'A', 'status' => 'notstarted'],
+        ['ref' => 'A21', 'name' => 'Simultaneous equations', 'strand' => 'A', 'status' => 'gap'],
+    ],
+]);
+call($wstore, 'tracker_create_subject', [
+    'slug' => 'spanish', 'name' => 'GCSE Spanish', 'spec_code' => 'AQA 8692',
+    'strands' => ['T' => 'Themes'],
+    'topics'  => [
+        ['ref' => 'T04', 'name' => 'Free time activities', 'strand' => 'T', 'status' => 'developing'],
+        ['ref' => 'T05', 'name' => 'Food and drink', 'strand' => 'T', 'status' => 'gap'],
+    ],
+]);
+
+// Eight blocks: six study, one movement, one review — the same three-way
+// partition the real board has, small enough to read in a diff.
+call($wstore, 'tracker_set_timetable', ['valid_from' => '2026-08-31', 'note' => 'golden fixture',
+    'blocks' => [
+        ['block_key' => 1, 'weekday' => 1, 'start' => '09:00', 'end' => '09:30', 'kind' => 'movement',
+            'label' => 'Move — walk, bike or dance', 'subjects' => [], 'tracking' => 'self_report'],
+        ['block_key' => 2, 'weekday' => 1, 'start' => '09:45', 'end' => '11:00', 'kind' => 'teach',
+            'label' => 'Maths — new topic', 'subjects' => ['maths'], 'tracking' => 'evidence'],
+        ['block_key' => 3, 'weekday' => 1, 'start' => '11:15', 'end' => '12:00', 'kind' => 'spanish',
+            'label' => 'Spanish — vocab + listening', 'subjects' => ['spanish'], 'tracking' => 'evidence'],
+        ['block_key' => 4, 'weekday' => 2, 'start' => '13:00', 'end' => '14:00',
+            'kind' => 'timed_handwritten', 'label' => 'Timed handwritten practice',
+            'subjects' => ['maths'], 'tracking' => 'evidence'],
+        ['block_key' => 5, 'weekday' => 3, 'start' => '09:45', 'end' => '10:00', 'kind' => 'spanish',
+            'label' => 'Spanish — vocab review', 'subjects' => ['spanish'], 'tracking' => 'evidence'],
+        ['block_key' => 6, 'weekday' => 4, 'start' => '09:25', 'end' => '10:30', 'kind' => 'teach',
+            'label' => 'Deep block — Maths', 'subjects' => ['maths'], 'tracking' => 'evidence'],
+        ['block_key' => 7, 'weekday' => 5, 'start' => '09:45', 'end' => '11:00',
+            'kind' => 'consolidate', 'label' => 'Maths — consolidate + fix errors',
+            'subjects' => ['maths'], 'tracking' => 'evidence'],
+        ['block_key' => 8, 'weekday' => 5, 'start' => '14:15', 'end' => '15:00', 'kind' => 'review',
+            'label' => 'Weekly review with Dad', 'subjects' => [], 'tracking' => 'self_report'],
+    ],
+]);
+
+// Monday held, and a gallery run after it that no block claims — an extra,
+// which never offsets a miss. Tuesday's timed piece was sat; Wednesday's
+// Spanish went nowhere; Thursday's deep block was missed; Friday ran 25 of 75.
+call($wstore, 'tracker_tick_block', ['date' => '2026-08-31', 'block_key' => 1, 'by' => 'student']);
+call($wstore, 'tracker_log_session', ['subject' => 'maths', 'date' => '2026-08-31',
+    'summary' => 'Surds: intro, worked examples and an exit ticket', 'block_key' => 2,
+    'duration_minutes' => 70,
+    'updates' => [['ref' => 'A17', 'status' => 'developing',
+        'evidence' => 'first pass, worked with support']]]);
+call($wstore, 'tracker_log_session', ['subject' => 'spanish', 'date' => '2026-08-31',
+    'summary' => 'Vocabulary set 1 and a short listening', 'block_key' => 3,
+    'duration_minutes' => 45]);
+call($wstore, 'tracker_log_attempt', ['subject' => 'maths', 'name' => 'Phase 1 exit check',
+    'kind' => 'paper', 'tier' => 'H', 'date' => '2026-09-01',
+    'papers' => [['code' => '8300/1H', 'score' => 22, 'max' => 25, 'blanks' => 0,
+        'sat_on' => '2026-09-01']]]);
+call($wstore, 'tracker_log_practice', ['subject' => 'spanish', 'runs' => [[
+    'client_run_id' => 'golden-week-1', 'source' => 'spanish_gallery',
+    'label' => 'Shooting Gallery', 'played_at' => '2026-08-31T15:10:00Z',
+    'attempted' => 20, 'correct' => 14, 'correct_after_retry' => 3, 'incorrect' => 3,
+    'duration_seconds' => 720]]]);
+call($wstore, 'tracker_log_session', ['subject' => 'maths', 'date' => '2026-09-04',
+    'summary' => 'Consolidation, cut short', 'block_key' => 7, 'duration_minutes' => 25]);
+call($wstore, 'tracker_tick_block', ['date' => '2026-09-04', 'block_key' => 8, 'by' => 'parent']);
+call($wstore, 'tracker_request_day_off', ['date_from' => '2026-09-07', 'date_to' => '2026-09-07',
+    'reason' => "friend's birthday", 'requested_by' => 'student']);
+
+// Movement is stamped with the wall clock, so pin it into the week it belongs
+// to rather than leaving the diff to change when the file is next read.
+$wstore->db->exec("UPDATE topic_changes SET changed_at = '2026-08-31 11:05:00'");
+
+$sections = [
+    'held'    => 'Monday landed whole and the Tuesday paper was sat with no blanks; A17 opened '
+        . 'on worked examples.',
+    'slipped' => "Thursday's deep block went missing and Wednesday's Spanish never started; "
+        . 'Friday ran 25 minutes of 75.',
+    'next'    => 'Tuesday opens with the Lit essay in the timed rotation; the deep block moves '
+        . 'to the morning.',
+    'carry_forward' => [
+        'maths'   => "The Thursday deep block, and A4's second retest.",
+        'spanish' => "Wednesday's slot lost to the dentist; Monday and the gallery held.",
+    ],
+    'rotation_next' => 'Lit essay',
+];
+
+/** The server builds the snapshot; only its clock is pinned, for the diff. */
+$pinned = static function (string $at) use ($wstore): array {
+    $snap = $wstore->weekSnapshot('2026-08-31');
+    $snap['captured_at'] = $at;
+    return $snap;
+};
+$wstore->addWeeklyReview(['week' => '2026-W36', 'stage' => 'draft', 'written_by' => 'routine',
+    'snapshot' => $pinned('2026-09-04 12:05:00'), 'sections' => $sections,
+    'note' => 'written by the Friday routine before the review']);
+$reviewed = $sections;
+$reviewed['decisions'] = [
+    ['kind' => 'day_off', 'ref' => '1', 'decision' => 'approved',
+        'note' => 'Blocks moved to Saturday morning.'],
+    ['kind' => 'excusal', 'ref' => '2026-09-02#5', 'decision' => 'excused', 'note' => 'dentist'],
+    ['kind' => 'excusal', 'ref' => '2026-09-03#6', 'decision' => 'not_excused', 'note' => null],
+];
+$wstore->addWeeklyReview(['week' => '2026-W36', 'stage' => 'reviewed', 'written_by' => 'chat',
+    'snapshot' => $pinned('2026-09-04 12:52:00'), 'sections' => $reviewed, 'note' => null]);
+$wstore->db->exec(
+    "UPDATE weekly_reviews SET written_at = CASE version
+       WHEN 1 THEN '2026-09-04 12:05:00' ELSE '2026-09-04 12:52:00' END"
+);
+// The excusal lands after the note was saved — which is exactly the case the
+// snapshot exists for, and what puts the drift line on the page.
+$wstore->setExcusal('2026-09-02', 5, 'dentist');
+
+$weekHtml = week_report_sections(
+    $wstore,
+    $wstore->weekSnapshot('2026-08-31'),
+    $wstore->weeklyReview('2026-W36'),
+    $wstore->weeklyReviewVersions('2026-W36'),
+    '2026-W36'
+);
+golden('week-report.html', $weekHtml);
+
+if (!$UPDATE) {
+    // The figures the snapshot is asserting, named, so a diff says what broke.
+    contains('the missed block is named with its day, time and label', $weekHtml,
+        '<span class="when">Thu 3 Sep · 09:25–10:30</span><br><b>Deep block — Maths</b>');
+    contains('and with what was absent', $weekHtml, 'no session logged that day');
+    contains('the short block is named with the minutes it actually ran', $weekHtml,
+        '<b>Maths — consolidate + fix errors</b> — 25 minutes of 75 logged.');
+    lacks('and is not listed as missed', $weekHtml,
+        '<b>Maths — consolidate + fix errors</b> — no session logged');
+    contains('the recorded decision says what Dad decided, not what the page did', $weekHtml,
+        'excused — dentist');
+    contains('and a refusal is marked as one', $weekHtml, '<span class="said no">not excused</span>');
+    contains('hours are read against the timetable, not against a target', $weekHtml,
+        '<span class="num mono">2.67 / 4.58</span>');
+    contains('and the subject under its planned hours says so in words', $weekHtml,
+        'under the timetable');
+    contains('the movement chip carries the status either side of the move', $weekHtml,
+        'Not started → Developing');
+    contains('the coverage sparkline is drawn from the replay, with its figures in the title',
+        $weekHtml, 'GCSE Mathematics coverage over eight weeks');
+    contains('the queue top is the loose end, not a count of weeks since today', $weekHtml,
+        'A4 Simplify, expand, factorise — retest 2 of 2 still outstanding');
+    contains("the margin carries the week's carry-forward line for each subject", $weekHtml,
+        "The Thursday deep block, and A4&#039;s second retest.");
+    contains('the reviewed version is the one shown, with the draft still a link', $weekHtml,
+        '/week/2026-W36?v=1');
+    contains('and the drift line says what has moved since the note was written', $weekHtml,
+        'Written from the record at Fri 4 Sep 13:52 (2 missed · 0 excused). '
+        . 'Since then: Wed 09:45 Spanish — vocab review excused — dentist.');
+}
+putenv('TRACKER_NOW=');
 
 echo "\n";
 if ($failures === 0) {
