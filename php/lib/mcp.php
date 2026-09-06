@@ -181,6 +181,87 @@ function mcp_practice_when(mixed $v, string $at): string
 
 // ---- tool definitions ---------------------------------------------------
 
+/** One judged block as a line an LLM and a person can both read. */
+function mcp_block_line(array $b): string
+{
+    $status = $b['status'];
+    if ($status === 'done' && !empty($b['short'])) {
+        $status = 'done but SHORT (' . $b['minutes'] . ' min of ' . $b['length'] . ')';
+    } elseif ($status === 'excused') {
+        $status = 'excused — ' . ($b['reason'] ?? 'no reason given');
+    } elseif ($status === 'day_off') {
+        $status = 'day off — ' . ($b['reason'] ?? '');
+    }
+    $subs = $b['subjects'] ? implode('/', $b['subjects']) : '—';
+    $ev   = '';
+    foreach ($b['evidence'] ?? [] as $e) {
+        $ev = '  <- ' . $e['type'] . ($e['type'] === 'tick' ? ' by ' . $e['by'] : ' #' . $e['id']);
+    }
+    return sprintf('#%-3d %s-%s  %s [%s]  %s',
+        $b['block_key'], $b['start'], $b['end'], mcp_pad($b['label'], 44), $subs, $status) . $ev;
+}
+
+/**
+ * The block with this key that actually runs on a date, or null.
+ *
+ * The weekday matters as much as the key: block 28 is Friday's maths block,
+ * so naming it on a Monday is a mistake whichever way it was meant, and
+ * accepting it would bind the work to a block that never ran that day.
+ */
+function mcp_find_block(Store $store, int $key, string $date): ?array
+{
+    $v = $store->timetableVersionOn($date);
+    if (!$v) {
+        return null;
+    }
+    $weekday = (int) (new DateTimeImmutable($date, tt_zone()))->format('N');
+    foreach ($store->timetableBlocks((int) $v['id']) as $b) {
+        if ($b['block_key'] === $key && $b['weekday'] === $weekday) {
+            return $b;
+        }
+    }
+    return null;
+}
+
+/** Pad to a width in characters, not bytes — these labels are full of dashes. */
+function mcp_pad(string $s, int $width): string
+{
+    $n = mb_strlen($s, 'UTF-8');
+    return $n >= $width ? $s : $s . str_repeat(' ', $width - $n);
+}
+
+/**
+ * Check a block_key supplied alongside a logged record.
+ *
+ * Both halves matter. A key that is not in the version in force on that date
+ * would bind the work to nothing; a key whose block does not run that subject
+ * would re-label the work onto the wrong block, which is exactly what the
+ * explicit link exists to prevent. Either way the mismatch is named, so the
+ * caller can see which of the two it got wrong.
+ */
+function mcp_check_block(Store $store, int $key, string $date, string $slug): array
+{
+    $block = mcp_find_block($store, $key, $date);
+    if ($block === null) {
+        $day = TIMETABLE_DAYS[(int) (new DateTimeImmutable($date, tt_zone()))->format('N')];
+        throw new McpError(
+            "No block $key runs on $day $date. Either that key is not in the timetable in force "
+            . 'then, or it belongs to another day of the week. Get the keys for that date from '
+            . 'tracker_today, and check the date is the day the work was actually done.'
+        );
+    }
+    $subjects = tt_subjects_for($block, $date);
+    if ($subjects && !in_array($slug, $subjects, true)) {
+        throw new McpError(
+            "Block $key on $date is \"{$block['label']}\" and runs "
+            . implode('/', $subjects) . ", not $slug. A $slug record cannot fulfil it. "
+            . 'Either drop block_key and let it bind by subject and date, or pass the block this work '
+            . 'really was.'
+        );
+    }
+    return $block;
+}
+
 function mcp_tools(): array
 {
     $readOnly = [
@@ -392,7 +473,8 @@ function mcp_tools(): array
                 . "USE WHEN: closing a study or tutoring session. This is the normal way to end one — do it before the conversation finishes, "
                 . "or the work is not in the record. Also use when told what was covered in a past session.\n\n"
                 . "Each update carries its own evidence (10-500 chars). Unknown topic references are reported back rather than silently skipped, so a typo is visible.\n\n"
-                . 'Args: subject, summary. Optional date (defaults today), next_steps, updates[] of { ref, status?, evidence, watch? }.',
+                . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
+                . 'Args: subject, summary. Optional date (defaults today), next_steps, block_key, duration_minutes, updates[] of { ref, status?, evidence, watch? }.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
@@ -402,6 +484,10 @@ function mcp_tools(): array
                         'description' => 'What was covered and how it went'],
                     'next_steps' => ['type' => 'string', 'maxLength' => 1000,
                         'description' => 'What the next session should open with'],
+                    'block_key'  => ['type' => 'integer', 'minimum' => 1,
+                        'description' => 'The timetable block this session fulfilled, from tracker_today'],
+                    'duration_minutes' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600,
+                        'description' => 'How long it actually ran, so a short sitting reads as short'],
                     'updates'    => [
                         'type'     => 'array',
                         'maxItems' => 50,
@@ -466,6 +552,7 @@ function mcp_tools(): array
                 . "Args: subject, name, papers[] of { code, score, max, blanks?, note?, sat_on?, questions?[] }. "
                 . "Each question is { number, max, score, topic_ref?, question?, answer?, note? }. "
                 . "Give a paper its own sat_on when the papers of one sitting were not all sat on the same day.\n\n"
+                . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
                 . 'Optional kind (paper|check, default paper), tier, date, note.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -495,6 +582,8 @@ function mcp_tools(): array
                                 'note'   => ['type' => 'string', 'maxLength' => 1000],
                                 'sat_on' => ['type' => 'string', 'pattern' => '^\\d{4}-\\d{2}-\\d{2}$',
                                     'description' => 'Date this paper was sat, if not all on one day'],
+                                'block_key' => ['type' => 'integer', 'minimum' => 1,
+                                    'description' => 'The timed timetable block this paper fulfilled'],
                                 'questions' => [
                                     'type'     => 'array',
                                     'maxItems' => 200,
@@ -654,6 +743,7 @@ function mcp_tools(): array
                 . "source is a key from the registry (tracker_practice_stats lists them). "
                 . "Each item is { outcome (correct|retry|incorrect), prompt?, topic_ref?, attempts_taken?, position?, note? } — "
                 . "supply items where you know them per question; the per-topic breakdown is built from them.\n\n"
+                . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
                 . 'Logging practice never changes a topic status: that happens through tracker_log_session only.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -684,6 +774,8 @@ function mcp_tools(): array
                                 'played_at'     => ['type' => 'string', 'maxLength' => 40,
                                     'description' => 'ISO 8601. Defaults to now.'],
                                 'duration_seconds' => ['type' => 'integer', 'minimum' => 0],
+                                'block_key'     => ['type' => 'integer', 'minimum' => 1,
+                                    'description' => 'The timetable block this run fulfilled, from tracker_today'],
                                 'metrics'       => ['type' => 'object',
                                     'description' => 'Source-specific numbers, e.g. { "top_speed": 8.4 }'],
                                 'topic_refs'    => ['type' => 'array', 'maxItems' => 20,
@@ -839,6 +931,229 @@ function mcp_tools(): array
             ],
             'annotations' => $write,
         ],
+        [
+            'name'  => 'tracker_today',
+            'title' => "Today's timetable and what has been missed",
+            'description' =>
+                "Which block the student is in right now, what is next, and what has already been missed today.\n\n"
+                . "USE WHEN: call this after tracker_review_queue at the start of every session. It tells you which block "
+                . "she is in and what has already been missed today.\n\n"
+                . "DO NOT use it to decide whether to help — the timetable is a plan, not a gate. If she wants maths at "
+                . "16:00 on a Sunday, teach her maths. Blocks with tracking 'evidence' are judged from logged work only, "
+                . "so never report one as done because she says it is; log the work instead.\n\n"
+                . 'Args: optional date (defaults to today, Europe/London). Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['date' => $isoDate],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_week_status',
+            'title' => 'A whole week, block by block',
+            'description' =>
+                "Every block of a week with its status, the extra work logged outside the timetable, the counts and the "
+                . "hours by subject against target.\n\n"
+                . "USE WHEN: running the parent's weekly review, answering \"what did she miss this week\", or checking "
+                . "adherence over a named week. This is the tool the Friday review is built on.\n\n"
+                . "DO NOT use it to judge a single day — tracker_today is cheaper and answers that. Do not treat a missed "
+                . "block as a verdict on her: it means nothing was logged, which is sometimes a logging failure.\n\n"
+                . "Args: optional week (ISO, e.g. '2026-W37') or date (any day in the week). Defaults to this week. Read-only.",
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week' => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$',
+                        'description' => "ISO week, e.g. '2026-W37'"],
+                    'date' => $isoDate,
+                ],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_get_timetable',
+            'title' => 'The timetable in force',
+            'description' =>
+                "The timetable version in force on a date, with every block: key, day, times, kind, label, subjects and "
+                . "how it is tracked.\n\n"
+                . "USE WHEN: you need block keys, you are about to propose a change, or you are explaining the shape of "
+                . "the week. ALWAYS call this before tracker_set_timetable — that tool replaces the whole timetable, so "
+                . "writing without reading first drops every block you did not send.\n\n"
+                . "DO NOT use it to judge whether work was done; it is the plan, not the record. tracker_week_status "
+                . "judges.\n\n"
+                . 'Args: optional valid_on (defaults to today). Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['valid_on' => $isoDate],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_days_off',
+            'title' => 'Days off, requested and decided',
+            'description' =>
+                "Holidays, days off and sick days in a date range, each with who asked, what was decided and any note.\n\n"
+                . "USE WHEN: checking whether a gap in the week was agreed, or listing what the parent still has to "
+                . "decide. Pending requests are the ones with status 'requested' — surface those to the parent rather "
+                . "than deciding them.\n\n"
+                . "DO NOT use it to excuse a single block; that is tracker_excuse_block.\n\n"
+                . 'Args: optional from, to (dates), status. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'from'   => $isoDate,
+                    'to'     => $isoDate,
+                    'status' => ['type' => 'string', 'enum' => ['requested', 'approved', 'declined']],
+                ],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_request_day_off',
+            'title' => 'Ask for a day off',
+            'description' =>
+                "Books a day off. A student's request is only a request — say so, and never call tracker_decide_day_off "
+                . "on her behalf.\n\n"
+                . "USE WHEN: either of them asks for time off. requested_by 'parent' is approved at once, because it is "
+                . "his call to make. requested_by 'student' is recorded as 'requested' and the blocks keep being judged "
+                . "until he approves it, so tell her plainly that it is not agreed yet and that the board will show "
+                . "misses in the meantime.\n\n"
+                . "DO NOT approve it yourself, do not imply it is settled, and do not use it to tidy away a day that has "
+                . "already gone badly — that is what an excusal with a reason is for. A student request longer than 14 "
+                . "days is refused.\n\n"
+                . 'Args: date_from, date_to, reason, requested_by. Optional kind.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'date_from'    => $isoDate,
+                    'date_to'      => $isoDate,
+                    'reason'       => ['type' => 'string', 'minLength' => 3, 'maxLength' => 300,
+                        'description' => 'Why — shown on the board'],
+                    'requested_by' => ['type' => 'string', 'enum' => ['student', 'parent']],
+                    'kind'         => ['type' => 'string', 'enum' => ['holiday', 'day_off', 'sick', 'other']],
+                ],
+                'required' => ['date_from', 'date_to', 'reason', 'requested_by'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_decide_day_off',
+            'title' => 'Approve or decline a day off',
+            'description' =>
+                "Parent-only. Only from the parent's own chat, only on their explicit word. Declined and un-approved "
+                . "records are kept with the note.\n\n"
+                . "USE WHEN: the parent has said, in this conversation, to approve, decline or un-approve a specific "
+                . "request. Approving clears that day's misses; un-approving brings them back.\n\n"
+                . "DO NOT call this in the student's chat, on her say-so, or because a request has been sitting there a "
+                . "while. If you are not certain the person speaking is the parent, list the request and stop.\n\n"
+                . 'Args: id (from tracker_days_off), decision. Optional note.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'id'       => ['type' => 'integer', 'minimum' => 1],
+                    'decision' => ['type' => 'string', 'enum' => ['approve', 'decline', 'unapprove']],
+                    'note'     => ['type' => 'string', 'maxLength' => 300],
+                ],
+                'required' => ['id', 'decision'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_set_timetable',
+            'title' => 'Replace the timetable from a date',
+            'description' =>
+                "Replaces the whole timetable from valid_from. Parent-only by convention — relay a student's request, "
+                . "don't apply it. Always tracker_get_timetable first and echo the diff before writing.\n\n"
+                . "USE WHEN: the parent has approved a specific re-cut of the week. Send EVERY block you want to keep: "
+                . "this writes a new version, and a block you leave out is gone from that version on. Keep each surviving "
+                . "block's block_key the same, so excusals, ticks and logged work still resolve against it.\n\n"
+                . "Refused, with the clash named, if two blocks overlap on a day, an end is not after its start, a "
+                . "subject slug is not tracked, or a block_key is used twice.\n\n"
+                . "DO NOT use it to record that a block did not happen — that is tracker_excuse_block or a day off.\n\n"
+                . 'Args: blocks[] of { block_key, weekday 1-7, start, end, kind, label, subjects[], tracking, note?, '
+                . 'alternate? }. Optional valid_from (defaults to next Monday), note.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'valid_from' => $isoDate,
+                    'note'       => ['type' => 'string', 'maxLength' => 300],
+                    'targets'    => ['type' => 'object',
+                        'description' => 'Target hours per week by subject slug, e.g. { "maths": 5.0 }'],
+                    'blocks'     => [
+                        'type' => 'array', 'minItems' => 1, 'maxItems' => 200,
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'block_key' => ['type' => 'integer', 'minimum' => 1,
+                                    'description' => "Stable id; the seed's `id`. Keep it across versions."],
+                                'weekday'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 7],
+                                'start'     => ['type' => 'string', 'description' => 'HH:MM'],
+                                'end'       => ['type' => 'string', 'description' => 'HH:MM'],
+                                'kind'      => ['type' => 'string', 'enum' => TIMETABLE_KINDS],
+                                'label'     => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
+                                'note'      => ['type' => ['string', 'null'], 'maxLength' => 300],
+                                'subjects'  => ['type' => 'array', 'items' => ['type' => 'string']],
+                                'alternate' => ['type' => ['object', 'null'],
+                                    'description' => 'e.g. {"odd":["maths"],"even":["computer-science"]}'],
+                                'tracking'  => ['type' => 'string', 'enum' => TIMETABLE_TRACKING],
+                            ],
+                            'required' => ['block_key', 'weekday', 'start', 'end', 'kind', 'label', 'tracking'],
+                        ],
+                    ],
+                ],
+                'required' => ['blocks'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_excuse_block',
+            'title' => 'Excuse a block on a date',
+            'description' =>
+                "Only when the parent states a reason. Never call on your own initiative, never to tidy the board. "
+                . "A null reason un-excuses.\n\n"
+                . "USE WHEN: the parent has said why a specific block on a specific date did not happen. The reason is "
+                . "shown on the board next to the block, so write it as he said it.\n\n"
+                . "DO NOT excuse a block because she was busy, because the day looks bad, because it was missed several "
+                . "weeks running, or on her request. A missed block that stays missed is the point of the board.\n\n"
+                . 'Args: date, block_key (from tracker_today), reason — or reason: null to un-excuse.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'date'      => $isoDate,
+                    'block_key' => ['type' => 'integer', 'minimum' => 1],
+                    'reason'    => ['type' => ['string', 'null'], 'maxLength' => 300,
+                        'description' => "The parent's reason, or null to un-excuse"],
+                ],
+                'required' => ['date', 'block_key', 'reason'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_tick_block',
+            'title' => 'Tick a self-reported block',
+            'description' =>
+                "Marks a self-reported block done: the movement blocks and the weekly review, which leave no logged work "
+                . "behind.\n\n"
+                . "USE WHEN: she says she did her movement block, or the parent has finished the weekly review.\n\n"
+                . "DO NOT use it on a study block. Blocks with tracking 'evidence' are refused, because they are judged "
+                . "from the session, attempt or practice run that was logged against them — log the work instead, and "
+                . "the block ticks itself.\n\n"
+                . 'Args: date, block_key, by (student|parent). Optional note.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'date'      => $isoDate,
+                    'block_key' => ['type' => 'integer', 'minimum' => 1],
+                    'by'        => ['type' => 'string', 'enum' => ['student', 'parent']],
+                    'note'      => ['type' => 'string', 'maxLength' => 300],
+                ],
+                'required' => ['date', 'block_key', 'by'],
+            ],
+            'annotations' => $write,
+        ],
     ];
 }
 
@@ -847,6 +1162,328 @@ function mcp_tools(): array
 function mcp_call_tool(Store $store, string $name, array $a): array
 {
     switch ($name) {
+        case 'tracker_today': {
+            $date = mcp_date($a, 'date', tt_today());
+            $day  = $store->judgeDay($date);
+            $v    = $store->timetableVersionOn($date);
+            if (!$v) {
+                return mcp_text("No timetable is in force on $date. Set one with tracker_set_timetable.");
+            }
+            $lines = [
+                $day['day_name'] . ' ' . tt_pretty($date) . ' · ' . tt_iso_week($date)
+                . ($day['is_today'] ? ' · now ' . tt_now()->format('H:i') . ' Europe/London' : ''),
+            ];
+            if ($day['day_off']) {
+                $d = $day['day_off'];
+                $lines[] = $d['status'] === 'approved'
+                    ? "Day off (" . $d['kind'] . "), approved: " . $d['reason']
+                    : "Day off REQUESTED by " . $d['requested_by'] . " and not yet decided: " . $d['reason']
+                      . ' — blocks are still being judged until the parent approves it.';
+            }
+            $judged = array_values(array_filter(
+                $day['blocks'], static fn(array $b): bool => $b['status'] !== 'n/a'
+            ));
+            if (!$judged) {
+                $lines[] = 'No blocks today.';
+                return mcp_text(implode("\n", $lines));
+            }
+            $now  = array_values(array_filter($judged, static fn($b) => $b['status'] === 'now'));
+            $next = null;
+            foreach ($judged as $b) {
+                if (tt_mins($b['start']) > tt_mins(tt_now()->format('H:i')) && $day['is_today']) {
+                    $next = $b;
+                    break;
+                }
+            }
+            $lines[] = $now
+                ? 'NOW: ' . mcp_block_line($now[0])
+                : ($day['is_today'] ? 'NOW: between blocks.' : '');
+            if ($next) {
+                $lines[] = 'NEXT: ' . mcp_block_line($next);
+            }
+            $lines[] = '';
+            $lines[] = 'Blocks:';
+            foreach ($judged as $b) {
+                $lines[] = '  ' . mcp_block_line($b);
+            }
+            $missed = array_values(array_filter($judged, static fn($b) => $b['status'] === 'missed'));
+            if ($missed) {
+                $lines[] = '';
+                $lines[] = 'Missed so far: ' . implode(', ', array_map(
+                    static fn($b) => '#' . $b['block_key'] . ' ' . $b['label'], $missed
+                )) . '.';
+            }
+            if ($day['extras']) {
+                $lines[] = 'Extra work today, outside the timetable: ' . implode('; ', array_map(
+                    static fn($e) => $e['subject'] . ' ' . $e['type'] . ' #' . $e['id'] . ' ' . $e['label'],
+                    $day['extras']
+                )) . '.';
+            }
+            $lines[] = '';
+            $lines[] = 'The timetable is a plan, not a gate: help with whatever is actually being asked.';
+            return mcp_text(implode("\n", array_filter($lines, static fn($l) => $l !== '' || true)));
+        }
+
+        case 'tracker_week_status': {
+            $week = mcp_str($a, 'week', false, 0, 10);
+            $date = mcp_date($a, 'date', null);
+            if ($week !== null && $week !== '') {
+                $monday = tt_week_monday($week);
+                if ($monday === null) {
+                    throw new McpError("week must look like '2026-W37'.");
+                }
+            } else {
+                $monday = tt_monday($date ?: tt_today());
+            }
+            $w = $store->judgeWeek($monday);
+            if (!$store->timetableVersionOn($monday)) {
+                return mcp_text("No timetable was in force in week {$w['week']}.");
+            }
+            $lines = ["Week {$w['week']} — " . tt_pretty($w['monday']) . ' to '
+                . tt_pretty(tt_add_days($w['monday'], 6))];
+            foreach ($w['days'] as $day) {
+                $judged = array_values(array_filter(
+                    $day['blocks'], static fn($b) => $b['status'] !== 'n/a'
+                ));
+                if (!$judged && !$day['extras']) {
+                    continue;
+                }
+                $done = count(array_filter($judged, static fn($b) => $b['status'] === 'done'));
+                $head = "\n" . $day['day_name'] . ' ' . $day['date'] . " — $done/" . count($judged) . ' done';
+                if ($day['day_off']) {
+                    $head .= ' · day off ' . strtoupper($day['day_off']['status'])
+                        . ' (' . $day['day_off']['reason'] . ')';
+                }
+                $lines[] = $head;
+                foreach ($judged as $b) {
+                    $lines[] = '  ' . mcp_block_line($b);
+                }
+                foreach ($day['extras'] as $e) {
+                    $lines[] = '  + extra: ' . $e['subject'] . ' ' . $e['type'] . ' #' . $e['id']
+                        . ' ' . $e['label'];
+                }
+            }
+            $c = $w['counts'];
+            $lines[] = "\nCounts: {$c['done']} done ({$c['short']} short), {$c['missed']} missed, "
+                . "{$c['excused']} excused, {$c['day_off']} on a day off, {$c['extra']} extra"
+                . ($c['upcoming'] + $c['pending'] + $c['now'] > 0
+                    ? ', ' . ($c['upcoming'] + $c['pending'] + $c['now']) . ' still to come' : '')
+                . ' — of ' . $c['judged'] . ' judged blocks.';
+
+            $targets = json_decode((string) ($store->meta('timetable_targets') ?? '{}'), true) ?: [];
+            $hours   = [];
+            foreach ($w['hours_by_subject'] as $slug => $h) {
+                $hours[] = $slug . ' ' . number_format($h, 1) . 'h'
+                    . (isset($targets[$slug]) ? ' of ' . number_format((float) $targets[$slug], 2) . 'h' : '');
+            }
+            foreach ($targets as $slug => $t) {
+                if (!isset($w['hours_by_subject'][$slug])) {
+                    $hours[] = $slug . ' 0.0h of ' . number_format((float) $t, 2) . 'h';
+                }
+            }
+            $lines[] = 'Hours: ' . ($hours ? implode(', ', $hours) : 'none logged') . '.';
+            $lines[] = 'A missed block means nothing was logged against it — which is sometimes a '
+                . 'logging failure rather than a missed lesson. Check before saying it was skipped.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_get_timetable': {
+            $on = mcp_date($a, 'valid_on', tt_today());
+            $v  = $store->timetableVersionOn($on);
+            if (!$v) {
+                return mcp_text("No timetable is in force on $on.");
+            }
+            $blocks = $store->timetableBlocks((int) $v['id']);
+            $lines  = ["Timetable version {$v['id']}, in force from {$v['valid_from']}"
+                . ($v['note'] ? " — {$v['note']}" : '') . '. ' . count($blocks) . ' blocks.'];
+            $day = null;
+            foreach ($blocks as $b) {
+                if ($day !== $b['weekday']) {
+                    $day = $b['weekday'];
+                    $lines[] = "\n" . TIMETABLE_DAYS[$day];
+                }
+                $subs = $b['alternate']
+                    ? 'odd: ' . implode('/', $b['alternate']['odd']) . ', even: ' . implode('/', $b['alternate']['even'])
+                    : ($b['subjects'] ? implode('/', $b['subjects']) : '—');
+                $lines[] = sprintf('  #%-3d %s-%s  %s %s %s',
+                    $b['block_key'], $b['start'], $b['end'], mcp_pad($b['label'], 44),
+                    mcp_pad($b['kind'], 18), $subs)
+                    . '  [' . $b['tracking'] . ']';
+            }
+            $lines[] = "\nblock_key is the stable id: keep it when you re-cut, or excusals, ticks and "
+                . 'logged work stop resolving.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_days_off': {
+            $from   = mcp_date($a, 'from', null);
+            $to     = mcp_date($a, 'to', null);
+            $status = mcp_str($a, 'status', false, 0, 20);
+            $rows   = $store->listDaysOff($from, $to, $status ?: null);
+            if (!$rows) {
+                return mcp_text('No days off recorded for that.');
+            }
+            $lines = [];
+            foreach ($rows as $r) {
+                $span = $r['date_from'] === $r['date_to']
+                    ? $r['date_from'] : $r['date_from'] . ' to ' . $r['date_to'];
+                $lines[] = "#{$r['id']}  $span  {$r['kind']}  " . strtoupper($r['status'])
+                    . "  asked by {$r['requested_by']} — {$r['reason']}"
+                    . ($r['decision_note'] ? ' (' . $r['decision_note'] . ')' : '');
+            }
+            $pending = count(array_filter($rows, static fn($r) => $r['status'] === 'requested'));
+            if ($pending) {
+                $lines[] = "\n$pending awaiting the parent's decision. Put those to him; do not decide them.";
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_request_day_off': {
+            $from = mcp_date($a, 'date_from', null);
+            $to   = mcp_date($a, 'date_to', null);
+            if ($from === null || $to === null) {
+                throw new McpError('date_from and date_to are both required, as YYYY-MM-DD.');
+            }
+            if ($to < $from) {
+                throw new McpError("date_to ($to) is before date_from ($from).");
+            }
+            $by     = mcp_str($a, 'requested_by', true, 1);
+            $reason = mcp_str($a, 'reason', true, 3, 300);
+            $kind   = mcp_str($a, 'kind', false, 0, 20, 'day_off');
+            if (!in_array($by, ['student', 'parent'], true)) {
+                throw new McpError("requested_by must be 'student' or 'parent'.");
+            }
+            $span = (int) ((new DateTimeImmutable($to))->diff(new DateTimeImmutable($from))->days) + 1;
+            if ($by === 'student' && $span > 14) {
+                throw new McpError(
+                    "That is a $span-day request. A student may ask for at most 14 days at a time — "
+                    . 'anything longer is a conversation with the parent, not a booking.'
+                );
+            }
+            $rec = $store->addDayOff([
+                'date_from' => $from, 'date_to' => $to, 'kind' => $kind,
+                'reason' => $reason, 'requested_by' => $by,
+            ]);
+            if ($rec['status'] === 'approved') {
+                return mcp_text("Day off #{$rec['id']} booked and approved for $from to $to: $reason.");
+            }
+            return mcp_text(
+                "Day off #{$rec['id']} REQUESTED for $from to $to: $reason.\n"
+                . "This is a request, not a booking. Dad has to approve it. Until he does, those days keep "
+                . "being judged and will show as missed on the board — say so plainly rather than letting her "
+                . 'think it is settled.'
+            );
+        }
+
+        case 'tracker_decide_day_off': {
+            $id       = (int) mcp_num($a, 'id', true, 1);
+            $decision = mcp_str($a, 'decision', true, 1);
+            $note     = mcp_str($a, 'note', false, 0, 300);
+            if (!in_array($decision, ['approve', 'decline', 'unapprove'], true)) {
+                throw new McpError("decision must be approve, decline or unapprove.");
+            }
+            $rec = $store->decideDayOff($id, $decision, $note);
+            if (!$rec) {
+                return mcp_text("There is no day-off record #$id. List them with tracker_days_off.");
+            }
+            $effect = match ($rec['status']) {
+                'approved' => "Those days no longer count as missed.",
+                'declined' => "The record is kept with the reason; those days keep being judged.",
+                default    => "Back to a request: those days are being judged again and misses will reappear.",
+            };
+            return mcp_text("Day off #{$rec['id']} ({$rec['date_from']} to {$rec['date_to']}) is now "
+                . strtoupper($rec['status']) . ". $effect");
+        }
+
+        case 'tracker_set_timetable': {
+            $blocks = $a['blocks'] ?? null;
+            if (!is_array($blocks) || !$blocks) {
+                throw new McpError('blocks must be a non-empty list.');
+            }
+            // Defaults to the next Monday, because a timetable that starts
+            // mid-week leaves half a week judged against the old shape.
+            $validFrom = mcp_date($a, 'valid_from', tt_add_days(tt_monday(tt_today()), 7));
+            $note      = mcp_str($a, 'note', false, 0, 300);
+            try {
+                $res = $store->setTimetable($blocks, $validFrom, $note);
+            } catch (InvalidArgumentException $e) {
+                throw new McpError($e->getMessage() . ' Nothing was written.');
+            }
+            if (isset($a['targets']) && is_array($a['targets'])) {
+                $store->setMeta('timetable_targets', json_encode($a['targets'], JSON_UNESCAPED_SLASHES));
+            }
+            $d     = $res['diff'];
+            $lines = ["Timetable version {$res['version_id']} written, in force from $validFrom, "
+                . "{$res['blocks']} blocks."];
+            foreach (['added' => 'Added', 'removed' => 'Removed', 'changed' => 'Changed'] as $k => $label) {
+                if ($d[$k]) {
+                    $lines[] = "\n$label (" . count($d[$k]) . '):';
+                    foreach ($d[$k] as $l) {
+                        $lines[] = '  ' . $l;
+                    }
+                }
+            }
+            if (!$d['added'] && !$d['removed'] && !$d['changed']) {
+                $lines[] = 'No change from the version that was already in force.';
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_excuse_block': {
+            $date = mcp_date($a, 'date', null);
+            if ($date === null) {
+                throw new McpError('date is required, as YYYY-MM-DD.');
+            }
+            $key = (int) mcp_num($a, 'block_key', true, 1);
+            if (!array_key_exists('reason', $a)) {
+                throw new McpError('reason is required — pass null to un-excuse.');
+            }
+            $block = mcp_find_block($store, $key, $date);
+            if ($block === null) {
+                return mcp_text("There is no block $key in the timetable in force on $date. "
+                    . 'Check the keys with tracker_get_timetable.');
+            }
+            if ($a['reason'] === null) {
+                $store->setExcusal($date, $key, null);
+                return mcp_text("Block $key ({$block['label']}) on $date is no longer excused. "
+                    . 'It is judged again, so it will show as missed unless work is logged against it.');
+            }
+            $reason = mcp_str($a, 'reason', true, 1, 300);
+            $store->setExcusal($date, $key, $reason);
+            return mcp_text("Block $key ({$block['label']}) on $date is excused: $reason. "
+                . 'The reason is shown on the board.');
+        }
+
+        case 'tracker_tick_block': {
+            $date = mcp_date($a, 'date', null);
+            if ($date === null) {
+                throw new McpError('date is required, as YYYY-MM-DD.');
+            }
+            $key  = (int) mcp_num($a, 'block_key', true, 1);
+            $by   = mcp_str($a, 'by', true, 1);
+            $note = mcp_str($a, 'note', false, 0, 300);
+            if (!in_array($by, ['student', 'parent'], true)) {
+                throw new McpError("by must be 'student' or 'parent'.");
+            }
+            $block = mcp_find_block($store, $key, $date);
+            if ($block === null) {
+                return mcp_text("There is no block $key in the timetable in force on $date.");
+            }
+            if ($block['tracking'] === 'none') {
+                return mcp_text("Block $key ({$block['label']}) is a break — there is nothing to tick.");
+            }
+            if ($block['tracking'] !== 'self_report') {
+                throw new McpError(
+                    "Block $key ({$block['label']}) is judged from logged work — log the session instead. "
+                    . 'Study blocks are never ticked: they are done when a session, attempt or practice run '
+                    . 'exists for one of their subjects on that date. Use tracker_log_session, '
+                    . 'tracker_log_attempt or tracker_log_practice, and the block ticks itself.'
+                );
+            }
+            $store->setTick($date, $key, $by, $note);
+            return mcp_text("Block $key ({$block['label']}) on $date ticked by $by.");
+        }
+
         case 'tracker_list_subjects':
             $subjects = $store->listSubjects();
             if (!$subjects) {
@@ -1273,12 +1910,24 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             // The session row is written first so every change it produces can
             // carry its id. Without that the history can list what changed but
             // not which session did it, which is most of the point.
+            // Validated before the row is written: a block_key that names the
+            // wrong block would re-label the work, and that is worse than
+            // refusing the call.
+            $blockKey = isset($a['block_key']) ? (int) mcp_num($a, 'block_key', false, 1) : null;
+            if ($blockKey) {
+                mcp_check_block($store, $blockKey, $when, $slug);
+            }
+            $minutes = isset($a['duration_minutes'])
+                ? (int) mcp_num($a, 'duration_minutes', false, 1, 600) : null;
+
             $sessionId = $store->addSession([
-                'subject_slug'   => $slug,
-                'date'           => $when,
-                'summary'        => $summary,
-                'topics_touched' => null,
-                'next_steps'     => $next,
+                'subject_slug'     => $slug,
+                'date'             => $when,
+                'summary'          => $summary,
+                'topics_touched'   => null,
+                'next_steps'       => $next,
+                'block_key'        => $blockKey ?: null,
+                'duration_minutes' => $minutes,
             ]);
 
             foreach ($updates as $u) {
@@ -1455,8 +2104,20 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         ? (int) mcp_num($paper, 'blanks', false, 0) : null,
                     'note'      => mcp_str($paper, 'note', false, 0, 1000),
                     'sat_on'    => mcp_date($paper, 'sat_on', null),
+                    'block_key' => isset($paper['block_key'])
+                        ? (int) mcp_num($paper, 'block_key', false, 1) : null,
                     'questions' => $qClean,
                 ];
+                // The paper's own date is what the block is judged on, so that
+                // is the date the key has to be valid for.
+                if ($clean[count($clean) - 1]['block_key']) {
+                    mcp_check_block(
+                        $store,
+                        $clean[count($clean) - 1]['block_key'],
+                        $clean[count($clean) - 1]['sat_on'] ?? $when,
+                        $slug
+                    );
+                }
             }
 
             $id = $store->addAttempt([
@@ -1787,8 +2448,17 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         ? (int) mcp_num($run, 'duration_seconds', false, 0) : null,
                     'metrics'             => $metrics,
                     'topic_refs'          => $refs,
+                    'block_key'           => isset($run['block_key'])
+                        ? (int) mcp_num($run, 'block_key', false, 1) : null,
                     'items'               => $cleanItems,
                 ];
+                // played_at is what the board judges the run on, so the key is
+                // checked against that run's own local date.
+                $last = $clean[count($clean) - 1];
+                if ($last['block_key']) {
+                    [$localDate] = tt_local($last['played_at']);
+                    mcp_check_block($store, $last['block_key'], $localDate, $slug);
+                }
             }
 
             $rows   = [];

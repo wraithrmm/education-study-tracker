@@ -40,6 +40,7 @@ pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 check() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (expected '$3', got '$2')"; fi; }
 contains() { if printf '%s' "$2" | grep -qF "$3"; then pass "$1"; else fail "$1 — missing '$3'"; fi; }
+lacks() { if printf '%s' "$2" | grep -qF "$3"; then fail "$1 — unexpectedly contains '$3'"; else pass "$1"; fi; }
 
 if [ "$REMOTE" = 1 ]; then
   BASE="${BASE:?set BASE for a remote run}"
@@ -276,10 +277,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 21 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 30 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 21 of 21)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 30 of 30)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -573,6 +574,145 @@ contains "re-running it adds topics without resetting progress" "$body" "existin
 
 body="$(call tracker_get_state '{"subject":"nonexistent"}')"
 contains "an unknown subject is reported helpfully" "$body" "Known subjects"
+
+echo
+echo "== timetable =="
+# The seeded database has only maths. The timetable names five subjects, so
+# the rest are created first — which is also what happened for real.
+for sub in english-literature english-language computer-science spanish; do
+  call tracker_create_subject "{\"slug\":\"$sub\",\"name\":\"Smoke $sub\",\"strands\":{\"A\":\"A\"},\"topics\":[{\"ref\":\"A1\",\"name\":\"One\",\"strand\":\"A\"}]}" > /dev/null
+done
+
+# Every check below runs against a week that is already over, so `missed` and
+# `done` are decided by what was logged rather than by what time the test runs.
+SEED=docs/timetable-seed.json
+blocks="$(jq -c '[.blocks[] | . + {block_key: .id}]' "$SEED")"
+targets="$(jq -c '.targets_hours_per_week' "$SEED")"
+
+body="$(call tracker_set_timetable "{\"blocks\":$blocks,\"valid_from\":\"2024-09-02\",\"note\":\"smoke seed\",\"targets\":$targets}")"
+contains "tracker_set_timetable writes the seed" "$body" "35 blocks"
+contains "and reports the diff it wrote" "$body" "Added (35)"
+
+# One extra block laid across Monday's maths block, everything else identical.
+clash="$(jq -c '[.blocks[] | . + {block_key: .id}] + [{block_key:99,weekday:1,start:"09:50",end:"10:10",kind:"teach",label:"Clash",subjects:["maths"],tracking:"evidence"}]' "$SEED")"
+body="$(call tracker_set_timetable "{\"blocks\":$clash,\"valid_from\":\"2024-09-02\"}")"
+contains "an overlapping block is refused" "$body" "overlap on Monday"
+contains "and the refusal names both blocks" "$body" "Blocks 3"
+contains "and nothing is written" "$body" "Nothing was written"
+
+body="$(call tracker_set_timetable '{"blocks":[{"block_key":1,"weekday":1,"start":"09:00","end":"10:00","kind":"teach","label":"X","subjects":["biology"],"tracking":"evidence"}],"valid_from":"2024-09-02"}')"
+contains "an unknown subject slug is refused" "$body" "not a tracked subject"
+
+body="$(call tracker_get_timetable '{"valid_on":"2024-09-09"}')"
+contains "tracker_get_timetable returns the version in force" "$body" "35 blocks"
+contains "and marks how each block is tracked" "$body" "[self_report]"
+
+# Monday 2024-09-09. A maths session fills block 3 and nothing else.
+body="$(call tracker_log_session '{"subject":"maths","date":"2024-09-09","summary":"Surds: intro, interleaved practice and an exit ticket","block_key":3,"duration_minutes":70}')"
+contains "a session can name the block it fulfilled" "$body" "logged for"
+
+body="$(call tracker_today '{"date":"2024-09-09"}')"
+contains "tracker_today attributes the session to block 3" "$body" "<- session #"
+lacks "so block 3 is not in the missed list" "$body" "#3 Maths"
+contains "block 2 stays missed: a teaching session is not retrieval practice" \
+  "$body" "#2 Retrieval warm-up (mixed)"
+contains "block 5 is missed — nothing was logged for it" "$body" "#5 English Literature"
+
+# A retrieval_ practice run is the one thing that does satisfy block 2.
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"source":"maths_session","label":"Retrieval warm-up","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+body="$(call tracker_today '{"date":"2024-09-09"}')"
+contains "a non-retrieval practice source still does not satisfy the retrieval block" \
+  "$body" "#2 Retrieval warm-up (mixed)"
+
+# The mismatch that the explicit link exists to prevent.
+body="$(call tracker_log_session '{"subject":"spanish","date":"2024-09-09","summary":"Spanish vocabulary revision, spaced repetition set","block_key":3}')"
+contains "a block_key whose block does not run that subject is refused" "$body" "cannot fulfil it"
+contains "and the refusal names both sides" "$body" "runs maths, not spanish"
+
+body="$(call tracker_log_session '{"subject":"maths","date":"2024-09-09","summary":"Maths logged against Friday block on a Monday","block_key":28}')"
+contains "a block_key from another weekday is refused" "$body" "No block 28 runs on Monday"
+
+# Ticks: self-reported blocks only.
+body="$(call tracker_tick_block '{"date":"2024-09-09","block_key":1,"by":"student"}')"
+contains "a self-reported block can be ticked" "$body" "ticked by student"
+body="$(call tracker_tick_block '{"date":"2024-09-09","block_key":3,"by":"student"}')"
+contains "a study block cannot be ticked" "$body" "judged from logged work"
+contains "and the refusal says what to do instead" "$body" "log the session instead"
+
+# Excusals: the parent's reason, shown, and reversible.
+body="$(call tracker_excuse_block '{"date":"2024-09-10","block_key":16,"reason":"Dentist — moved to Friday"}')"
+contains "a block can be excused with a reason" "$body" "is excused"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "week_status shows the excusal" "$body" "excused — Dentist"
+body="$(call tracker_excuse_block '{"date":"2024-09-10","block_key":16,"reason":null}')"
+contains "a null reason un-excuses" "$body" "no longer excused"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+lacks "and the block goes back to missed" "$body" "excused — Dentist"
+
+# The alternating Thursday block resolves by ISO week parity.
+body="$(call tracker_today '{"date":"2024-09-12"}')"
+contains "an odd ISO week resolves the alternating block to maths" "$body" "[maths]"
+lacks "and not to computer science" "$body" "[computer-science]"
+body="$(call tracker_today '{"date":"2024-09-05"}')"
+contains "an even ISO week resolves it to computer science" "$body" "[computer-science]"
+lacks "and not to maths" "$body" "[maths]"
+
+# Days off: asked for by her, decided by him.
+body="$(call tracker_request_day_off '{"date_from":"2024-09-13","date_to":"2024-09-13","reason":"Cousin'"'"'s birthday","requested_by":"student"}')"
+contains "a student's day off is only a request" "$body" "REQUESTED"
+contains "and says so plainly" "$body" "This is a request, not a booking"
+day_id="$(printf '%s' "$body" | grep -o 'Day off #[0-9]*' | grep -o '[0-9]*' | head -1)"
+
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "a requested day off is shown as undecided" "$body" "day off REQUESTED"
+lacks "and its blocks keep being judged until the parent approves" "$body" "day off — Cousin"
+
+body="$(call tracker_decide_day_off "{\"id\":$day_id,\"decision\":\"approve\",\"note\":\"Fine\"}")"
+contains "the parent can approve it" "$body" "APPROVED"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "an approved day off clears that day's misses" "$body" "day off — Cousin"
+contains "and the day is labelled with its reason" "$body" "day off APPROVED"
+
+body="$(call tracker_decide_day_off "{\"id\":$day_id,\"decision\":\"unapprove\"}")"
+contains "approval can be withdrawn" "$body" "being judged again"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+lacks "and the misses come back" "$body" "day off — Cousin"
+
+body="$(call tracker_request_day_off '{"date_from":"2024-10-21","date_to":"2024-10-25","reason":"Half term","requested_by":"parent"}')"
+contains "a parent's day off is approved at once" "$body" "booked and approved"
+
+body="$(call tracker_request_day_off '{"date_from":"2024-11-01","date_to":"2024-11-15","reason":"Long trip","requested_by":"student"}')"
+contains "a 15-day student request is refused" "$body" "at most 14 days"
+
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "week_status reports hours against the target" "$body" "of 5.00h"
+contains "including a subject with nothing logged" "$body" "spanish 0.0h of 1.75h"
+contains "and counts the week" "$body" "judged blocks"
+
+body="$(call tracker_days_off '{}')"
+contains "tracker_days_off lists them" "$body" "Half term"
+contains "and flags what the parent still has to decide" "$body" "awaiting the parent"
+
+if [ "$REMOTE" = 0 ]; then
+  # The ladder has now run against a database in production's shape — subjects,
+  # sessions, attempts, practice runs and a timetable. Re-opening it must not
+  # run any step a second time.
+  after="$(SMOKE_DB="$WORK/tracker-shared/data/tracker.db" php -r '
+    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    $a = new Store(getenv("SMOKE_DB")); $b = new Store(getenv("SMOKE_DB"));
+    $n = $b->db->query("SELECT count(*) c FROM timetable_versions")->fetch()["c"];
+    echo $b->meta("schema_version") . ":" . $n;' 2>/dev/null)"
+  check "re-opening a populated database is idempotent" "$after" "4:1"
+
+  # And against an empty one.
+  fresh="$(php -r '
+    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    $p = tempnam(sys_get_temp_dir(), "sm") . ".db";
+    $a = new Store($p); $b = new Store($p);
+    echo $b->meta("schema_version");
+    @unlink($p);' 2>/dev/null)"
+  check "the migration applies to an empty database" "$fresh" "4"
+fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
