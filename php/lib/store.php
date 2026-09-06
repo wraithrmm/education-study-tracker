@@ -449,7 +449,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 4;
+    private const SCHEMA_VERSION = 5;
 
     private function migrate(): void
     {
@@ -594,6 +594,18 @@ final class Store
             // rather than something to tidy up afterwards.
             if ($this->meta('timetable_design') === null) {
                 $this->setMeta('timetable_design', 'a');
+            }
+            return;
+        }
+
+        if ($v === 5) {
+            // Step 3 seeded the source registry and has already run, so a
+            // source added to the seed afterwards reaches an existing database
+            // only if something re-runs the seed. upsertPracticeSource is an
+            // upsert, so re-running it over the whole list is idempotent and
+            // also repairs a row someone has edited by hand.
+            foreach (PRACTICE_SOURCE_SEED as $source) {
+                $this->upsertPracticeSource($source);
             }
             return;
         }
