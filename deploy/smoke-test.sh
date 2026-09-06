@@ -277,10 +277,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 30 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 33 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 30 of 30)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 33 of 33)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -709,6 +709,116 @@ body="$(call tracker_days_off '{}')"
 contains "tracker_days_off lists them" "$body" "Half term"
 contains "and flags what the parent still has to decide" "$body" "awaiting the parent"
 
+echo
+echo "== weekly review =="
+# One practice run on the Monday, after the maths block is already bound: the
+# retrieval block will not take a maths_session run, so it lands as an extra
+# and the week has an extra to place and a practice total to report.
+call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-weekly-review-1","source":"maths_session","label":"Times tables sprint","played_at":"2024-09-09T16:10:00Z","attempted":20,"correct":17,"incorrect":3,"duration_seconds":720}]}' > /dev/null
+
+body="$(call tracker_week_report '{"week":"2024-W37"}')"
+contains "tracker_week_report opens on the week and its dates" "$body" \
+  "Week 2024-W37 — 9 September 2024 to 13 September 2024"
+contains "the headline counts study blocks only" "$body" "Study blocks 1 of 21 done"
+contains "with movement counted separately" "$body" "movement 1 of 5"
+contains "and the review block separately again" "$body" "review block not ticked"
+contains "the register speaks the one block format" "$body" "#3   09:45-11:00  Maths — new topic"
+contains "every missed block is named with day, time, label and what was absent" "$body" \
+  "Wed 09:45 Spanish — vocab + listening — no practice logged"
+contains "and a timed block says it was an attempt that was missing" "$body" \
+  "Tue 13:00 Timed handwritten practice — no attempt logged"
+contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
+contains "hours are read against the timetable's planned hours" "$body" "maths 1.45/4.83"
+contains "and totalled against the same figure" "$body" "of 13.33 planned hours"
+lacks "never against the skills' split" "$body" "/5.00"
+contains "the pending day off is put to the parent, not decided" "$body" "do not decide it"
+contains "each subject reports its practice" "$body" "practice: 1 run, 20 attempted"
+contains "its coverage" "$body" "coverage 0% at the end of the week"
+contains "and the top of its review queue" "$body" "next in the queue:"
+contains "movement is reported per subject" "$body" "no topic movement this week"
+contains "and it ends with the caution week_status ends with" "$body" "sometimes a logging failure"
+
+# The written half. The note below claims eighteen blocks held; the snapshot the
+# server attaches says one. The snapshot is the one that is right.
+sections='{"held":"Eighteen of twenty-one study blocks held, or so this note claims.","slipped":"Everything but Monday morning: the week was seeded for the board, not worked.","next":"Tuesday opens with the timed handwritten piece that was missed here.","carry_forward":{"maths":"Surds: the exit ticket to re-run.","english-literature":"The set text was never opened.","english-language":"Creative writing block missed.","computer-science":"Python block missed.","spanish":"Wednesday vocab missed."},"rotation_next":"Lit essay"}'
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
+contains "tracker_save_weekly_review writes version 1" "$body" "Saved version 1 (draft) for 2024-W37"
+contains "the snapshot is the server's, whatever the note says" "$body" \
+  "Snapshot: study blocks 1 of 21 done"
+contains "and it points at the page" "$body" "Read it at /week/2024-W37"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
+contains "an identical re-save returns the version already there" "$body" \
+  "Version 1 (draft) for 2024-W37 already says exactly this"
+contains "and adds no row" "$body" "no version was added"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W37"}')"
+contains "tracker_get_weekly_review reads the draft back" "$body" "version 1 of 1 · draft"
+contains "and prints who wrote it as the claim it is" "$body" "written by the Friday routine"
+contains "with the sections in the page's order" "$body" "Held: Eighteen of twenty-one"
+contains "and the carry-forward line for each subject" "$body" "spanish: Wednesday vocab missed."
+lacks "and no drift line, because the record has not moved" "$body" "Since then:"
+contains "which it says plainly rather than leaving it silent" "$body" "The record has not moved since"
+
+# The reviewed version, carrying what the parent decided. A decision is
+# recorded here; it is never performed here.
+reviewed="{\"held\":\"Eighteen of twenty-one study blocks held, or so this note claims.\",\"slipped\":\"Reviewed with Dad: the Wednesday Spanish slot went to the dentist.\",\"next\":\"Tuesday opens with the timed handwritten piece that was missed here.\",\"carry_forward\":{\"maths\":\"Surds: the exit ticket to re-run.\",\"english-literature\":\"The set text was never opened.\",\"english-language\":\"Creative writing block missed.\",\"computer-science\":\"Python block missed.\",\"spanish\":\"Wednesday lost to the dentist.\"},\"rotation_next\":\"Lit essay\",\"decisions\":[{\"kind\":\"day_off\",\"ref\":\"$day_id\",\"decision\":\"deferred\",\"note\":\"Dad has not answered yet.\"},{\"kind\":\"excusal\",\"ref\":\"2024-09-11#20\",\"decision\":\"excused\",\"note\":\"dentist\"}]}"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$reviewed}")"
+contains "saving again writes version 2" "$body" "Saved version 2 (reviewed) for 2024-W37"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections}")"
+contains "a draft after a reviewed version is refused" "$body" "already has a reviewed version"
+contains "and the refusal names what to send instead" "$body" "Send stage 'reviewed' instead"
+
+bad="$(printf '%s' "$sections" | sed 's/{"maths"/{"biology":"Not a tracked subject.","maths"/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "a carry_forward key that is not a subject slug is refused" "$body" \
+  "sections.carry_forward names"
+contains "and the refusal names the slug it refused" "$body" "which is not a tracked subject"
+contains "and lists the slugs that do exist" "$body" "Known slugs: maths"
+contains "and nothing is written" "$body" "Nothing was written"
+
+bad="$(printf '%s' "$sections" | sed 's/"held":"[^"]*"/"held":""/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "an empty held is refused" "$body" "sections.held is required"
+
+bad="$(printf '%s' "$sections" | sed 's/,"rotation_next":"Lit essay"/,"rotation_next":"Lit essay","decisions":[{"kind":"excusal","ref":"2024-09-09#28","decision":"excused"}]/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "a decision naming a block that does not run that day is refused" "$body" \
+  "No block 28 runs on Monday 2024-09-09"
+contains "and the refusal names both sides of the mismatch" "$body" \
+  "belongs to another day of the week"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2099-W01\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections}")"
+contains "a week that has not started cannot be reviewed" "$body" "has not started"
+
+# Excusing a block after the note was written is exactly the case the snapshot
+# exists for: the note stands, and the drift line says what has moved since.
+call tracker_excuse_block '{"date":"2024-09-11","block_key":20,"reason":"Dentist"}' > /dev/null
+body="$(call tracker_get_weekly_review '{"week":"2024-W37"}')"
+contains "the latest version is the one returned" "$body" "version 2 of 2 · reviewed"
+contains "excusing a block after the save makes the drift line appear" "$body" \
+  "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
+contains "and the drift line quotes the counts the snapshot was written against" "$body" \
+  "(20 missed · 0 excused)"
+contains "and the decisions it recorded are read back" "$body" "excusal 2024-09-11#20: excused"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W37","version":1}')"
+contains "an earlier version is still readable" "$body" "version 1 of 2 · draft"
+contains "and lists the versions that exist" "$body" "Versions: 1 draft"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W36"}')"
+contains "a week with no review says so and names the tool that writes one" "$body" \
+  "Write one with tracker_save_weekly_review"
+
+body="$(call tracker_week_report '{"week":"2024-W99"}')"
+contains "a malformed week is refused" "$body" "week must look like"
+
+body="$(call tracker_week_report '{"week":"2024-W20"}')"
+contains "a week with no timetable still reports the record" "$body" "No timetable was in force"
+
 if [ "$REMOTE" = 0 ]; then
   # The ladder has now run against a database in production's shape — subjects,
   # sessions, attempts, practice runs and a timetable. Re-opening it must not
@@ -718,7 +828,7 @@ if [ "$REMOTE" = 0 ]; then
     $a = new Store(getenv("SMOKE_DB")); $b = new Store(getenv("SMOKE_DB"));
     $n = $b->db->query("SELECT count(*) c FROM timetable_versions")->fetch()["c"];
     echo $b->meta("schema_version") . ":" . $n;' 2>/dev/null)"
-  check "re-opening a populated database is idempotent" "$after" "4:1"
+  check "re-opening a populated database is idempotent" "$after" "5:1"
 
   # And against an empty one.
   fresh="$(php -r '
@@ -727,7 +837,7 @@ if [ "$REMOTE" = 0 ]; then
     $a = new Store($p); $b = new Store($p);
     echo $b->meta("schema_version");
     @unlink($p);' 2>/dev/null)"
-  check "the migration applies to an empty database" "$fresh" "4"
+  check "the migration applies to an empty database" "$fresh" "5"
 fi
 
 if [ "$REMOTE" = 0 ]; then

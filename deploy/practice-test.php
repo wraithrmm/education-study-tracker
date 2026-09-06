@@ -90,7 +90,7 @@ register_shutdown_function(static function () use ($dbPath) {
 echo "== schema ==\n";
 $counts = $store->counts();
 check('the practice tables exist and are counted by /healthz', isset($counts['practice_run']), true);
-check('a fresh database reaches the current schema version', $store->meta('schema_version'), '4');
+check('a fresh database reaches the current schema version', $store->meta('schema_version'), '5');
 $sources = array_column($store->listPracticeSources(), 'key');
 check('the source registry is seeded', $sources,
     ['maths_session', 'spanish_chat', 'spanish_flashcards', 'spanish_gallery']);

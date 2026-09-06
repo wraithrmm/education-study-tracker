@@ -231,6 +231,19 @@ function mcp_pad(string $s, int $width): string
 }
 
 /**
+ * The two-sided refusal for a block_key that does not run on a date. Shared,
+ * so a session logged against the wrong block and a review decision naming the
+ * wrong block are refused in the same words.
+ */
+function mcp_no_such_block(int $key, string $date): string
+{
+    $day = TIMETABLE_DAYS[(int) (new DateTimeImmutable($date, tt_zone()))->format('N')];
+    return "No block $key runs on $day $date. Either that key is not in the timetable in force "
+        . 'then, or it belongs to another day of the week. Get the keys for that date from '
+        . 'tracker_today, and check the date is the day the work was actually done.';
+}
+
+/**
  * Check a block_key supplied alongside a logged record.
  *
  * Both halves matter. A key that is not in the version in force on that date
@@ -243,12 +256,7 @@ function mcp_check_block(Store $store, int $key, string $date, string $slug): ar
 {
     $block = mcp_find_block($store, $key, $date);
     if ($block === null) {
-        $day = TIMETABLE_DAYS[(int) (new DateTimeImmutable($date, tt_zone()))->format('N')];
-        throw new McpError(
-            "No block $key runs on $day $date. Either that key is not in the timetable in force "
-            . 'then, or it belongs to another day of the week. Get the keys for that date from '
-            . 'tracker_today, and check the date is the day the work was actually done.'
-        );
+        throw new McpError(mcp_no_such_block($key, $date));
     }
     $subjects = tt_subjects_for($block, $date);
     if ($subjects && !in_array($slug, $subjects, true)) {
@@ -260,6 +268,246 @@ function mcp_check_block(Store $store, int $key, string $date, string $slug): ar
         );
     }
     return $block;
+}
+
+// ---- the weekly review ---------------------------------------------------
+
+/**
+ * The week a tool was asked about: an ISO label, any date inside it, or this
+ * week. Returns [iso, monday].
+ *
+ * @return array{0:string,1:string}
+ */
+function mcp_week_of(array $a, bool $required = false): array
+{
+    $week = mcp_str($a, 'week', $required, 1, 10);
+    if ($week !== null && $week !== '') {
+        $monday = tt_week_monday($week);
+        if ($monday === null) {
+            throw new McpError("week must look like '2026-W37'.");
+        }
+        return [tt_iso_week($monday), $monday];
+    }
+    $monday = tt_monday(mcp_date($a, 'date', null) ?: tt_today());
+    return [tt_iso_week($monday), $monday];
+}
+
+/** A local stamp a person reads: 'Fri 11 Sep 14:52' from a stored UTC time. */
+function mcp_review_when(string $utc): string
+{
+    [$date, $time] = tt_local($utc);
+    return (new DateTimeImmutable($date, tt_zone()))->format('D j M') . ' ' . $time;
+}
+
+/** One written line of a review: present, single-line and within its bounds. */
+function mcp_review_line(mixed $v, string $what, int $min, int $max): string
+{
+    if (!is_string($v) || trim($v) === '') {
+        throw new McpError("$what is required and must be a non-empty line. Nothing was written.");
+    }
+    $s = trim($v);
+    if (preg_match('/[\r\n]/', $s)) {
+        throw new McpError("$what must be a single line — no line breaks. Nothing was written.");
+    }
+    $n = mb_strlen($s);
+    if ($n < $min || $n > $max) {
+        throw new McpError("$what is $n characters; it must be $min to $max. Nothing was written.");
+    }
+    return $s;
+}
+
+/**
+ * The sections of a weekly review, validated whole.
+ *
+ * One bad section refuses the entire call rather than being dropped, the way
+ * one invalid panel rejects a scoreboard: a key that silently does nothing is
+ * how a note ends up not saying what its author thought they wrote. Every
+ * refusal names the offending key or slug.
+ *
+ * @return array<string,mixed> the cleaned sections, ready to store
+ */
+function mcp_review_sections(Store $store, mixed $raw, string $monday): array
+{
+    if (!is_array($raw) || array_is_list($raw)) {
+        throw new McpError(
+            'sections must be an object with held, slipped, next, carry_forward and rotation_next.'
+        );
+    }
+    $known = ['held', 'slipped', 'next', 'carry_forward', 'rotation_next', 'decisions'];
+    foreach (array_keys($raw) as $k) {
+        if (!in_array($k, $known, true)) {
+            throw new McpError(
+                "sections has an unknown key \"$k\". The keys are: " . implode(', ', $known)
+                . '. Nothing was written.'
+            );
+        }
+    }
+
+    $out = [
+        // A review with nothing under `slipped` is a review that has not
+        // looked; if a week genuinely slipped nowhere, say so in a sentence.
+        'held'    => mcp_review_line($raw['held'] ?? null, 'sections.held', 10, 600),
+        'slipped' => mcp_review_line($raw['slipped'] ?? null, 'sections.slipped', 10, 600),
+        'next'    => mcp_review_line($raw['next'] ?? null, 'sections.next', 10, 600),
+    ];
+
+    $carry = $raw['carry_forward'] ?? null;
+    if (!is_array($carry) || array_is_list($carry) || !$carry) {
+        throw new McpError('sections.carry_forward must be an object of one line per subject slug.');
+    }
+    if (count($carry) > 12) {
+        throw new McpError('sections.carry_forward holds ' . count($carry) . ' entries; the most is 12.');
+    }
+    $known = array_column($store->listSubjects(), 'slug');
+    $lines = [];
+    foreach ($carry as $slug => $line) {
+        if (!in_array((string) $slug, $known, true)) {
+            throw new McpError(
+                "sections.carry_forward names \"$slug\", which is not a tracked subject. Known slugs: "
+                . implode(', ', $known) . '. Nothing was written.'
+            );
+        }
+        // One line per subject is what the card layout assumes; a paragraph
+        // breaks the grid.
+        $lines[(string) $slug] = mcp_review_line($line, "sections.carry_forward.$slug", 3, 200);
+    }
+    $out['carry_forward'] = $lines;
+    $out['rotation_next'] = mcp_review_line($raw['rotation_next'] ?? null, 'sections.rotation_next', 1, 80);
+
+    $decisions = $raw['decisions'] ?? [];
+    if (!is_array($decisions) || (!array_is_list($decisions) && $decisions)) {
+        throw new McpError('sections.decisions must be a list of { kind, ref, decision, note? }.');
+    }
+    if (count($decisions) > 20) {
+        throw new McpError('sections.decisions holds ' . count($decisions) . ' entries; the most is 20.');
+    }
+    $sunday = tt_add_days($monday, 6);
+    $clean  = [];
+    foreach (array_values($decisions) as $i => $d) {
+        $at = 'sections.decisions[' . $i . ']';
+        if (!is_array($d)) {
+            throw new McpError("$at must be an object with kind, ref and decision.");
+        }
+        $kind = (string) ($d['kind'] ?? '');
+        if (!in_array($kind, ['day_off', 'excusal'], true)) {
+            throw new McpError("$at kind is '$kind'; it must be day_off or excusal.");
+        }
+        $decision = (string) ($d['decision'] ?? '');
+        $allowed  = ['approved', 'declined', 'excused', 'not_excused', 'deferred'];
+        if (!in_array($decision, $allowed, true)) {
+            throw new McpError("$at decision is '$decision'; it must be one of: " . implode(', ', $allowed) . '.');
+        }
+        $ref = trim((string) ($d['ref'] ?? ''));
+        if ($kind === 'day_off') {
+            if (!ctype_digit($ref) || $store->getDayOff((int) $ref) === null) {
+                throw new McpError(
+                    "$at names day off \"$ref\", and there is no such record. List them with "
+                    . 'tracker_days_off and use the id it shows. Nothing was written.'
+                );
+            }
+        } else {
+            if (!preg_match('/^(\d{4}-\d{2}-\d{2})#(\d+)$/', $ref, $m)) {
+                throw new McpError("$at ref is \"$ref\"; an excusal ref looks like '2026-09-09#20'.");
+            }
+            [$date, $key] = [$m[1], (int) $m[2]];
+            if ($date < $monday || $date > $sunday) {
+                throw new McpError(
+                    "$at names $date, which is not in the week $monday to $sunday. Nothing was written."
+                );
+            }
+            if (mcp_find_block($store, $key, $date) === null) {
+                throw new McpError($at . ': ' . mcp_no_such_block($key, $date));
+            }
+        }
+        $note = $d['note'] ?? null;
+        if ($note !== null && (!is_string($note) || mb_strlen($note) > 200)) {
+            throw new McpError("$at note must be a string of at most 200 characters, or null.");
+        }
+        // A decision RECORDS what was decided; it never performs it. Excusals
+        // go through tracker_excuse_block and days off through
+        // tracker_decide_day_off, on the parent's word, in the review chat.
+        $clean[] = ['kind' => $kind, 'ref' => $ref, 'decision' => $decision, 'note' => $note];
+    }
+    if ($clean) {
+        $out['decisions'] = $clean;
+    }
+    return $out;
+}
+
+/**
+ * The counts a snapshot captured, in one sentence, partitioned: study blocks,
+ * then movement, then the review block. Everything that prints a count of a
+ * week prints it this way — a walk and a maths block in one fraction make the
+ * fraction mean nothing.
+ */
+function mcp_snapshot_counts_line(array $snapshot): string
+{
+    $by = $snapshot['counts_by_tracking'] ?? [];
+    $ev = $by['evidence'] ?? ['done' => 0, 'judged' => 0, 'short' => 0, 'missed' => 0,
+                              'excused' => 0, 'day_off' => 0];
+    $s  = 'study blocks ' . $ev['done'] . ' of ' . $ev['judged'] . ' done'
+        . ($ev['short'] ? ' (' . $ev['short'] . ' short)' : '')
+        . ', ' . $ev['missed'] . ' missed, ' . $ev['excused'] . ' excused';
+    if (!empty($ev['day_off'])) {
+        $s .= ', ' . $ev['day_off'] . ' on a day off';
+    }
+    $s .= ', ' . (int) ($snapshot['counts']['extra'] ?? 0) . ' extra';
+    if (!empty($by['self_report']['judged'])) {
+        $s .= '; movement ' . $by['self_report']['done'] . ' of ' . $by['self_report']['judged'];
+    }
+    if (!empty($by['review']['judged'])) {
+        $s .= '; review block ' . ($by['review']['done'] ? 'ticked' : 'not ticked');
+    }
+    return $s;
+}
+
+/** What was absent from a block that was not done, in the words the board uses. */
+function mcp_absent(array $b): string
+{
+    if (($b['tracking'] ?? '') !== 'evidence') {
+        return 'not ticked';
+    }
+    return match ($b['kind']) {
+        'timed_handwritten' => 'no attempt logged',
+        'retrieval'         => 'no retrieval practice logged',
+        'spanish'           => 'no practice logged',
+        default             => 'no session logged',
+    };
+}
+
+/**
+ * Who says they wrote a note. The server cannot check this — the routine and
+ * the chat arrive over one connector as one client — so it is printed as the
+ * claim it is, never as proof.
+ */
+function mcp_written_by(string $by): string
+{
+    return $by === 'routine' ? 'written by the Friday routine' : 'written in the review chat';
+}
+
+/** A stored review's sections, in the order the page shows them. */
+function mcp_review_sections_text(array $sections): array
+{
+    $lines = [
+        'Held: ' . ($sections['held'] ?? ''),
+        'Slipped: ' . ($sections['slipped'] ?? ''),
+        'Next week: ' . ($sections['next'] ?? ''),
+        'Rotation next: ' . ($sections['rotation_next'] ?? ''),
+    ];
+    if (!empty($sections['carry_forward'])) {
+        $lines[] = 'Carry-forward:';
+        foreach ($sections['carry_forward'] as $slug => $line) {
+            $lines[] = "  - $slug: $line";
+        }
+    }
+    if (!empty($sections['decisions'])) {
+        $lines[] = 'Decisions recorded (recorded here, performed by the tools that write them):';
+        foreach ($sections['decisions'] as $d) {
+            $lines[] = '  - ' . $d['kind'] . ' ' . $d['ref'] . ': ' . $d['decision']
+                . (($d['note'] ?? null) ? ' — ' . $d['note'] : '');
+        }
+    }
+    return $lines;
 }
 
 function mcp_tools(): array
@@ -1161,6 +1409,113 @@ function mcp_tools(): array
             ],
             'annotations' => $write,
         ],
+        [
+            'name'  => 'tracker_week_report',
+            'title' => 'Everything a week is judged on, in one call',
+            'description' =>
+                "One read for a whole week: every block with its status, the extras, the counts, the hours "
+                . "against what the timetable planned, each subject's topic movement with the evidence behind it, anything sat, "
+                . "the practice runs, the top of each review queue, pending days off, and any weekly review "
+                . "already saved for that week.\n\n"
+                . "USE WHEN: writing or preparing the Friday weekly review, or answering \"how did the week "
+                . "go\" across all subjects. This replaces the dozen calls that used to open a review — "
+                . "week_status, then history, attempts, practice and review_queue per subject — with one.\n\n"
+                . "DO NOT use it for a single day (tracker_today is cheaper) or for one subject's progress "
+                . "(tracker_get_state and tracker_review_queue answer that). Do not treat a missed block as "
+                . "a verdict on her: it means nothing was logged, which is sometimes a logging failure.\n\n"
+                . "Args: optional week (ISO, e.g. '2026-W37') or date (any day in it). Defaults to the "
+                . 'current week. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week' => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$',
+                        'description' => "ISO week, e.g. '2026-W37'"],
+                    'date' => $isoDate,
+                ],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_save_weekly_review',
+            'title' => 'Save the written half of a week',
+            'description' =>
+                "Stores the margin note for a week — what held, what slipped, one carry-forward per subject, "
+                . "what next week starts with, and the decisions the parent made — as a new version against "
+                . "that week. The tracker attaches its own snapshot of the counts, hours, blocks, movement, "
+                . "attempts and practice as they stand at save time, so the note can never disagree with the "
+                . "record about the week it describes.\n\n"
+                . "USE WHEN: the Friday routine has read tracker_week_report and written the draft, or the "
+                . "review with the parent is finished and the decisions are settled — then stage 'reviewed'.\n\n"
+                . "DO NOT use it to change the record. Excusing a block is tracker_excuse_block, deciding a "
+                . "day off is tracker_decide_day_off, ticking the review block is tracker_tick_block; this "
+                . "tool only records what was decided. Do not restate counts inside the sections — they are "
+                . "computed beside your words and will be right when yours have aged.\n\n"
+                . 'Args: week, stage, written_by, sections { held, slipped, next, carry_forward{slug: line}, '
+                . 'rotation_next, decisions[]? }, optional note.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week'       => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$'],
+                    'stage'      => ['type' => 'string', 'enum' => ['draft', 'reviewed']],
+                    'written_by' => ['type' => 'string', 'enum' => ['routine', 'chat'],
+                        'description' => "'routine' from the Friday scheduled run, 'chat' when a person is in the conversation"],
+                    'note'       => ['type' => 'string', 'maxLength' => 300],
+                    'sections'   => [
+                        'type' => 'object',
+                        'properties' => [
+                            'held'          => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                            'slipped'       => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                            'next'          => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                            'carry_forward' => ['type' => 'object',
+                                'description' => 'One line per subject slug, 3-200 characters'],
+                            'rotation_next' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 80],
+                            'decisions'     => [
+                                'type' => 'array', 'maxItems' => 20,
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'kind'     => ['type' => 'string', 'enum' => ['day_off', 'excusal']],
+                                        'ref'      => ['type' => 'string', 'minLength' => 1, 'maxLength' => 40,
+                                            'description' => "day_off: the id. excusal: 'YYYY-MM-DD#block_key'"],
+                                        'decision' => ['type' => 'string',
+                                            'enum' => ['approved', 'declined', 'excused', 'not_excused', 'deferred']],
+                                        'note'     => ['type' => ['string', 'null'], 'maxLength' => 200],
+                                    ],
+                                    'required' => ['kind', 'ref', 'decision'],
+                                ],
+                            ],
+                        ],
+                        'required' => ['held', 'slipped', 'next', 'carry_forward', 'rotation_next'],
+                    ],
+                ],
+                'required' => ['week', 'stage', 'written_by', 'sections'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_get_weekly_review',
+            'title' => 'Read a saved weekly review',
+            'description' =>
+                "The margin note stored against a week: its sections, its stage, who wrote it and when, the "
+                . "snapshot of the record it was written against, and how that snapshot now differs from the "
+                . "live record.\n\n"
+                . "USE WHEN: continuing a review the routine drafted, checking what was said about an earlier "
+                . "week, or before saving a new version — read what is there rather than writing over the "
+                . "top of it.\n\n"
+                . "DO NOT use it for the week's figures; those are computed live by tracker_week_report and "
+                . "the snapshot here is deliberately frozen at the moment it was written.\n\n"
+                . 'Args: week. Optional version (defaults to the latest). Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week'    => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$'],
+                    'version' => ['type' => 'integer', 'minimum' => 1],
+                ],
+                'required' => ['week'],
+            ],
+            'annotations' => $readOnly,
+        ],
     ];
 }
 
@@ -1491,6 +1846,327 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text("Block $key ({$block['label']}) on $date ticked by $by.");
         }
 
+        case 'tracker_week_report': {
+            [$week, $monday] = mcp_week_of($a);
+            // The whole report is read off one snapshot, which is the same
+            // thing the page renders and the same thing a save freezes: the
+            // model reading this and the parent reading the board are looking
+            // at one set of figures.
+            $snap  = $store->weekSnapshot($monday);
+            $names = [];
+            foreach ($store->listSubjects() as $s) {
+                $names[$s['slug']] = $s['name'];
+            }
+            $short = static fn(array $b): string => substr(TIMETABLE_DAYS[(int) $b['weekday']], 0, 3);
+
+            $lines = ["Week $week — " . tt_pretty($monday) . ' to ' . tt_pretty($snap['friday'])];
+            $lines[] = ucfirst(mcp_snapshot_counts_line($snap)) . '.';
+            if ($snap['timetable_version_id'] === null) {
+                $lines[] = 'No timetable was in force in this week, so no block was judged. Everything '
+                    . 'below is still the record: sessions, attempts, practice runs and topic movement.';
+            } elseif ($monday > tt_today()) {
+                $lines[] = 'This week has not run yet, so every block is upcoming. Nothing here is a miss.';
+            }
+
+            $byDate = [];
+            foreach ($snap['blocks'] as $b) {
+                $byDate[$b['date']][] = $b;
+            }
+            $extrasByDate = [];
+            foreach ($snap['extras'] as $e) {
+                $extrasByDate[$e['date']][] = $e;
+            }
+            foreach ($byDate as $date => $blocks) {
+                // Study blocks first, then the movement and review blocks
+                // under them: they are judged differently and counted apart.
+                $study = array_values(array_filter($blocks, static fn($b) => $b['tracking'] === 'evidence'));
+                $rest  = array_values(array_filter($blocks, static fn($b) => $b['tracking'] !== 'evidence'));
+                $done  = count(array_filter($study, static fn($b) => $b['status'] === 'done'));
+                $lines[] = "\n" . TIMETABLE_DAYS[(int) $blocks[0]['weekday']] . " $date — $done/"
+                    . count($study) . ' study blocks done';
+                foreach (array_merge($study, $rest) as $b) {
+                    $lines[] = '  ' . mcp_block_line($b);
+                }
+                foreach ($extrasByDate[$date] ?? [] as $e) {
+                    $lines[] = '  + extra: ' . $e['subject'] . ' ' . $e['type'] . ' #' . $e['id']
+                        . ' ' . $e['label'];
+                }
+            }
+
+            $missed = array_values(array_filter($snap['blocks'], static fn($b) => $b['status'] === 'missed'));
+            $lines[] = "\nMISSED";
+            if (!$missed) {
+                $lines[] = '- nothing was missed.';
+            }
+            foreach ($missed as $b) {
+                $lines[] = '- ' . $short($b) . ' ' . $b['start'] . ' ' . $b['label']
+                    . ' — ' . mcp_absent($b);
+            }
+            $shorts = array_values(array_filter($snap['blocks'], static fn($b) => !empty($b['short'])));
+            foreach ($shorts as $b) {
+                $lines[] = '- SHORT: ' . $short($b) . ' ' . $b['start'] . ' ' . $b['label']
+                    . ' — ' . $b['minutes'] . ' min of ' . $b['length'];
+            }
+
+            $lines[] = "\nEXTRA WORK, OUTSIDE THE TIMETABLE";
+            if (!$snap['extras']) {
+                $lines[] = '- none. An extra never offsets a miss; it is logged beside it.';
+            }
+            foreach ($snap['extras'] as $e) {
+                $lines[] = '- ' . $short($e) . ' ' . $e['at'] . ' ' . $e['subject'] . ' ' . $e['type']
+                    . ' #' . $e['id'] . ' ' . $e['label'];
+            }
+
+            $pending = array_values(array_filter(
+                $snap['days_off'], static fn($d) => $d['status'] === 'requested'
+            ));
+            $lines[] = "\nDAYS OFF — pending the parent's decision";
+            if (!$pending) {
+                $lines[] = '- none waiting.';
+            }
+            foreach ($pending as $d) {
+                $span = $d['date_from'] === $d['date_to']
+                    ? tt_pretty($d['date_from'])
+                    : tt_pretty($d['date_from']) . ' to ' . tt_pretty($d['date_to']);
+                $lines[] = '- #' . $d['id'] . ' ' . $span . ', asked by ' . $d['requested_by']
+                    . ': ' . $d['reason'] . ' → put it to him; do not decide it.';
+            }
+
+            $lines[] = "\nHOURS AGAINST THE TIMETABLE";
+            $slugs = array_keys($snap['planned_by_subject'] + $snap['hours_by_subject']);
+            sort($slugs);
+            $bits = [];
+            $dh   = 0.0;
+            $ph   = 0.0;
+            foreach ($slugs as $slug) {
+                $h = (float) ($snap['hours_by_subject'][$slug] ?? 0);
+                $p = (float) ($snap['planned_by_subject'][$slug] ?? 0);
+                $dh += $h;
+                $ph += $p;
+                $bits[] = $slug . ' ' . number_format($h, 2) . '/' . number_format($p, 2);
+            }
+            $lines[] = $bits ? implode(' · ', $bits) : 'Nothing planned and nothing logged.';
+            $lines[] = 'Total ' . number_format($dh, 2) . ' of ' . number_format($ph, 2)
+                . ' planned hours. The planned figure is the timetable\'s, not the skills\' split, and '
+                . 'counts only the blocks that resolve to one subject.';
+
+            $lines[] = "\nTIMED / HANDWRITTEN";
+            foreach ($snap['timed']['this_week'] as $t) {
+                $lines[] = '- ' . $t['date'] . ' ' . $t['label'] . ' — ' . ($t['evidence'] ?? 'no evidence')
+                    . ', ' . $t['minutes'] . ' min'
+                    . ($t['measured'] ? ' recorded' : ' (the block length; no duration was recorded)')
+                    . ($t['blanks'] === null ? '' : ', ' . $t['blanks'] . ' blank'
+                        . ($t['blanks'] === 1 ? '' : 's'));
+            }
+            if (!$snap['timed']['this_week']) {
+                $l = $snap['timed']['last'];
+                $lines[] = '- none this week' . ($l
+                    ? ' (last: ' . $l['date'] . ', ' . $l['label'] . ', ' . $l['minutes'] . ' min'
+                        . ($l['measured'] ? '' : ' — the block length, not a measured sitting')
+                        . ($l['blanks'] === null ? '' : ', ' . $l['blanks'] . ' blanks') . ')'
+                    : ' — and none in the eight weeks before it, so stamina has no new reading') . '.';
+            }
+
+            foreach ($names as $slug => $name) {
+                $lines[] = "\n### $slug — $name";
+                $moved = array_values(array_filter(
+                    $snap['changes'], static fn($c) => $c['subject_slug'] === $slug
+                ));
+                if (!$moved) {
+                    $lines[] = '- no topic movement this week.';
+                }
+                foreach ($moved as $c) {
+                    $from = $c['from_status'] ? (STATUS_LABEL[$c['from_status']] ?? $c['from_status']) : '—';
+                    $to   = STATUS_LABEL[$c['to_status']] ?? $c['to_status'];
+                    $lines[] = '- ' . $c['ref'] . ($c['topic_name'] ? ' ' . $c['topic_name'] : '')
+                        . ' ' . $from . '→' . $to . ' — ' . $c['evidence'];
+                }
+                foreach ($snap['attempts'] as $x) {
+                    if ($x['subject_slug'] !== $slug) {
+                        continue;
+                    }
+                    $lines[] = '- sat: ' . $x['name'] . ' (' . $x['kind'] . ', ' . $x['date'] . ') '
+                        . num($x['score']) . '/' . num($x['max'])
+                        . ($x['blanks'] === null ? '' : ' · ' . $x['blanks'] . ' blank'
+                            . ($x['blanks'] === 1 ? '' : 's'));
+                }
+                $p = $snap['practice'][$slug] ?? null;
+                $lines[] = $p
+                    ? '- practice: ' . $p['runs'] . ' run' . ($p['runs'] === 1 ? '' : 's') . ', '
+                        . $p['attempted'] . ' attempted, ' . $p['correct'] . ' right first time'
+                        . ($p['first_time_pct'] === null ? '' : ' (' . $p['first_time_pct'] . '%)')
+                        . ', best run ' . $p['best_score'] . '.'
+                    : '- practice: none logged this week.';
+                $cov = $snap['coverage'][$slug] ?? null;
+                if ($cov) {
+                    $delta = $cov['pct_end'] - $cov['pct_start'];
+                    $lines[] = '- coverage ' . $cov['pct_end'] . '% at the end of the week, '
+                        . ($delta === 0 ? 'unchanged across it' : ($delta > 0 ? '+' : '') . $delta
+                            . ' points across it')
+                        . ', against today\'s ' . $cov['topics'] . ' topics.';
+                }
+                $q = $snap['queue_top'][$slug] ?? null;
+                $lines[] = $q ? '- next in the queue: ' . $q['line'] : '- the review queue is empty.';
+            }
+
+            $review    = $store->weeklyReview($week);
+            $lastTimed = $snap['timed']['this_week']
+                ? $snap['timed']['this_week'][count($snap['timed']['this_week']) - 1]
+                : $snap['timed']['last'];
+            $lines[] = "\nROTATION";
+            $lines[] = '- last timed piece: ' . ($lastTimed
+                ? $lastTimed['date'] . ' ' . $lastTimed['label']
+                    . ($lastTimed['evidence'] ? ' — ' . $lastTimed['evidence'] : '')
+                : 'none in the last eight weeks');
+            $lines[] = '- next: ' . (($review['sections']['rotation_next'] ?? '') !== ''
+                ? $review['sections']['rotation_next'] . ' (from the saved review)'
+                : 'not named yet — read the attempts and name it in the review.');
+
+            if ($review) {
+                $lines[] = "\nWEEKLY REVIEW ALREADY SAVED — version " . $review['version'] . ', '
+                    . $review['stage'] . ', ' . mcp_written_by($review['written_by']) . ', '
+                    . mcp_review_when((string) $review['written_at']);
+                foreach (mcp_review_sections_text($review['sections']) as $l) {
+                    $lines[] = $l;
+                }
+                $lines[] = 'Read it in full with tracker_get_weekly_review, and save over it only as a '
+                    . 'new version.';
+            } else {
+                $lines[] = "\nNo weekly review has been written for $week yet — that is "
+                    . 'tracker_save_weekly_review.';
+            }
+
+            $lines[] = '';
+            $lines[] = 'A missed block means nothing was logged against it — which is sometimes a '
+                . 'logging failure rather than a missed lesson. Check before saying it was skipped.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_save_weekly_review': {
+            [$week, $monday] = mcp_week_of($a, true);
+            $stage = mcp_str($a, 'stage', true, 1, 20);
+            if (!in_array($stage, ['draft', 'reviewed'], true)) {
+                throw new McpError("stage must be 'draft' or 'reviewed'.");
+            }
+            $by = mcp_str($a, 'written_by', true, 1, 20);
+            if (!in_array($by, ['routine', 'chat'], true)) {
+                throw new McpError("written_by must be 'routine' or 'chat'.");
+            }
+            $note = mcp_str($a, 'note', false, 0, 300);
+
+            if ($monday > tt_today()) {
+                throw new McpError(
+                    "Week $week has not started — it begins on " . tt_pretty($monday) . '. There is '
+                    . 'nothing to review yet; write it once the week has run.'
+                );
+            }
+            // A routine that fires late must not stamp a draft over a review
+            // that has already happened.
+            if ($stage === 'draft') {
+                foreach ($store->weeklyReviewVersions($week) as $v) {
+                    if ($v['stage'] === 'reviewed') {
+                        throw new McpError(
+                            "Week $week already has a reviewed version (version {$v['version']}, written "
+                            . mcp_review_when((string) $v['written_at']) . "). Send stage 'reviewed' "
+                            . 'instead, carrying these sections forward with whatever has changed. '
+                            . 'Nothing was written.'
+                        );
+                    }
+                }
+            }
+
+            // Everything is validated before the database is touched, and one
+            // bad section refuses the whole call.
+            $sections = mcp_review_sections($store, $a['sections'] ?? null, $monday);
+
+            // The snapshot is the server's, always. The tool has no snapshot
+            // argument — not even an ignored one — so a note can never
+            // mis-state the week it sits beside.
+            $res = $store->addWeeklyReview([
+                'week'       => $week,
+                'stage'      => $stage,
+                'written_by' => $by,
+                'snapshot'   => $store->weekSnapshot($monday),
+                'sections'   => $sections,
+                'note'       => $note,
+            ]);
+            $row  = $res['row'];
+            $when = mcp_review_when((string) $row['written_at']);
+            $head = $res['status'] === 'duplicate'
+                ? "Version {$row['version']} ({$row['stage']}) for $week already says exactly this, "
+                    . "written $when — no version was added."
+                : "Saved version {$row['version']} ({$row['stage']}) for $week, written $when.";
+            return mcp_text(
+                $head . ' Snapshot: ' . mcp_snapshot_counts_line($row['snapshot'])
+                . ". Read it at /week/$week."
+            );
+        }
+
+        case 'tracker_get_weekly_review': {
+            [$week] = mcp_week_of($a, true);
+            $version  = isset($a['version']) ? (int) mcp_num($a, 'version', false, 1, 999) : null;
+            $versions = $store->weeklyReviewVersions($week);
+            if (!$versions) {
+                return mcp_text(
+                    "No weekly review has been written for $week. Write one with "
+                    . 'tracker_save_weekly_review after reading tracker_week_report.'
+                );
+            }
+            $row = $store->weeklyReview($week, $version);
+            if (!$row) {
+                return mcp_text(
+                    "There is no version $version for $week. Versions that exist: "
+                    . implode(', ', array_map(
+                        static fn($v) => $v['version'] . ' (' . $v['stage'] . ')', $versions
+                    )) . '.'
+                );
+            }
+            $last  = $versions[count($versions) - 1]['version'];
+            $lines = [
+                'version ' . $row['version'] . ' of ' . $last . ' · ' . $row['stage'] . ' · '
+                . mcp_written_by($row['written_by']) . ' · ' . mcp_review_when((string) $row['written_at']),
+            ];
+            if ($row['note']) {
+                $lines[] = 'Note on the save: ' . $row['note'];
+            }
+            $lines[] = 'Versions: ' . implode(', ', array_map(
+                static fn($v) => $v['version'] . ' ' . $v['stage'] . ' ('
+                    . mcp_review_when((string) $v['written_at']) . ')',
+                $versions
+            ));
+            $lines[] = '';
+            foreach (mcp_review_sections_text($row['sections']) as $l) {
+                $lines[] = $l;
+            }
+
+            $snap  = $row['snapshot'];
+            $lines[] = '';
+            $lines[] = 'Snapshot taken when it was written: ' . mcp_snapshot_counts_line($snap) . '.';
+            $hours = [];
+            foreach (array_keys(($snap['planned_by_subject'] ?? []) + ($snap['hours_by_subject'] ?? [])) as $slug) {
+                $hours[] = $slug . ' ' . number_format((float) ($snap['hours_by_subject'][$slug] ?? 0), 2)
+                    . '/' . number_format((float) ($snap['planned_by_subject'][$slug] ?? 0), 2);
+            }
+            sort($hours);
+            if ($hours) {
+                $lines[] = 'Hours then, against the timetable: ' . implode(' · ', $hours) . '.';
+            }
+
+            // The drift line, from the same comparison the page renders, so
+            // the note read here and the note read on the board say the same
+            // thing about how far the record has moved since.
+            $drift   = $store->weekDrift($snap);
+            $lines[] = '';
+            $lines[] = $drift['line'];
+            if ($drift['since'] === '') {
+                $lines[] = 'The record has not moved since: the snapshot still matches it.';
+            }
+            $lines[] = '';
+            $lines[] = 'The figures here are frozen. For the week as it stands now, call '
+                . 'tracker_week_report.';
+            return mcp_text(implode("\n", $lines));
+        }
+
         case 'tracker_list_subjects':
             $subjects = $store->listSubjects();
             if (!$subjects) {
@@ -1547,23 +2223,14 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if (isset($r['error'])) {
                 return mcp_text($r['error']);
             }
-            $s   = $r['subject'];
-            $all = $store->listTopics($slug);
+            $s = $r['subject'];
 
-            $ageing = [];
-            foreach ($all as $t) {
-                if ($t['status'] === 'secure' || $t['status'] === 'examready') {
-                    $w = weeksSince($t['last_touched']);
-                    if ($w === null || $w >= $weeks) {
-                        $ageing[] = ['t' => $t, 'w' => $w];
-                    }
-                }
-            }
-            usort($ageing, static fn($x, $y) => ($y['w'] ?? 999) <=> ($x['w'] ?? 999));
-
-            $loose = array_values(array_filter($all, static fn($t) => $t['watch'] && $t['status'] !== 'gap'));
-            $gaps  = array_values(array_filter($all, static fn($t) => $t['status'] === 'gap'));
-            usort($gaps, static fn($x, $y) => strcmp($x['tier'], $y['tier']));
+            // The selection lives in the store, so the queue in chat and the
+            // queue line on the week page are one decision made once.
+            $queue  = $store->reviewQueue($slug, $weeks);
+            $ageing = $queue['ageing'];
+            $loose  = $queue['loose'];
+            $gaps   = $queue['gaps'];
 
             $parts = ['**Review queue — ' . $s['name'] . '**'];
 
@@ -1583,9 +2250,9 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if ($ageing) {
                 $lines = array_map(
                     static fn($x) => $withResources(
-                        '- **' . $x['t']['ref'] . '** ' . $x['t']['name'] . ' — '
-                            . ($x['w'] === null ? 'no date recorded' : $x['w'] . ' weeks since last touched'),
-                        $x['t']['ref']
+                        '- **' . $x['topic']['ref'] . '** ' . $x['topic']['name'] . ' — '
+                            . ($x['weeks'] === null ? 'no date recorded' : $x['weeks'] . ' weeks since last touched'),
+                        $x['topic']['ref']
                     ),
                     $ageing
                 );
