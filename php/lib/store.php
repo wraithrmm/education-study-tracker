@@ -196,6 +196,224 @@ CREATE INDEX IF NOT EXISTS idx_papers_attempt ON attempt_papers(attempt_id, sort
 CREATE INDEX IF NOT EXISTS idx_questions_paper ON attempt_questions(paper_id, sort_order);
 SQL;
 
+/** The block kinds the timetable understands, in the order the day runs. */
+const TIMETABLE_KINDS = [
+    'movement', 'retrieval', 'teach', 'practise', 'timed_handwritten',
+    'coding', 'writing', 'consolidate', 'spanish', 'review', 'break',
+];
+
+/**
+ * How a block is judged.
+ *   evidence    — done only when a session, attempt or practice run exists.
+ *   self_report — done when someone ticks it (movement, the weekly review).
+ *   none        — not judged at all (breaks).
+ */
+const TIMETABLE_TRACKING = ['evidence', 'self_report', 'none'];
+
+const TIMETABLE_DAYS = [
+    1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday',
+    5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday',
+];
+
+/**
+ * Everything here works in Europe/London, because that is the clock the
+ * student is actually looking at. Stored timestamps are UTC; the conversion
+ * happens once, on the way in.
+ */
+function tt_zone(): DateTimeZone
+{
+    static $tz = null;
+    return $tz ??= new DateTimeZone('Europe/London');
+}
+
+function tt_now(): DateTimeImmutable
+{
+    // TRACKER_NOW freezes the clock so that `now`, `pending` and `missed` can
+    // be asserted at a chosen minute instead of only ever being whatever the
+    // test runner's wall clock says. Test-only: never set it in a deployed
+    // .env, or the whole board will judge against a date that is not today.
+    $fixed = getenv('TRACKER_NOW');
+    if (is_string($fixed) && $fixed !== '') {
+        try {
+            return new DateTimeImmutable($fixed, tt_zone());
+        } catch (Throwable) {
+            // A malformed override is ignored rather than taking the service
+            // down; the real clock is always a safe answer.
+        }
+    }
+    return new DateTimeImmutable('now', tt_zone());
+}
+
+function tt_today(): string
+{
+    return tt_now()->format('Y-m-d');
+}
+
+/** Minutes since midnight, for a 'HH:MM'. */
+function tt_mins(string $hhmm): int
+{
+    [$h, $m] = array_map('intval', explode(':', $hhmm));
+    return $h * 60 + $m;
+}
+
+/** Validate and normalise a 'HH:MM', naming the field when it is wrong. */
+function tt_hhmm(mixed $v, string $what): string
+{
+    $s = trim((string) $v);
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', $s, $m) || (int) $m[1] > 23 || (int) $m[2] > 59) {
+        throw new InvalidArgumentException("$what is '$s'; it must be a 24-hour time like 09:45.");
+    }
+    return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+}
+
+function tt_add_days(string $date, int $n): string
+{
+    return (new DateTimeImmutable($date, tt_zone()))->modify(($n >= 0 ? '+' : '') . $n . ' days')
+        ->format('Y-m-d');
+}
+
+/** The Monday of the ISO week a date falls in. */
+function tt_monday(string $date): string
+{
+    $d = new DateTimeImmutable($date, tt_zone());
+    return $d->modify('-' . ((int) $d->format('N') - 1) . ' days')->format('Y-m-d');
+}
+
+/** 'YYYY-Www' for a date. */
+function tt_iso_week(string $date): string
+{
+    $d = new DateTimeImmutable($date, tt_zone());
+    return $d->format('o') . '-W' . $d->format('W');
+}
+
+/** '10 September 2026', for a line a person reads. */
+function tt_pretty(string $date): string
+{
+    return (new DateTimeImmutable($date, tt_zone()))->format('j F Y');
+}
+
+/** Monday of a 'YYYY-Www'. Returns null when the string is not one. */
+function tt_week_monday(string $iso): ?string
+{
+    if (!preg_match('/^(\d{4})-W(\d{2})$/', trim($iso), $m)) {
+        return null;
+    }
+    $week = (int) $m[2];
+    if ($week < 1 || $week > 53) {
+        return null;
+    }
+    $d = new DateTimeImmutable('now', tt_zone());
+    return $d->setISODate((int) $m[1], $week, 1)->format('Y-m-d');
+}
+
+/** Which half of the alternation a date falls in, by ISO week number. */
+function tt_parity(string $date): string
+{
+    return ((int) (new DateTimeImmutable($date, tt_zone()))->format('W')) % 2 === 1 ? 'odd' : 'even';
+}
+
+/** A stored UTC 'Y-m-d H:i:s' as a local ['date', 'time']. */
+function tt_local(string $utc): array
+{
+    try {
+        $d = new DateTimeImmutable($utc, new DateTimeZone('UTC'));
+    } catch (Throwable) {
+        return [substr($utc, 0, 10), '00:00'];
+    }
+    $l = $d->setTimezone(tt_zone());
+    return [$l->format('Y-m-d'), $l->format('H:i')];
+}
+
+/**
+ * What changed between two block sets, keyed by block_key, so a re-cut can be
+ * echoed to the parent before it is written.
+ *
+ * @return array{added:array<int,string>,removed:array<int,string>,changed:array<int,string>}
+ */
+function tt_diff(array $before, array $after): array
+{
+    $line = static fn(array $b): string => TIMETABLE_DAYS[$b['weekday']] . ' ' . $b['start'] . '–'
+        . $b['end'] . ' ' . $b['label'];
+    $index = static function (array $rows): array {
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r['block_key']] = $r;
+        }
+        return $out;
+    };
+    $a = $index($before);
+    $b = $index($after);
+
+    $diff = ['added' => [], 'removed' => [], 'changed' => []];
+    foreach ($b as $key => $row) {
+        if (!isset($a[$key])) {
+            $diff['added'][] = "$key · " . $line($row);
+            continue;
+        }
+        $was = $a[$key];
+        $fields = [];
+        foreach (['weekday', 'start', 'end', 'kind', 'label', 'tracking'] as $f) {
+            if ((string) $was[$f] !== (string) $row[$f]) {
+                $fields[] = "$f " . $was[$f] . ' → ' . $row[$f];
+            }
+        }
+        $wasSubjects = implode(',', $was['subjects'] ?? []);
+        $nowSubjects = implode(',', $row['subjects'] ?? []);
+        if ($wasSubjects !== $nowSubjects) {
+            $fields[] = 'subjects ' . ($wasSubjects ?: '—') . ' → ' . ($nowSubjects ?: '—');
+        }
+        if ($fields) {
+            $diff['changed'][] = "$key · " . $line($was) . ': ' . implode('; ', $fields);
+        }
+    }
+    foreach ($a as $key => $row) {
+        if (!isset($b[$key])) {
+            $diff['removed'][] = "$key · " . $line($row);
+        }
+    }
+    return $diff;
+}
+
+/**
+ * The subjects a block resolves to on a date. A block with an `alternate`
+ * runs one subject in odd ISO weeks and another in even ones, so the answer
+ * depends on when you ask.
+ *
+ * @param  array<string,mixed> $block
+ * @return array<int,string>
+ */
+function tt_subjects_for(array $block, string $date): array
+{
+    if (!empty($block['alternate'])) {
+        return $block['alternate'][tt_parity($date)] ?? $block['subjects'];
+    }
+    return $block['subjects'];
+}
+
+/**
+ * Whether a record is the kind of work a block asks for.
+ *
+ * Two blocks are fussy on purpose. A timed handwritten block is not satisfied
+ * by a typed session that happened to be about the same subject — the point of
+ * it is a marked paper. A retrieval block wants retrieval practice, not an
+ * hour of new teaching. In both cases an explicit block_key overrides the
+ * refinement, because someone has then said which block the work was for.
+ *
+ * @param array<string,mixed> $block
+ * @param array<string,mixed> $ev
+ */
+function tt_kind_accepts(array $block, array $ev): bool
+{
+    if ($ev['block_key'] !== null && $ev['block_key'] === $block['block_key']) {
+        return true;
+    }
+    return match ($block['kind']) {
+        'timed_handwritten' => $ev['type'] === 'attempt',
+        'retrieval'         => $ev['type'] === 'practice' && str_starts_with((string) $ev['source'], 'retrieval_'),
+        default             => true,
+    };
+}
+
 /** What a resource is for, used to sort and label it. */
 const RESOURCE_KINDS = ['video', 'notes', 'practice', 'paper', 'book', 'other'];
 
@@ -231,7 +449,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 3;
+    private const SCHEMA_VERSION = 4;
 
     private function migrate(): void
     {
@@ -341,6 +559,41 @@ final class Store
             }
             return;
         }
+
+        if ($v === 4) {
+            // The weekly timetable. Nothing here rewrites an existing record:
+            // sessions, attempts and practice runs each gain one nullable
+            // column and are otherwise untouched.
+            $this->createTimetableTables();
+
+            // An explicit link from a logged record to the block it fulfilled.
+            // Null is the normal case and means "bind me by subject and date"
+            // — the link exists for the days two blocks share a subject and
+            // the greedy pass would otherwise guess.
+            if (!$this->hasColumn('sessions', 'block_key')) {
+                $this->db->exec('ALTER TABLE sessions ADD COLUMN block_key INTEGER');
+            }
+            // How long the session actually ran, so a 20-minute sitting in a
+            // 75-minute block reads as `short` rather than as done.
+            if (!$this->hasColumn('sessions', 'duration_minutes')) {
+                $this->db->exec('ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER');
+            }
+            // On the paper rather than the attempt, because sat_on is there:
+            // the paper is the thing with a date of its own.
+            if (!$this->hasColumn('attempt_papers', 'block_key')) {
+                $this->db->exec('ALTER TABLE attempt_papers ADD COLUMN block_key INTEGER');
+            }
+            if (!$this->hasColumn('practice_run', 'block_key')) {
+                $this->db->exec('ALTER TABLE practice_run ADD COLUMN block_key INTEGER');
+            }
+
+            // Design A is the one the parent approved to run first. All three
+            // ship behind this switch; ?design= overrides it per request.
+            if ($this->meta('timetable_design') === null) {
+                $this->setMeta('timetable_design', 'a');
+            }
+            return;
+        }
     }
 
     /**
@@ -447,6 +700,104 @@ final class Store
         ] as $sql) {
             $this->db->exec($sql);
         }
+    }
+
+    /**
+     * The weekly timetable, its days off, and the per-date overrides.
+     *
+     * Created in a migration step rather than in SCHEMA so that the ALTER
+     * TABLEs that go with it run under the same write lock: a database that
+     * has the tables but not the block_key columns would judge every block as
+     * missed, which is worse than not having the feature.
+     */
+    private function createTimetableTables(): void
+    {
+        // A timetable is versioned rather than edited, so a week judged in
+        // September still resolves against the shape that was in force then.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS timetable_versions (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               valid_from TEXT NOT NULL,
+               created_at TEXT NOT NULL DEFAULT (datetime('now')),
+               note       TEXT
+             )"
+        );
+
+        // block_key is the identity that survives a re-cut: an excusal written
+        // against block 16 in week 37 still resolves after the timetable is
+        // edited in week 40. The primary key does not, so nothing user-facing
+        // is ever allowed to reference it.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS timetable_blocks (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               version_id     INTEGER NOT NULL REFERENCES timetable_versions(id) ON DELETE CASCADE,
+               block_key      INTEGER NOT NULL,
+               weekday        INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+               start          TEXT NOT NULL,
+               end            TEXT NOT NULL,
+               kind           TEXT NOT NULL CHECK (kind IN (
+                                'movement','retrieval','teach','practise','timed_handwritten',
+                                'coding','writing','consolidate','spanish','review','break')),
+               label          TEXT NOT NULL,
+               note           TEXT,
+               subjects_json  TEXT NOT NULL DEFAULT '[]',
+               alternate_json TEXT,
+               tracking       TEXT NOT NULL CHECK (tracking IN ('evidence','self_report','none')),
+               sort           INTEGER NOT NULL,
+               UNIQUE (version_id, block_key)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_blocks_version ON timetable_blocks(version_id, weekday, sort)'
+        );
+
+        // Anyone may ask for a day off; only the parent decides. Declined and
+        // un-approved records are kept with their note, so "we said no and
+        // why" survives in the record rather than vanishing.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS days_off (
+               id            INTEGER PRIMARY KEY AUTOINCREMENT,
+               date_from     TEXT NOT NULL,
+               date_to       TEXT NOT NULL,
+               kind          TEXT NOT NULL DEFAULT 'day_off'
+                               CHECK (kind IN ('holiday','day_off','sick','other')),
+               reason        TEXT NOT NULL,
+               requested_by  TEXT NOT NULL CHECK (requested_by IN ('student','parent')),
+               status        TEXT NOT NULL CHECK (status IN ('requested','approved','declined')),
+               decided_at    TEXT,
+               decision_note TEXT,
+               created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_days_off_range ON days_off(date_from, date_to)'
+        );
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS timetable_excusals (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               date       TEXT NOT NULL,
+               block_key  INTEGER NOT NULL,
+               reason     TEXT,
+               created_at TEXT NOT NULL DEFAULT (datetime('now')),
+               UNIQUE (date, block_key)
+             )"
+        );
+
+        // Only for tracking = 'self_report'. A tick on an evidence block is
+        // refused at the tool, because the whole point of the board is that
+        // study blocks are derived from logged work rather than declared.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS timetable_ticks (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               date       TEXT NOT NULL,
+               block_key  INTEGER NOT NULL,
+               by         TEXT NOT NULL CHECK (by IN ('student','parent')),
+               note       TEXT,
+               created_at TEXT NOT NULL DEFAULT (datetime('now')),
+               UNIQUE (date, block_key)
+             )"
+        );
     }
 
     /**
@@ -600,35 +951,59 @@ final class Store
         ];
     }
 
+    /**
+     * Create a subject, or amend the fields of one that exists.
+     *
+     * A key that is absent is left as it was; a key that is present is
+     * written, empty or not. That is what lets one field be corrected — an
+     * exam date that turned out to be for the wrong year — without re-sending
+     * a hundred topics and a strand map just to stand still. The merge is done
+     * here rather than in SQL because ON CONFLICT sees the defaulted value in
+     * `excluded`, not the absent one, so COALESCE there silently overwrites.
+     */
     public function upsertSubject(array $s): array
     {
+        $slug = $s['slug'];
+        $old  = $this->one('SELECT * FROM subjects WHERE slug = ?', [$slug]);
+
+        $keep = static fn(string $key, mixed $fallback): mixed =>
+            array_key_exists($key, $s) && $s[$key] !== null ? $s[$key] : $fallback;
+
+        // JSON_FORCE_OBJECT keeps an empty map as {} rather than [], which is
+        // what the Node version wrote and what hydrateSubject expects.
+        $json = static fn(mixed $v): string => json_encode((object) ($v ?? []));
+
+        $row = [
+            ':slug'         => $slug,
+            ':name'         => $keep('name', $old['name'] ?? $slug),
+            ':spec_code'    => $keep('spec_code', $old['spec_code'] ?? null),
+            ':tier'         => $keep('tier', $old['tier'] ?? null),
+            ':exam_date'    => $keep('exam_date', $old['exam_date'] ?? null),
+            ':strands'      => array_key_exists('strands', $s)
+                ? $json($s['strands']) : ($old['strands'] ?? '{}'),
+            ':boundaries'   => array_key_exists('boundaries', $s)
+                ? $json($s['boundaries']) : ($old['boundaries'] ?? '{}'),
+            ':boundary_max' => $keep('boundary_max', $old['boundary_max'] ?? 240),
+            ':notes'        => $keep('notes', $old['notes'] ?? null),
+        ];
+
         $st = $this->db->prepare(
-            'INSERT INTO subjects (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes)
-             VALUES (:slug, :name, :spec_code, :tier, :exam_date, :strands, :boundaries, :boundary_max, :notes)
+            'INSERT INTO subjects
+               (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes)
+             VALUES (:slug, :name, :spec_code, :tier, :exam_date, :strands, :boundaries,
+                     :boundary_max, :notes)
              ON CONFLICT(slug) DO UPDATE SET
                name = excluded.name,
-               spec_code = COALESCE(excluded.spec_code, subjects.spec_code),
-               tier = COALESCE(excluded.tier, subjects.tier),
-               exam_date = COALESCE(excluded.exam_date, subjects.exam_date),
+               spec_code = excluded.spec_code,
+               tier = excluded.tier,
+               exam_date = excluded.exam_date,
                strands = excluded.strands,
                boundaries = excluded.boundaries,
                boundary_max = excluded.boundary_max,
-               notes = COALESCE(excluded.notes, subjects.notes)'
+               notes = excluded.notes'
         );
-        $st->execute([
-            ':slug'         => $s['slug'],
-            ':name'         => $s['name'],
-            ':spec_code'    => $s['spec_code'] ?? null,
-            ':tier'         => $s['tier'] ?? null,
-            ':exam_date'    => $s['exam_date'] ?? null,
-            // JSON_FORCE_OBJECT keeps an empty map as {} rather than [], which
-            // is what the Node version wrote and what hydrateSubject expects.
-            ':strands'      => json_encode((object) ($s['strands'] ?? [])),
-            ':boundaries'   => json_encode((object) ($s['boundaries'] ?? [])),
-            ':boundary_max' => $s['boundary_max'] ?? 240,
-            ':notes'        => $s['notes'] ?? null,
-        ]);
-        return $this->getSubject($s['slug']);
+        $st->execute($row);
+        return $this->getSubject($slug);
     }
 
     // ---- topics ---------------------------------------------------------
@@ -854,12 +1229,13 @@ final class Store
             foreach (array_values($a['papers'] ?? []) as $i => $paper) {
                 $st = $this->db->prepare(
                     'INSERT INTO attempt_papers
-                       (attempt_id, code, score, max, blanks, note, sat_on, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                       (attempt_id, code, score, max, blanks, note, sat_on, block_key, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 );
                 $st->execute([
                     $attemptId, $paper['code'], $paper['score'], $paper['max'],
-                    $paper['blanks'] ?? null, $paper['note'] ?? null, $paper['sat_on'] ?? null, $i,
+                    $paper['blanks'] ?? null, $paper['note'] ?? null, $paper['sat_on'] ?? null,
+                    $paper['block_key'] ?? null, $i,
                 ]);
                 $paperId = (int) $this->db->lastInsertId();
 
@@ -1095,15 +1471,19 @@ final class Store
     public function addSession(array $s): int
     {
         $st = $this->db->prepare(
-            'INSERT INTO sessions (subject_slug, date, summary, topics_touched, next_steps)
-             VALUES (:subject_slug, :date, :summary, :topics_touched, :next_steps)'
+            'INSERT INTO sessions
+               (subject_slug, date, summary, topics_touched, next_steps, block_key, duration_minutes)
+             VALUES (:subject_slug, :date, :summary, :topics_touched, :next_steps,
+                     :block_key, :duration_minutes)'
         );
         $st->execute([
-            ':subject_slug'   => $s['subject_slug'],
-            ':date'           => $s['date'],
-            ':summary'        => $s['summary'],
-            ':topics_touched' => $s['topics_touched'] ?? null,
-            ':next_steps'     => $s['next_steps'] ?? null,
+            ':subject_slug'     => $s['subject_slug'],
+            ':date'             => $s['date'],
+            ':summary'          => $s['summary'],
+            ':topics_touched'   => $s['topics_touched'] ?? null,
+            ':next_steps'       => $s['next_steps'] ?? null,
+            ':block_key'        => $s['block_key'] ?? null,
+            ':duration_minutes' => $s['duration_minutes'] ?? null,
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -1179,8 +1559,8 @@ final class Store
             $st = $this->db->prepare(
                 'INSERT INTO practice_run
                    (subject_slug, client_run_id, source, label, played_at, attempted, correct,
-                    correct_after_retry, incorrect, duration_seconds, metrics)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    correct_after_retry, incorrect, duration_seconds, metrics, block_key)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $st->execute([
                 $slug, $clientId, $r['source'], $r['label'],
@@ -1189,6 +1569,7 @@ final class Store
                 (int) ($r['correct_after_retry'] ?? 0), (int) $r['incorrect'],
                 $r['duration_seconds'] ?? null,
                 json_encode((object) ($r['metrics'] ?? [])),
+                $r['block_key'] ?? null,
             ]);
             $runId = (int) $this->db->lastInsertId();
 
@@ -1431,6 +1812,648 @@ final class Store
         $st->execute([$slug, json_encode($config, JSON_UNESCAPED_SLASHES), $note]);
         return (int) $this->db->lastInsertId();
     }
+
+    // ---- timetable -------------------------------------------------------
+    //
+    // The board is derived, never declared. A study block is done because a
+    // session, attempt or practice run exists for one of its subjects on its
+    // date — not because anyone ticked it. That is the whole design: it makes
+    // the board honest, and it makes "she said she did it" unrepresentable.
+
+    /** The version in force on a date: the greatest valid_from <= date. */
+    public function timetableVersionOn(?string $date = null): ?array
+    {
+        $date = $date ?: tt_today();
+        return $this->one(
+            'SELECT * FROM timetable_versions WHERE valid_from <= ?
+             ORDER BY valid_from DESC, id DESC LIMIT 1',
+            [$date]
+        );
+    }
+
+    /** @return array<int,array<string,mixed>> blocks of a version, decoded, in order. */
+    public function timetableBlocks(int $versionId): array
+    {
+        $rows = $this->all(
+            'SELECT * FROM timetable_blocks WHERE version_id = ? ORDER BY weekday, sort, start',
+            [$versionId]
+        );
+        foreach ($rows as &$r) {
+            $r['block_key'] = (int) $r['block_key'];
+            $r['weekday']   = (int) $r['weekday'];
+            $r['sort']      = (int) $r['sort'];
+            $r['subjects']  = json_decode($r['subjects_json'] ?? '[]', true) ?: [];
+            $r['alternate'] = $r['alternate_json'] ? (json_decode($r['alternate_json'], true) ?: null) : null;
+        }
+        return $rows;
+    }
+
+    /**
+     * Replace the whole timetable from valid_from, as a new version.
+     *
+     * Validated before anything is written: end after start, no two blocks
+     * overlapping on a weekday, every subject slug real, every block_key used
+     * once. A timetable that fails any of these would produce a board that
+     * cannot be judged, so it is refused rather than stored and worked around.
+     *
+     * @return array{version_id:int,diff:array<string,array<int,string>>,blocks:int}
+     */
+    public function setTimetable(array $blocks, string $validFrom, ?string $note = null): array
+    {
+        if (!$blocks) {
+            throw new InvalidArgumentException('A timetable needs at least one block.');
+        }
+        $known = [];
+        foreach ($this->listSubjects() as $s) {
+            $known[$s['slug']] = true;
+        }
+
+        $seenKeys = [];
+        $byDay    = [];
+        $clean    = [];
+        foreach ($blocks as $i => $b) {
+            if (!is_array($b)) {
+                throw new InvalidArgumentException('Each block must be an object.');
+            }
+            $key = (int) ($b['block_key'] ?? $b['id'] ?? 0);
+            if ($key < 1) {
+                throw new InvalidArgumentException("Block #$i has no block_key (the seed's `id`).");
+            }
+            if (isset($seenKeys[$key])) {
+                throw new InvalidArgumentException("block_key $key is used twice; each block needs its own.");
+            }
+            $seenKeys[$key] = true;
+
+            $weekday = (int) ($b['weekday'] ?? 0);
+            if ($weekday < 1 || $weekday > 7) {
+                throw new InvalidArgumentException("Block $key has weekday '$weekday'; it must be 1 (Monday) to 7.");
+            }
+            $start = tt_hhmm($b['start'] ?? '', "Block $key start");
+            $end   = tt_hhmm($b['end'] ?? '', "Block $key end");
+            if (tt_mins($end) <= tt_mins($start)) {
+                throw new InvalidArgumentException("Block $key ends at $end, which is not after its start $start.");
+            }
+            $kind = (string) ($b['kind'] ?? '');
+            if (!in_array($kind, TIMETABLE_KINDS, true)) {
+                throw new InvalidArgumentException(
+                    "Block $key has kind '$kind'. Known kinds: " . implode(', ', TIMETABLE_KINDS) . '.'
+                );
+            }
+            $tracking = (string) ($b['tracking'] ?? '');
+            if (!in_array($tracking, TIMETABLE_TRACKING, true)) {
+                throw new InvalidArgumentException(
+                    "Block $key has tracking '$tracking'. It must be evidence, self_report or none."
+                );
+            }
+            $label = trim((string) ($b['label'] ?? ''));
+            if ($label === '') {
+                throw new InvalidArgumentException("Block $key has no label.");
+            }
+
+            $subjects = $b['subjects'] ?? [];
+            if (!is_array($subjects)) {
+                throw new InvalidArgumentException("Block $key: subjects must be a list of slugs.");
+            }
+            foreach ($subjects as $slug) {
+                if (!isset($known[$slug])) {
+                    throw new InvalidArgumentException(
+                        "Block $key names subject '$slug', which is not a tracked subject. "
+                        . 'Known slugs: ' . implode(', ', array_keys($known)) . '.'
+                    );
+                }
+            }
+            $alternate = $b['alternate'] ?? null;
+            if ($alternate !== null) {
+                if (!is_array($alternate) || !isset($alternate['odd'], $alternate['even'])) {
+                    throw new InvalidArgumentException("Block $key: alternate needs both `odd` and `even`.");
+                }
+                foreach (['odd', 'even'] as $parity) {
+                    if (!is_array($alternate[$parity]) || !$alternate[$parity]) {
+                        throw new InvalidArgumentException("Block $key: alternate.$parity must be a non-empty list.");
+                    }
+                    foreach ($alternate[$parity] as $slug) {
+                        if (!isset($known[$slug])) {
+                            throw new InvalidArgumentException(
+                                "Block $key: alternate.$parity names '$slug', which is not a tracked subject."
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Overlap is checked per weekday against everything already
+            // accepted, so the message can name both blocks rather than just
+            // saying the timetable is invalid.
+            foreach ($byDay[$weekday] ?? [] as $other) {
+                if (tt_mins($start) < tt_mins($other['end']) && tt_mins($other['start']) < tt_mins($end)) {
+                    throw new InvalidArgumentException(
+                        'Blocks ' . $other['block_key'] . " ({$other['start']}–{$other['end']}) and $key "
+                        . "({$start}\u{2013}{$end}) overlap on " . TIMETABLE_DAYS[$weekday] . '.'
+                    );
+                }
+            }
+
+            $row = [
+                'block_key' => $key,
+                'weekday'   => $weekday,
+                'start'     => $start,
+                'end'       => $end,
+                'kind'      => $kind,
+                'label'     => $label,
+                'note'      => isset($b['note']) && $b['note'] !== '' ? (string) $b['note'] : null,
+                'subjects'  => array_values($subjects),
+                'alternate' => $alternate,
+                'tracking'  => $tracking,
+                'sort'      => array_key_exists('sort', $b) ? (int) $b['sort'] : tt_mins($start),
+            ];
+            $byDay[$weekday][] = $row;
+            $clean[] = $row;
+        }
+
+        $previous = $this->timetableVersionOn($validFrom);
+        $before   = $previous ? $this->timetableBlocks((int) $previous['id']) : [];
+
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $st = $this->db->prepare(
+                'INSERT INTO timetable_versions (valid_from, note) VALUES (?, ?)'
+            );
+            $st->execute([$validFrom, $note]);
+            $versionId = (int) $this->db->lastInsertId();
+
+            $ins = $this->db->prepare(
+                'INSERT INTO timetable_blocks
+                   (version_id, block_key, weekday, start, end, kind, label, note,
+                    subjects_json, alternate_json, tracking, sort)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            foreach ($clean as $r) {
+                $ins->execute([
+                    $versionId, $r['block_key'], $r['weekday'], $r['start'], $r['end'],
+                    $r['kind'], $r['label'], $r['note'],
+                    json_encode($r['subjects'], JSON_UNESCAPED_SLASHES),
+                    $r['alternate'] === null ? null : json_encode($r['alternate'], JSON_UNESCAPED_SLASHES),
+                    $r['tracking'], $r['sort'],
+                ]);
+            }
+            $this->db->exec('COMMIT');
+        } catch (Throwable $e) {
+            $this->db->exec('ROLLBACK');
+            throw $e;
+        }
+
+        return [
+            'version_id' => $versionId,
+            'blocks'     => count($clean),
+            'diff'       => tt_diff($before, $clean),
+        ];
+    }
+
+    // ---- days off ---------------------------------------------------------
+
+    /** @return array<int,array<string,mixed>> */
+    public function listDaysOff(?string $from = null, ?string $to = null, ?string $status = null): array
+    {
+        $sql    = 'SELECT * FROM days_off WHERE 1 = 1';
+        $params = [];
+        if ($from !== null) {
+            $sql .= ' AND date_to >= ?';
+            $params[] = $from;
+        }
+        if ($to !== null) {
+            $sql .= ' AND date_from <= ?';
+            $params[] = $to;
+        }
+        if ($status !== null) {
+            $sql .= ' AND status = ?';
+            $params[] = $status;
+        }
+        return $this->all($sql . ' ORDER BY date_from, id', $params);
+    }
+
+    public function getDayOff(int $id): ?array
+    {
+        return $this->one('SELECT * FROM days_off WHERE id = ?', [$id]);
+    }
+
+    public function addDayOff(array $d): array
+    {
+        $status = $d['requested_by'] === 'parent' ? 'approved' : 'requested';
+        $st = $this->db->prepare(
+            'INSERT INTO days_off (date_from, date_to, kind, reason, requested_by, status, decided_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $st->execute([
+            $d['date_from'], $d['date_to'], $d['kind'] ?? 'day_off', $d['reason'],
+            $d['requested_by'], $status,
+            $status === 'approved' ? gmdate('Y-m-d H:i:s') : null,
+        ]);
+        return $this->getDayOff((int) $this->db->lastInsertId());
+    }
+
+    /** approve / decline / unapprove. The record is never deleted. */
+    public function decideDayOff(int $id, string $decision, ?string $note = null): ?array
+    {
+        $row = $this->getDayOff($id);
+        if (!$row) {
+            return null;
+        }
+        $status = match ($decision) {
+            'approve'   => 'approved',
+            'decline'   => 'declined',
+            'unapprove' => 'requested',
+            default     => throw new InvalidArgumentException("Unknown decision '$decision'."),
+        };
+        $st = $this->db->prepare(
+            'UPDATE days_off SET status = ?, decided_at = ?, decision_note = ? WHERE id = ?'
+        );
+        $st->execute([$status, gmdate('Y-m-d H:i:s'), $note, $id]);
+        return $this->getDayOff($id);
+    }
+
+    // ---- per-date overrides ------------------------------------------------
+
+    /** A null reason un-excuses: the row goes and the block reverts to missed. */
+    public function setExcusal(string $date, int $blockKey, ?string $reason): ?array
+    {
+        if ($reason === null) {
+            $st = $this->db->prepare('DELETE FROM timetable_excusals WHERE date = ? AND block_key = ?');
+            $st->execute([$date, $blockKey]);
+            return null;
+        }
+        $st = $this->db->prepare(
+            'INSERT INTO timetable_excusals (date, block_key, reason) VALUES (?, ?, ?)
+             ON CONFLICT(date, block_key) DO UPDATE SET reason = excluded.reason'
+        );
+        $st->execute([$date, $blockKey, $reason]);
+        return $this->one(
+            'SELECT * FROM timetable_excusals WHERE date = ? AND block_key = ?',
+            [$date, $blockKey]
+        );
+    }
+
+    public function setTick(string $date, int $blockKey, string $by, ?string $note = null): array
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO timetable_ticks (date, block_key, by, note) VALUES (?, ?, ?, ?)
+             ON CONFLICT(date, block_key) DO UPDATE SET by = excluded.by, note = excluded.note'
+        );
+        $st->execute([$date, $blockKey, $by, $note]);
+        return $this->one(
+            'SELECT * FROM timetable_ticks WHERE date = ? AND block_key = ?',
+            [$date, $blockKey]
+        );
+    }
+
+    // ---- judging ----------------------------------------------------------
+
+    /**
+     * Judge every block of a week, Monday to Sunday.
+     *
+     * One pass, because the binding is greedy across the whole day: two maths
+     * blocks on one day must not both be satisfied by one session, so the
+     * earliest record claims the earliest block that will take it and later
+     * blocks see a smaller pool.
+     *
+     * @return array{week:string,days:array<int,array<string,mixed>>,
+     *               counts:array<string,int>,hours_by_subject:array<string,float>}
+     */
+    public function judgeWeek(string $dateInWeek): array
+    {
+        $monday = tt_monday($dateInWeek);
+        $dates  = [];
+        for ($i = 0; $i < 7; $i++) {
+            $dates[] = tt_add_days($monday, $i);
+        }
+        $days = $this->judgeDates($dates);
+
+        $counts = [
+            'done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
+            'now' => 0, 'pending' => 0, 'upcoming' => 0, 'extra' => 0, 'judged' => 0,
+        ];
+        $hours = [];
+        foreach ($days as $day) {
+            foreach ($day['blocks'] as $b) {
+                if ($b['status'] === 'n/a') {
+                    continue;
+                }
+                $counts['judged']++;
+                $counts[$b['status']] = ($counts[$b['status']] ?? 0) + 1;
+                if (!empty($b['short'])) {
+                    $counts['short']++;
+                }
+                if ($b['status'] === 'done' && $b['subject'] !== null) {
+                    $hours[$b['subject']] = ($hours[$b['subject']] ?? 0) + $b['minutes'];
+                }
+            }
+            foreach ($day['extras'] as $e) {
+                $counts['extra']++;
+                $hours[$e['subject']] = ($hours[$e['subject']] ?? 0) + ($e['minutes'] ?? 0);
+            }
+        }
+        foreach ($hours as $slug => $mins) {
+            $hours[$slug] = round($mins / 60, 2);
+        }
+        ksort($hours);
+
+        return [
+            'week'             => tt_iso_week($monday),
+            'monday'           => $monday,
+            'days'             => $days,
+            'counts'           => $counts,
+            'hours_by_subject' => $hours,
+        ];
+    }
+
+    /** One day, same shape as an entry of judgeWeek()['days']. */
+    public function judgeDay(string $date): array
+    {
+        return $this->judgeDates([$date])[0];
+    }
+
+    /**
+     * @param  array<int,string> $dates
+     * @return array<int,array<string,mixed>>
+     */
+    private function judgeDates(array $dates): array
+    {
+        $from = $dates[0];
+        $to   = $dates[count($dates) - 1];
+
+        $today  = tt_today();
+        $nowMin = tt_mins(tt_now()->format('H:i'));
+
+        $evidence = $this->evidenceBetween($from, $to);
+        $excusals = [];
+        foreach ($this->all(
+            'SELECT * FROM timetable_excusals WHERE date BETWEEN ? AND ?', [$from, $to]
+        ) as $r) {
+            $excusals[$r['date'] . '/' . (int) $r['block_key']] = $r;
+        }
+        $ticks = [];
+        foreach ($this->all(
+            'SELECT * FROM timetable_ticks WHERE date BETWEEN ? AND ?', [$from, $to]
+        ) as $r) {
+            $ticks[$r['date'] . '/' . (int) $r['block_key']] = $r;
+        }
+        $daysOff = $this->listDaysOff($from, $to);
+
+        $versionCache = [];
+        $out = [];
+        foreach ($dates as $date) {
+            $weekday = (int) (new DateTimeImmutable($date, tt_zone()))->format('N');
+
+            // Resolved per date, not per week: a re-cut that starts on the
+            // Wednesday must take effect on the Wednesday.
+            if (!array_key_exists($date, $versionCache)) {
+                $v = $this->timetableVersionOn($date);
+                $versionCache[$date] = $v ? $this->timetableBlocks((int) $v['id']) : [];
+            }
+            $blocks = array_values(array_filter(
+                $versionCache[$date],
+                static fn(array $b): bool => $b['weekday'] === $weekday
+            ));
+
+            // The day off that covers this date, if any. A declined one does
+            // not render at all; a requested one shows but does not excuse.
+            $off = null;
+            foreach ($daysOff as $d) {
+                if ($d['status'] !== 'declined' && $d['date_from'] <= $date && $date <= $d['date_to']) {
+                    $off = $d;
+                    break;
+                }
+            }
+            $approvedOff = $off !== null && $off['status'] === 'approved';
+
+            $pool = $evidence[$date] ?? [];
+            $claimed = [];
+            $bound   = [];
+
+            // Pass 1 — a record carrying block_key belongs to that block and
+            // to no other. This is what stops work being re-labelled onto the
+            // wrong block by the greedy pass below.
+            foreach ($pool as $i => $e) {
+                if ($e['block_key'] === null) {
+                    continue;
+                }
+                foreach ($blocks as $b) {
+                    if ($b['block_key'] === $e['block_key'] && !isset($bound[$b['block_key']])) {
+                        $bound[$b['block_key']] = $e;
+                        $claimed[$i] = true;
+                        break;
+                    }
+                }
+            }
+            // Pass 2 — greedy: the earliest unclaimed record fills the
+            // earliest block it matches.
+            foreach ($blocks as $b) {
+                if ($b['tracking'] !== 'evidence' || isset($bound[$b['block_key']])) {
+                    continue;
+                }
+                $subjects = tt_subjects_for($b, $date);
+                foreach ($pool as $i => $e) {
+                    if (isset($claimed[$i]) || !in_array($e['subject'], $subjects, true)) {
+                        continue;
+                    }
+                    if (!tt_kind_accepts($b, $e)) {
+                        continue;
+                    }
+                    $bound[$b['block_key']] = $e;
+                    $claimed[$i] = true;
+                    break;
+                }
+            }
+
+            $rows = [];
+            foreach ($blocks as $b) {
+                $key      = $b['block_key'];
+                $subjects = tt_subjects_for($b, $date);
+                $length   = tt_mins($b['end']) - tt_mins($b['start']);
+                $row = [
+                    'block_key' => $key,
+                    'start'     => $b['start'],
+                    'end'       => $b['end'],
+                    'label'     => $b['label'],
+                    'kind'      => $b['kind'],
+                    'note'      => $b['note'],
+                    'subjects'  => $subjects,
+                    'tracking'  => $b['tracking'],
+                    'status'    => 'upcoming',
+                    'short'     => false,
+                    'minutes'   => $length,
+                    'length'    => $length,
+                    'subject'   => count($subjects) === 1 ? $subjects[0] : null,
+                    'evidence'  => [],
+                    'reason'    => null,
+                ];
+
+                // Precedence, highest first. An excusal outranks a day off so
+                // that a reason the parent actually wrote is the one shown.
+                $ex = $excusals[$date . '/' . $key] ?? null;
+                if ($ex) {
+                    $row['status'] = 'excused';
+                    $row['reason'] = $ex['reason'];
+                    $rows[] = $row;
+                    continue;
+                }
+                if ($b['tracking'] === 'none') {
+                    $row['status'] = 'n/a';
+                    $rows[] = $row;
+                    continue;
+                }
+                if ($approvedOff) {
+                    $row['status'] = 'day_off';
+                    $row['reason'] = $off['reason'];
+                    $rows[] = $row;
+                    continue;
+                }
+
+                if ($b['tracking'] === 'self_report') {
+                    $tick = $ticks[$date . '/' . $key] ?? null;
+                    if ($tick) {
+                        $row['status']   = 'done';
+                        $row['evidence'] = [['type' => 'tick', 'id' => (int) $tick['id'], 'by' => $tick['by']]];
+                        $rows[] = $row;
+                        continue;
+                    }
+                } elseif (isset($bound[$key])) {
+                    $e = $bound[$key];
+                    $row['status']   = 'done';
+                    $row['subject']  = $e['subject'];
+                    $row['evidence'] = [['type' => $e['type'], 'id' => $e['id'], 'label' => $e['label']]];
+                    if ($e['minutes'] !== null && $e['minutes'] < $length / 2) {
+                        $row['short']   = true;
+                        $row['minutes'] = $e['minutes'];
+                    }
+                    $rows[] = $row;
+                    continue;
+                }
+
+                // Nothing logged and nothing excusing it, so the clock decides.
+                if ($date < $today) {
+                    $row['status'] = 'missed';
+                } elseif ($date > $today) {
+                    $row['status'] = 'upcoming';
+                } elseif ($nowMin < tt_mins($b['start'])) {
+                    $row['status'] = 'pending';
+                } elseif ($nowMin < tt_mins($b['end'])) {
+                    $row['status'] = 'now';
+                } else {
+                    $row['status'] = 'missed';
+                }
+                $rows[] = $row;
+            }
+
+            $extras = [];
+            foreach ($pool as $i => $e) {
+                if (isset($claimed[$i])) {
+                    continue;
+                }
+                $extras[] = [
+                    'type' => $e['type'], 'id' => $e['id'], 'subject' => $e['subject'],
+                    'label' => $e['label'], 'at' => $e['at'], 'minutes' => $e['minutes'] ?? 0,
+                ];
+            }
+
+            $out[] = [
+                'date'     => $date,
+                'weekday'  => $weekday,
+                'day_name' => TIMETABLE_DAYS[$weekday],
+                'is_today' => $date === $today,
+                'day_off'  => $off,
+                'blocks'   => $rows,
+                'extras'   => $extras,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Every candidate record in a date range, grouped by local date and sorted
+     * earliest first — that ordering is what makes the greedy binding
+     * deterministic.
+     *
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private function evidenceBetween(string $from, string $to): array
+    {
+        $rows = [];
+
+        foreach ($this->all(
+            'SELECT id, subject_slug, date, summary, block_key, duration_minutes, created_at
+             FROM sessions
+             WHERE date BETWEEN ? AND ? AND void_reason IS NULL',
+            [$from, $to]
+        ) as $r) {
+            // A session carries a date but no time, so its creation time
+            // orders it within the day. A session logged at 23:50 for a 09:45
+            // block still counts: the date is what binds, not the clock.
+            [$d, $t] = tt_local((string) $r['created_at']);
+            $rows[] = [
+                'type' => 'session', 'id' => (int) $r['id'], 'subject' => $r['subject_slug'],
+                'date' => $r['date'], 'at' => $d === $r['date'] ? $t : '00:00',
+                'label' => (string) $r['summary'],
+                'minutes' => $r['duration_minutes'] === null ? null : (int) $r['duration_minutes'],
+                'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
+                'source' => null,
+            ];
+        }
+
+        // A paper's own sat_on wins; without one it was sat the day of the
+        // attempt.
+        foreach ($this->all(
+            "SELECT p.id, p.code, p.block_key, COALESCE(p.sat_on, a.date) AS on_date,
+                    a.subject_slug, a.name, a.created_at
+             FROM attempt_papers p JOIN attempts a ON a.id = p.attempt_id
+             WHERE COALESCE(p.sat_on, a.date) BETWEEN ? AND ?",
+            [$from, $to]
+        ) as $r) {
+            [, $t] = tt_local((string) $r['created_at']);
+            $rows[] = [
+                'type' => 'attempt', 'id' => (int) $r['id'], 'subject' => $r['subject_slug'],
+                'date' => $r['on_date'], 'at' => $t,
+                'label' => trim($r['name'] . ' — ' . $r['code']),
+                'minutes' => null,
+                'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
+                'source' => null,
+            ];
+        }
+
+        // played_at is UTC, so the range is widened by a day at each end and
+        // the local date decided in PHP. Around a clock change that is the
+        // difference between a block being done and being missed.
+        foreach ($this->all(
+            'SELECT id, subject_slug, source, label, played_at, duration_seconds, block_key
+             FROM practice_run
+             WHERE void_reason IS NULL AND played_at BETWEEN ? AND ?',
+            [tt_add_days($from, -1) . ' 00:00:00', tt_add_days($to, 1) . ' 23:59:59']
+        ) as $r) {
+            [$d, $t] = tt_local((string) $r['played_at']);
+            if ($d < $from || $d > $to) {
+                continue;
+            }
+            $rows[] = [
+                'type' => 'practice', 'id' => (int) $r['id'], 'subject' => $r['subject_slug'],
+                'date' => $d, 'at' => $t, 'label' => (string) $r['label'],
+                'minutes' => $r['duration_seconds'] === null
+                    ? null : (int) round(((int) $r['duration_seconds']) / 60),
+                'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
+                'source' => (string) $r['source'],
+            ];
+        }
+
+        $byDate = [];
+        foreach ($rows as $r) {
+            $byDate[$r['date']][] = $r;
+        }
+        foreach ($byDate as &$list) {
+            usort($list, static function (array $x, array $y): int {
+                return [$x['at'], $x['type'], $x['id']] <=> [$y['at'], $y['type'], $y['id']];
+            });
+        }
+        return $byDate;
+    }
+
 }
 
 /** Convert a raw score to a grade using the subject's stored boundaries. */

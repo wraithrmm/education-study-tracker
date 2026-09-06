@@ -40,6 +40,7 @@ pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 check() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (expected '$3', got '$2')"; fi; }
 contains() { if printf '%s' "$2" | grep -qF "$3"; then pass "$1"; else fail "$1 — missing '$3'"; fi; }
+lacks() { if printf '%s' "$2" | grep -qF "$3"; then fail "$1 — unexpectedly contains '$3'"; else pass "$1"; fi; }
 
 if [ "$REMOTE" = 1 ]; then
   BASE="${BASE:?set BASE for a remote run}"
@@ -276,10 +277,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 21 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 30 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 21 of 21)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 30 of 30)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -571,8 +572,241 @@ contains "tracker_create_subject creates a subject" "$body" "Created Smoke Scien
 body="$(call tracker_create_subject '{"slug":"smoke-science","name":"Smoke Science","strands":{"B":"Biology"},"topics":[{"ref":"B1","name":"Cells","strand":"B"},{"ref":"B2","name":"Enzymes","strand":"B"}]}')"
 contains "re-running it adds topics without resetting progress" "$body" "existing statuses untouched"
 
+# One field, one call. Correcting an exam date must not mean re-sending a
+# syllabus — the risk of disturbing it is the whole reason this path exists.
+body="$(call tracker_create_subject '{"slug":"smoke-science","exam_date":"2028-06-01","notes":"Sat in the 2028 series, not 2027. Exact date TO CONFIRM."}')"
+contains "a subject's exam date can be corrected on its own" "$body" "Exam date is now 2028-06-01"
+contains "and no topics need to be sent to do it" "$body" "No topics were sent"
+body="$(call tracker_list_subjects '{}')"
+contains "the corrected date is what reads back" "$body" "2028-06-01"
+body="$(call tracker_get_state '{"subject":"smoke-science"}')"
+contains "and the syllabus is untouched by the correction" "$body" "Enzymes"
+# The strand display names only surface in the export, which groups by them.
+body="$(call tracker_export_markdown '{"subject":"smoke-science"}')"
+contains "and its strand names survive too" "$body" "## Biology"
+
+body="$(call tracker_create_subject '{"slug":"smoke-nothing","name":"Nothing"}')"
+contains "creating a subject still needs its strands" "$body" "strands must be"
+
 body="$(call tracker_get_state '{"subject":"nonexistent"}')"
 contains "an unknown subject is reported helpfully" "$body" "Known subjects"
+
+echo
+echo "== timetable =="
+# The seeded database has only maths. The timetable names five subjects, so
+# the rest are created first — which is also what happened for real.
+for sub in english-literature english-language computer-science spanish; do
+  call tracker_create_subject "{\"slug\":\"$sub\",\"name\":\"Smoke $sub\",\"strands\":{\"A\":\"A\"},\"topics\":[{\"ref\":\"A1\",\"name\":\"One\",\"strand\":\"A\"}]}" > /dev/null
+done
+
+# Every check below runs against a week that is already over, so `missed` and
+# `done` are decided by what was logged rather than by what time the test runs.
+SEED=docs/timetable-seed.json
+blocks="$(jq -c '[.blocks[] | . + {block_key: .id}]' "$SEED")"
+targets="$(jq -c '.targets_hours_per_week' "$SEED")"
+
+body="$(call tracker_set_timetable "{\"blocks\":$blocks,\"valid_from\":\"2024-09-02\",\"note\":\"smoke seed\",\"targets\":$targets}")"
+contains "tracker_set_timetable writes the seed" "$body" "35 blocks"
+contains "and reports the diff it wrote" "$body" "Added (35)"
+
+# One extra block laid across Monday's maths block, everything else identical.
+clash="$(jq -c '[.blocks[] | . + {block_key: .id}] + [{block_key:99,weekday:1,start:"09:50",end:"10:10",kind:"teach",label:"Clash",subjects:["maths"],tracking:"evidence"}]' "$SEED")"
+body="$(call tracker_set_timetable "{\"blocks\":$clash,\"valid_from\":\"2024-09-02\"}")"
+contains "an overlapping block is refused" "$body" "overlap on Monday"
+contains "and the refusal names both blocks" "$body" "Blocks 3"
+contains "and nothing is written" "$body" "Nothing was written"
+
+body="$(call tracker_set_timetable '{"blocks":[{"block_key":1,"weekday":1,"start":"09:00","end":"10:00","kind":"teach","label":"X","subjects":["biology"],"tracking":"evidence"}],"valid_from":"2024-09-02"}')"
+contains "an unknown subject slug is refused" "$body" "not a tracked subject"
+
+body="$(call tracker_get_timetable '{"valid_on":"2024-09-09"}')"
+contains "tracker_get_timetable returns the version in force" "$body" "35 blocks"
+contains "and marks how each block is tracked" "$body" "[self_report]"
+
+# Monday 2024-09-09. A maths session fills block 3 and nothing else.
+body="$(call tracker_log_session '{"subject":"maths","date":"2024-09-09","summary":"Surds: intro, interleaved practice and an exit ticket","block_key":3,"duration_minutes":70}')"
+contains "a session can name the block it fulfilled" "$body" "logged for"
+
+body="$(call tracker_today '{"date":"2024-09-09"}')"
+contains "tracker_today attributes the session to block 3" "$body" "<- session #"
+lacks "so block 3 is not in the missed list" "$body" "#3 Maths"
+contains "block 2 stays missed: a teaching session is not retrieval practice" \
+  "$body" "#2 Retrieval warm-up (mixed)"
+contains "block 5 is missed — nothing was logged for it" "$body" "#5 English Literature"
+
+# A retrieval_ practice run is the one thing that does satisfy block 2.
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"source":"maths_session","label":"Retrieval warm-up","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+body="$(call tracker_today '{"date":"2024-09-09"}')"
+contains "a non-retrieval practice source still does not satisfy the retrieval block" \
+  "$body" "#2 Retrieval warm-up (mixed)"
+
+# The mismatch that the explicit link exists to prevent.
+body="$(call tracker_log_session '{"subject":"spanish","date":"2024-09-09","summary":"Spanish vocabulary revision, spaced repetition set","block_key":3}')"
+contains "a block_key whose block does not run that subject is refused" "$body" "cannot fulfil it"
+contains "and the refusal names both sides" "$body" "runs maths, not spanish"
+
+body="$(call tracker_log_session '{"subject":"maths","date":"2024-09-09","summary":"Maths logged against Friday block on a Monday","block_key":28}')"
+contains "a block_key from another weekday is refused" "$body" "No block 28 runs on Monday"
+
+# Ticks: self-reported blocks only.
+body="$(call tracker_tick_block '{"date":"2024-09-09","block_key":1,"by":"student"}')"
+contains "a self-reported block can be ticked" "$body" "ticked by student"
+body="$(call tracker_tick_block '{"date":"2024-09-09","block_key":3,"by":"student"}')"
+contains "a study block cannot be ticked" "$body" "judged from logged work"
+contains "and the refusal says what to do instead" "$body" "log the session instead"
+
+# Excusals: the parent's reason, shown, and reversible.
+body="$(call tracker_excuse_block '{"date":"2024-09-10","block_key":16,"reason":"Dentist — moved to Friday"}')"
+contains "a block can be excused with a reason" "$body" "is excused"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "week_status shows the excusal" "$body" "excused — Dentist"
+body="$(call tracker_excuse_block '{"date":"2024-09-10","block_key":16,"reason":null}')"
+contains "a null reason un-excuses" "$body" "no longer excused"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+lacks "and the block goes back to missed" "$body" "excused — Dentist"
+
+# The alternating Thursday block resolves by ISO week parity.
+body="$(call tracker_today '{"date":"2024-09-12"}')"
+contains "an odd ISO week resolves the alternating block to maths" "$body" "[maths]"
+lacks "and not to computer science" "$body" "[computer-science]"
+body="$(call tracker_today '{"date":"2024-09-05"}')"
+contains "an even ISO week resolves it to computer science" "$body" "[computer-science]"
+lacks "and not to maths" "$body" "[maths]"
+
+# Days off: asked for by her, decided by him.
+body="$(call tracker_request_day_off '{"date_from":"2024-09-13","date_to":"2024-09-13","reason":"Cousin'"'"'s birthday","requested_by":"student"}')"
+contains "a student's day off is only a request" "$body" "REQUESTED"
+contains "and says so plainly" "$body" "This is a request, not a booking"
+day_id="$(printf '%s' "$body" | grep -o 'Day off #[0-9]*' | grep -o '[0-9]*' | head -1)"
+
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "a requested day off is shown as undecided" "$body" "day off REQUESTED"
+lacks "and its blocks keep being judged until the parent approves" "$body" "day off — Cousin"
+
+body="$(call tracker_decide_day_off "{\"id\":$day_id,\"decision\":\"approve\",\"note\":\"Fine\"}")"
+contains "the parent can approve it" "$body" "APPROVED"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "an approved day off clears that day's misses" "$body" "day off — Cousin"
+contains "and the day is labelled with its reason" "$body" "day off APPROVED"
+
+body="$(call tracker_decide_day_off "{\"id\":$day_id,\"decision\":\"unapprove\"}")"
+contains "approval can be withdrawn" "$body" "being judged again"
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+lacks "and the misses come back" "$body" "day off — Cousin"
+
+body="$(call tracker_request_day_off '{"date_from":"2024-10-21","date_to":"2024-10-25","reason":"Half term","requested_by":"parent"}')"
+contains "a parent's day off is approved at once" "$body" "booked and approved"
+
+body="$(call tracker_request_day_off '{"date_from":"2024-11-01","date_to":"2024-11-15","reason":"Long trip","requested_by":"student"}')"
+contains "a 15-day student request is refused" "$body" "at most 14 days"
+
+body="$(call tracker_week_status '{"week":"2024-W37"}')"
+contains "week_status reports hours against the target" "$body" "of 5.00h"
+contains "including a subject with nothing logged" "$body" "spanish 0.0h of 1.75h"
+contains "and counts the week" "$body" "judged blocks"
+
+body="$(call tracker_days_off '{}')"
+contains "tracker_days_off lists them" "$body" "Half term"
+contains "and flags what the parent still has to decide" "$body" "awaiting the parent"
+
+if [ "$REMOTE" = 0 ]; then
+  # The ladder has now run against a database in production's shape — subjects,
+  # sessions, attempts, practice runs and a timetable. Re-opening it must not
+  # run any step a second time.
+  after="$(SMOKE_DB="$WORK/tracker-shared/data/tracker.db" php -r '
+    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    $a = new Store(getenv("SMOKE_DB")); $b = new Store(getenv("SMOKE_DB"));
+    $n = $b->db->query("SELECT count(*) c FROM timetable_versions")->fetch()["c"];
+    echo $b->meta("schema_version") . ":" . $n;' 2>/dev/null)"
+  check "re-opening a populated database is idempotent" "$after" "4:1"
+
+  # And against an empty one.
+  fresh="$(php -r '
+    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    $p = tempnam(sys_get_temp_dir(), "sm") . ".db";
+    $a = new Store($p); $b = new Store($p);
+    echo $b->meta("schema_version");
+    @unlink($p);' 2>/dev/null)"
+  check "the migration applies to an empty database" "$fresh" "4"
+fi
+
+if [ "$REMOTE" = 0 ]; then
+  # The board on the page, judged from the same week the tools were checked
+  # against. Assertions are on the aria-label text, not on colour: colour is
+  # never the only cue, so the words are what has to be right.
+  code="$("${CURL[@]}" -o "$WORK/index.html" -w '%{http_code}' "$BASE/")"
+  check "the index page renders" "$code" "200"
+  page="$(cat "$WORK/index.html")"
+  contains "the timetable is on the index page" "$page" 'class="tt"'
+  contains "and it leads the page" "$page" "<h1>This week</h1>"
+  contains "with the subjects list still below it" "$page" "<h2>Subjects</h2>"
+  contains "and the date it thinks it is, in monospace" "$page" 'class="tt-stamp mono"'
+
+  for d in a b c; do
+    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/?design=$d")"
+    check "?design=$d renders" "$code" "200"
+  done
+
+  code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
+  check "a past week renders on its own page" "$code" "200"
+  week="$(cat "$WORK/week.html")"
+  contains "the done block says so in words" "$week" 'aria-label="Maths — new topic 09:45 — done"'
+  contains "the missed block says so in words" "$week" 'aria-label="English Literature — set text 11:15 — missed"'
+  contains "a ticked movement block is done" "$week" 'aria-label="Move — walk, bike or dance 09:00 — done"'
+  contains "a break is a rule, not a chip" "$week" 'class="brk"'
+  contains "the done block links to the work that made it done" "$week" '/session/'
+  contains "and the week totals are spelled out" "$week" "blocks so far"
+
+  # A missed block must not offer a way to log work: the page is public and
+  # unauthenticated, so there is nothing safe for it to link to.
+  missed_link="$(printf '%s' "$week" | grep -o '<a class="blk s-missed"' | wc -l | tr -d ' ')"
+  check "a missed block links nowhere" "$missed_link" "0"
+
+
+  # The three designs are three layouts over one judge and one status
+  # vocabulary. The same block, on the same week, must say the same words in
+  # all three — only the markup around them differs.
+  mark='aria-label="Maths — new topic 09:45 — done"'
+  for d in a b c; do
+    code="$("${CURL[@]}" -o "$WORK/w-$d.html" -w '%{http_code}' "$BASE/week/2024-W37?design=$d")"
+    check "design $d renders a past week" "$code" "200"
+    contains "design $d says the block is done, in the same words" "$(cat "$WORK/w-$d.html")" "$mark"
+  done
+
+  contains "design A is the week strip" "$(cat "$WORK/w-a.html")" 'class="wk"'
+  contains "design B is the day list and the week dot-row" "$(cat "$WORK/w-b.html")" 'class="dotrow"'
+  contains "and B expands a day in place, without script" "$(cat "$WORK/w-b.html")" '<details class="dotday'
+  contains "design C is the register" "$(cat "$WORK/w-c.html")" 'class="reg'
+  contains "and C counts each day in a footer" "$(cat "$WORK/w-c.html")" '<td class="t">done</td>'
+  contains "C prints" "$(cat "$WORK/w-c.html")" '@media print'
+
+  # C collapses to one column on a phone — but only where there is a today to
+  # collapse to. A week that is already over shows whole and scrolls.
+  lacks "a past week has no today, so C shows it whole" "$(cat "$WORK/w-c.html")" 'class="reg oneday"'
+  this_c="$("${CURL[@]}" "$BASE/?design=c")"
+  if printf '%s' "$this_c" | grep -qF 'class="reg oneday"'; then
+    pass "C collapses to today on a phone"
+  elif printf '%s' "$this_c" | grep -qF 'No blocks today'; then
+    pass "C collapses to today on a phone (nothing scheduled today, so it says so)"
+  else
+    fail "C neither collapsed to today nor said there was nothing on"
+  fi
+  this_c_week="$("${CURL[@]}" "$BASE/?design=c&week=1")"
+  lacks "and the toggle opens the whole week again" "$this_c_week" 'class="reg oneday"'
+
+  # B's time bar is a CSS animation with a server-computed delay: the block's
+  # remaining time is visible with no JavaScript at all.
+  body="$("${CURL[@]}" "$BASE/?design=b")"
+  check "the index renders design B" "$?" "0"
+  if printf '%s' "$body" | grep -q 'class="nowcard"\|class="tt-quiet"\|class="dotrow"'; then
+    pass "design B leads with the current block, or says there is none"
+  else
+    fail "design B rendered neither a now card nor a reason there is none"
+  fi
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
+  check "a malformed week is a 404" "$code" "404"
+fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
