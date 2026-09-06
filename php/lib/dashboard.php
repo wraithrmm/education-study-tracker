@@ -177,6 +177,7 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .blk.s-done .bl,.blk.s-excused .bl{color:#57534e}
 .blk.s-excused .bl{text-decoration:line-through;text-decoration-color:#a8a29e}
 .blk.s-upcoming,.blk.s-pending{opacity:.66}
+.blk.s-optional{opacity:.62}
 a.blk:hover{background:#faf9f5}
 .brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
 .tt-extras{margin:.35rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
@@ -421,6 +422,13 @@ function tt_mark(array $b): string
             return $wrap($svg(
                 '<circle cx="9" cy="9" r="2.2" fill="#d6d3d1"/>', "$name — still to come"
             ));
+        case 'optional':
+            // Neither tick nor cross: this one is hers to take, and the board
+            // has no evidence either way.
+            return $wrap($svg(
+                '<circle cx="9" cy="9" r="4.4" fill="none" stroke="#e0ddd6" stroke-width="1.3"/>',
+                "$name — optional, nothing logged"
+            ));
         default:
             return '';
     }
@@ -472,6 +480,8 @@ function tt_evidence_href(array $ev, ?string $subject): ?string
 function tt_total_line(array $w, array $names): string
 {
     $c     = $w['counts'];
+    // Optional blocks are deliberately absent from the denominator: ticking one
+    // counts towards done, not ticking one costs nothing.
     $soFar = $c['done'] + $c['missed'] + $c['excused'] + $c['now'] + $c['pending'];
     $ahead = $c['upcoming'] + $c['day_off'];
     $parts = ['<b>this week</b>', $c['done'] . ' of ' . $soFar . ' blocks so far'];
@@ -488,7 +498,8 @@ function tt_legend(): string
 {
     $rows = [
         ['done', 'done'], ['short', ''], ['now', 'now'], ['pending', 'pending'],
-        ['missed', 'missed'], ['excused', 'excused'], ['upcoming', 'to come'],
+        ['missed', 'missed'], ['excused', 'excused'], ['optional', 'optional'],
+        ['upcoming', 'to come'],
     ];
     $out = '<p class="tt-legend">';
     foreach ($rows as [$status, $text]) {

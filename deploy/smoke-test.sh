@@ -757,6 +757,13 @@ if [ "$REMOTE" = 0 ]; then
   contains "the done block says so in words" "$week" 'aria-label="Maths — new topic 09:45 — done"'
   contains "the missed block says so in words" "$week" 'aria-label="English Literature — set text 11:15 — missed"'
   contains "a ticked movement block is done" "$week" 'aria-label="Move — walk, bike or dance 09:00 — done"'
+
+  # A self-reported block is never marked missed: there is no evidence to
+  # derive from, so "not ticked" and "did not happen" are different things.
+  # Tuesday's movement block is never ticked anywhere in this run.
+  contains "an unticked movement block is optional, not missed" \
+    "$week" 'aria-label="Move 09:00 — optional, nothing logged"'
+  lacks "so it never gets a red cross" "$week" 'aria-label="Move 09:00 — missed"'
   contains "a break is a rule, not a chip" "$week" 'class="brk"'
   contains "the done block links to the work that made it done" "$week" '/session/'
   contains "and the week totals are spelled out" "$week" "blocks so far"

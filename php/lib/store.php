@@ -2129,7 +2129,8 @@ final class Store
 
         $counts = [
             'done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
-            'now' => 0, 'pending' => 0, 'upcoming' => 0, 'extra' => 0, 'judged' => 0,
+            'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
+            'extra' => 0, 'judged' => 0,
         ];
         $hours = [];
         foreach ($days as $day) {
@@ -2313,6 +2314,19 @@ final class Store
                     if ($tick) {
                         $row['status']   = 'done';
                         $row['evidence'] = [['type' => 'tick', 'id' => (int) $tick['id'], 'by' => $tick['by']]];
+                        $rows[] = $row;
+                        continue;
+                    }
+                    // A self-reported block is never marked missed. There is no
+                    // evidence to derive from, so "not ticked" and "did not
+                    // happen" are different things and the board must not
+                    // conflate them — least of all for the movement blocks,
+                    // which are hers to take and not work to be judged on.
+                    // Ticking still counts towards done; not ticking costs
+                    // nothing.
+                    if (!($date === $today
+                          && $nowMin >= tt_mins($b['start']) && $nowMin < tt_mins($b['end']))) {
+                        $row['status'] = $date > $today ? 'upcoming' : 'optional';
                         $rows[] = $row;
                         continue;
                     }
