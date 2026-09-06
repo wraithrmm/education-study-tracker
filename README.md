@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -107,6 +107,9 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_decide_day_off` | Parent-only: approve, decline or un-approve one. |
 | `tracker_excuse_block` | Excuse one block on one date, with the parent's reason. Null un-excuses. |
 | `tracker_tick_block` | Tick a self-reported block. Refused on study blocks — those are judged from logged work. |
+| `tracker_week_report` | Everything a week is judged on in one call: blocks, extras, hours against the timetable, movement, attempts, practice, queue tops. |
+| `tracker_save_weekly_review` | Save the written half of a week as a new version. The tracker attaches its own snapshot of the figures. |
+| `tracker_get_weekly_review` | Read a saved review back, with the snapshot it was written against and how the record has moved since. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -150,6 +153,43 @@ table on its own and reported a grade for an exam only a third sat. That step
 is guarded on the exact shape step 1 produces, so a database where those rows
 have since been edited or built on is left alone. Step 3 adds the practice
 tables, seeds the source registry and pins the Spanish and maths scoreboards.
+
+## The weekly review
+
+A week has two halves. The **computed** half — which blocks were done, short,
+missed, excused or on a day off, what was logged outside the timetable, the
+hours each subject actually got — is judged from the record on every request by
+`judgeWeek()`, so two people opening `/week/2026-W37` an hour apart see the same
+figures unless the record changed in between. The **written** half is what
+Claude and the parent make of it on a Friday: what held, what slipped, one
+carry-forward per subject, what next week starts with, and what the parent
+decided. That is judgement, it isn't derivable, and it is stored as a dated,
+signed margin note against the week rather than mixed into the figures.
+
+`tracker_save_weekly_review` never takes the numbers from the caller. The
+tracker attaches its own **snapshot** — counts, hours, every judged block,
+movement, attempts, practice, coverage and the queue tops as they stand at save
+time — so a note written before an excusal can say *written when 2 were missed;
+1 has since been excused* instead of quietly contradicting the ledger beside it.
+That comparison is the drift line, and `tracker_get_weekly_review` and the page
+render it from the same `Store::weekDrift()`. If the note says three blocks were
+missed and the snapshot says two, the snapshot is right and the note is a note.
+
+Notes are never edited. Versions are appended, the latest is shown, the earlier
+ones stay readable — the same rule that governs sessions and practice runs. A
+re-save identical to the version already there is a silent no-op rather than a
+phantom row, and a `draft` is refused once a `reviewed` version exists, so a
+routine that fires late cannot stamp a draft over a review that has happened.
+A decision recorded in a review only *records* it: excusing a block is still
+`tracker_excuse_block`, deciding a day off still `tracker_decide_day_off`.
+
+Counts are partitioned wherever they appear — study blocks, movement and the
+Friday review block are three fractions, not one, because "23 of 27" puts a walk
+and a maths block in the same number. Hours are read against what the timetable
+actually planned for that week (the blocks that resolve to a single subject,
+alternating blocks by ISO week parity), not against the target split the skills
+quote: read against the split, English Language would be amber every week for
+ever, through nothing anyone did.
 
 ## Practice
 

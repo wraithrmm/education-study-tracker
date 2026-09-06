@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The ledger and the margin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&amp;family=Fraunces:opsz,wght@9..144,500;9..144,700&amp;family=IBM+Plex+Mono:wght@400;600&amp;display=swap">
+<style>/* ====================================================================== *
+ *  DECK CHROME — tokens shared with design/practice-ab and               *
+ *  design/timetable-abc so the three decks read as one set.              *
+ * ====================================================================== */
+:root{
+  --ground:#f2f1ec; --panel:#fbfaf6; --edge:#dcd8cd; --edge-soft:#e8e5db;
+  --ink:#221f1a; --ink-2:#514c42; --muted:#7d7768;
+  --violet:#7c3aed; --gold:#f5a623; --gold-lit:#ffd257; --red:#c0392b; --green:#059669;
+  --shadow:0 1px 2px rgba(34,31,26,.06), 0 10px 26px -14px rgba(34,31,26,.35); }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+    --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+    --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b; --green:#34d399;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85); }
+}
+:root[data-theme="dark"]{
+  --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+  --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+  --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b; --green:#34d399;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85); }
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:16px/1.6 Fraunces,Georgia,"Times New Roman",serif;-webkit-font-smoothing:antialiased; overflow-x:hidden}
+.page{max-width:78rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:4px}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.86em}
+.vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mast{display:grid;gap:.9rem;padding-bottom:1.6rem;border-bottom:1px solid var(--edge)}
+.eyebrow{font:600 .68rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin:0}
+.mast h1{font-size:clamp(2rem,4.4vw,3rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.mast p.lede{margin:0;max-width:66ch;color:var(--ink-2);font-size:1.02rem}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-top:.4rem}
+.brief div{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .85rem}
+.brief b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.brief span{font-size:.9rem;color:var(--ink-2)}
+.jump{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;
+  padding:.65rem 0;margin:0 0 .5rem;background:var(--ground);border-bottom:1px solid var(--edge-soft)}
+.jump span.lab{font:600 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-right:.3rem}
+.jump a{text-decoration:none;font-size:.82rem;padding:.3rem .7rem;border:1px solid var(--edge);
+  border-radius:999px;background:var(--panel);transition:background .15s,border-color .15s}
+.jump a:hover{background:var(--gold-lit);border-color:var(--gold);color:#221f1a}
+.sec{margin-top:3.2rem;scroll-margin-top:6rem}
+.shead{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:baseline;margin-bottom:.2rem}
+.stag{font:700 .78rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;
+  background:var(--ink);color:var(--ground);padding:.25rem .5rem;border-radius:5px}
+.shead h2{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.thesis{margin:.35rem 0 1.1rem;max-width:70ch;color:var(--ink-2)}
+.frame{border:1px solid var(--edge);border-radius:14px;background:var(--panel);
+  box-shadow:var(--shadow);overflow:hidden}
+.frame.phone{max-width:25rem}
+.chrome{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;
+  border-bottom:1px solid var(--edge-soft);background:var(--panel)}
+.chrome i{width:9px;height:9px;border-radius:999px;background:var(--edge);display:block}
+.chrome code{margin-left:.4rem;font:400 .72rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.75rem;margin-top:1rem}
+.note{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .9rem}
+.note b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+.note p{margin:0;font-size:.88rem;color:var(--ink-2)}
+.note p+p{margin-top:.5rem}
+.note.why{border-left:3px solid #059669}
+.note.weak{border-left:3px solid var(--gold)}
+.note.cost{border-left:3px solid var(--violet)}
+.spec{background:var(--panel);border:1px solid var(--edge-soft);border-radius:12px; padding:1rem 1.1rem;margin-top:1rem}
+.spec h3{font-size:1.05rem;margin:0 0 .4rem}
+.spec h3+p,.spec ul{margin-top:0}
+.spec p,.spec li{color:var(--ink-2);font-size:.92rem}
+.spec ul{padding-left:1.1rem;margin:.3rem 0 0}
+.spec li{margin:.25rem 0}
+.spec+.spec{margin-top:.75rem}
+.codebox{overflow-x:auto;background:var(--ground);border:1px solid var(--edge-soft);
+  border-radius:8px;padding:.7rem .8rem;margin:.5rem 0 .2rem}
+.codebox pre{margin:0;font:400 .78rem/1.55 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink-2)}
+.cmp{width:100%;border-collapse:collapse;margin-top:.9rem;font-size:.9rem;background:var(--panel);
+  border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+.cmp th{text-align:left;font:600 .66rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);padding:.6rem .7rem;border-bottom:1px solid var(--edge)}
+.cmp td{padding:.6rem .7rem;border-bottom:1px solid var(--edge-soft);vertical-align:top;color:var(--ink-2)}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td:first-child{color:var(--ink);font-weight:700}
+.rec{margin-top:1rem;background:var(--panel);border:1px solid var(--edge);border-left:4px solid var(--violet);
+  border-radius:10px;padding:1rem 1.1rem}
+.rec p{margin:0 0 .6rem;color:var(--ink-2)}.rec p:last-child{margin:0}
+.rec b{color:var(--ink)}
+.rec ol{margin:.2rem 0 .7rem;padding-left:1.2rem;color:var(--ink-2)}
+.rec ol li{margin:.35rem 0}
+footer.deck{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--edge); font-size:.8rem;color:var(--muted)}
+/* ====================================================================== *
+ *  THE MOCK — the live exercise-book design system, paper-light always.  *
+ * ====================================================================== */
+.mock{color:#1c1917;background-color:#fcfcf9;
+  background-image:linear-gradient(rgba(96,140,200,.12) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px); background-size:24px 24px;
+  font:16px/1.5 Georgia,"Times New Roman",serif;padding:1.5rem 1.3rem 1.8rem;
+  --em:#059669; --am:#b45309; --rd:#dc2626; --st:#78716c; --ln:#d6d3d1; --mu:#78716c}
+.mock.phone{padding:1rem .85rem 1.4rem;font-size:15px}
+.mock .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.mock a{color:#1c1917}
+.mock small{color:var(--mu)}
+.mock header.wkhead{display:flex;flex-wrap:wrap;gap:.9rem;align-items:flex-end;
+  justify-content:space-between;border-bottom:2px solid #292524;padding-bottom:.8rem}
+.mock header.wkhead h1{font-size:1.65rem;margin:.1rem 0;font-family:Georgia,serif;font-weight:700}
+.mock.phone header.wkhead h1{font-size:1.3rem}
+.mock .kicker{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--mu);margin:0}
+.mock .weeknav{margin:.3rem 0 0;font-size:.78rem;color:var(--mu)}
+.mock .weeknav a{text-decoration:none;border-bottom:1px solid var(--ln)}
+.mock .weeknav .off{color:#a8a29e}
+.mock .panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:#374151;
+  font-weight:700;margin:1.5rem 0 .5rem;font-family:Georgia,serif}
+.mock .cap{font-size:.72rem;color:var(--mu);margin:.4rem 0 0}
+.mock .card{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:.8rem .9rem}
+/* the stamp — the only thing on the page a person or the routine writes */
+.stamp{display:inline-block;border:2px solid #292524;color:#292524;border-radius:8px;
+  padding:.34rem .65rem;transform:rotate(-2.4deg);background:rgba(252,252,249,.7);
+  font:600 .6rem/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.13em;
+  text-transform:uppercase;text-align:center;white-space:nowrap}
+.stamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c;transform:rotate(1.8deg)}
+/* headline stats */
+.mstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin-top:1.1rem}
+.mock.phone .mstats{grid-template-columns:1fr 1fr}
+.mstats .label{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin:0}
+.mstats .big{font-size:1.5rem;margin:.15rem 0 0;font-weight:700;font-variant-numeric:tabular-nums}
+.mock.phone .mstats .big{font-size:1.25rem}
+.mstats .sub{margin:.3rem 0 0;font-size:.72rem;color:#57534e}
+.segbar{display:flex;gap:2px;margin-top:.45rem}
+.segbar span{height:9px;flex:1;border-radius:2px;background:#e7e5e4}
+.segbar .d{background:var(--em)} .segbar .s{background:#f59e0b}
+.segbar .m{background:var(--rd)} .segbar .x{background:#a8a29e}
+.minibar{height:9px;border-radius:999px;background:#e7e5e4;overflow:hidden;margin-top:.45rem}
+.minibar i{display:block;height:100%;background:var(--em);border-radius:999px}
+/* status glyphs */
+.mk{flex:none;display:inline-block;vertical-align:-2px}
+.mk.done{color:var(--em)} .mk.short{color:#d97706} .mk.miss{color:var(--rd)}
+.mk.exc{color:#a8a29e} .mk.pend{color:#a8a29e} .mk.extra{color:var(--em)}
+.shortcap{font:600 .56rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--am);letter-spacing:.03em}
+/* the register */
+.regwrap{overflow-x:auto;padding-bottom:.2rem}
+.wk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem;min-width:46rem}
+.mock.phone .wk{display:block;min-width:0}
+.wkcol{background:#fff;border:1px solid var(--ln);border-radius:9px;padding:.4rem .45rem .5rem}
+.mock.phone .wkcol{margin-bottom:.45rem}
+.dhead{display:flex;align-items:baseline;justify-content:space-between;gap:.3rem;
+  padding:.1rem .1rem .3rem;border-bottom:1px solid #ededea;margin-bottom:.1rem}
+.dhead h4{font-weight:700;font-size:.82rem;font-family:Georgia,serif}
+.dhead .dd{font:400 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--mu)}
+.dt{width:100%;border-collapse:collapse;font-size:.72rem}
+.dt td{padding:.2rem .1rem;vertical-align:top;border:0}
+.dt td.t{width:2.5rem;font:400 .62rem/1.5 "IBM Plex Mono",ui-monospace,monospace;color:var(--mu); white-space:nowrap}
+.dt td.l{line-height:1.25}
+.dt td.g{width:1.5rem;text-align:right;white-space:nowrap}
+.dt tr.warm td{color:#a8a29e;font-size:.64rem;padding:.12rem .1rem}
+.dt tr.warm td.t{font-size:.58rem}
+.dt tr.miss td.l{color:#b91c1c}
+.dt tr.miss{background:rgba(220,38,38,.055)}
+.dt tr.exc td.l{text-decoration:line-through;text-decoration-color:#a8a29e;color:#78716c}
+.dt tr.short td.l{color:#78350f}
+.dt tr.extra td{border-top:1px dotted #d6d3d1;color:#57534e;font-size:.66rem;padding-top:.28rem}
+.dt tr.extra td.l{font-style:italic}
+.dt tr.rev td{border-top:1px solid #ededea;padding-top:.3rem}
+.dt .ev{display:block;font:400 .58rem/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--mu)}
+/* missed, named plainly + decisions */
+.named{margin:.2rem 0 0;padding:0;list-style:none}
+.named li{background:#fff;border:1px solid var(--ln);border-left:3px solid var(--rd);
+  border-radius:0 8px 8px 0;padding:.5rem .7rem;margin-top:.4rem;font-size:.88rem}
+.named li .when{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.76rem;color:#57534e}
+.decide{margin:.55rem 0 0;padding:0;list-style:none}
+.decide li{background:#fff;border:1px dashed var(--ln);border-radius:8px;padding:.45rem .7rem;
+  margin-top:.35rem;font-size:.85rem;display:flex;flex-wrap:wrap;gap:.3rem .6rem;
+  justify-content:space-between;align-items:baseline}
+.decide li.settled{border-style:solid;border-left:3px solid var(--em)}
+.decide .ask{font:600 .7rem/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--am);white-space:nowrap}
+.decide .said{font:600 .7rem/1.4 "IBM Plex Mono",ui-monospace,monospace;color:#166534;white-space:nowrap}
+.decide .said.no{color:#b91c1c}
+/* hours against the timetable */
+.hrow{display:flex;align-items:center;gap:.6rem;margin:.3rem 0}
+.hrow .nm{width:9.5rem;flex:none;font-size:.85rem}
+.mock.phone .hrow .nm{width:5.6rem;font-size:.78rem}
+.hrow .bar{flex:1;height:15px;background:#fff;border:1px solid var(--ln);border-radius:4px;overflow:hidden}
+.hrow .bar i{display:block;height:100%;background:var(--em)}
+.hrow .bar i.under{background:#f59e0b}
+.hrow .num{width:5.2rem;flex:none;text-align:right;font-size:.76rem;color:#44403c}
+/* by subject */
+.subjgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.mock.phone .subjgrid{grid-template-columns:1fr}
+.subj{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:.75rem .85rem}
+.subj .sh{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}
+.subj h4{font-family:Georgia,serif;font-size:1rem;font-weight:700}
+.subj .sspec{margin:.05rem 0 0;font-size:.72rem;color:var(--mu)}
+.subj .cov{text-align:right;flex:none}
+.subj .pc{font-weight:700;font-size:1.05rem}
+.subj .delta{font-size:.72rem;color:var(--em);margin-left:.25rem}
+.subj .lab{font:600 .6rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--mu);margin:.6rem 0 .25rem}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem;margin:0;padding:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:.35rem;font-size:.7rem;border:1px solid var(--ln);
+  border-radius:6px;padding:.2rem .4rem;background:#fff;color:#44403c}
+.chip .ref{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:600;color:#1c1917}
+.dot{width:8px;height:8px;border-radius:999px;flex:none;display:inline-block}
+.arrow{color:#a8a29e}
+.kv{margin:.5rem 0 0;font-size:.75rem;color:#57534e}
+.kv dt{font:600 .6rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--mu);margin-top:.4rem}
+.kv dd{margin:.1rem 0 0}
+.spark{display:block;margin-top:.2rem}
+/* ---------------------------------------------------------------------- *
+ *  THE MARGIN — Caveat, and only here. Written, never computed.          *
+ * ---------------------------------------------------------------------- */
+.hand{font-family:Caveat,"Segoe Script","Bradley Hand",cursive;color:#57534e; font-size:1.05rem;line-height:1.35}
+.subj .hand{margin:.6rem 0 0;padding:.45rem 0 0 .6rem;border-top:1px dashed var(--ln); border-left:2px solid #e7e5e4}
+.sig{display:block;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.58rem;
+  letter-spacing:.06em;color:#a8a29e;margin-top:.15rem}
+.marginbox{background:#fff;border:1px solid var(--ln);border-radius:10px;margin-top:.5rem;
+  display:grid;grid-template-columns:11rem minmax(0,1fr)}
+.mock.phone .marginbox{grid-template-columns:1fr}
+.marginbox .gutter{border-right:1px dashed var(--ln);padding:.85rem .8rem;background:#fdfdfb;
+  border-radius:10px 0 0 10px}
+.mock.phone .marginbox .gutter{border-right:0;border-bottom:1px dashed var(--ln);border-radius:10px 10px 0 0}
+.marginbox .gutter p{margin:0;font-size:.72rem;color:var(--mu)}
+.marginbox .gutter .who{font:600 .62rem/1.4 "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.1em;text-transform:uppercase;color:#57534e;margin-bottom:.3rem}
+.marginbox .body{padding:.85rem .95rem}
+.marginbox h4{font:600 .62rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--mu);margin:.75rem 0 .2rem}
+.marginbox h4:first-child{margin-top:0}
+.marginbox .hand{font-size:1.1rem;color:#44403c;margin:0}
+.vers{display:flex;flex-wrap:wrap;gap:.3rem;margin:.15rem 0 .5rem;padding:0;list-style:none}
+.vers li a,.vers li span{display:inline-block;font:600 .62rem/1.4 "IBM Plex Mono",ui-monospace,monospace;
+  border:1px solid var(--ln);border-radius:999px;padding:.15rem .5rem;text-decoration:none;color:#57534e}
+.vers li span[aria-current]{background:#292524;border-color:#292524;color:#fcfcf9}
+.driftline{margin:.7rem 0 0;padding-top:.5rem;border-top:1px solid #ededea;
+  font-size:.74rem;color:#44403c;font-family:"IBM Plex Mono",ui-monospace,monospace;line-height:1.5}
+.driftline b{color:#1c1917}
+details.older{margin-top:.5rem;font-size:.76rem;color:#57534e}
+details.older summary{cursor:pointer;font:600 .64rem/1.5 "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
+details.older .hand{font-size:1rem;margin:.35rem 0 0}
+.mock footer.wkfoot{margin-top:1.4rem;padding-top:.7rem;border-top:1px solid var(--ln);
+  font-size:.74rem;color:var(--mu)}
+.mock footer.wkfoot a{text-decoration:none;border-bottom:1px solid var(--ln)}
+/* the term ledger table */
+.ledger{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--ln);
+  border-radius:10px;overflow:hidden;font-size:.78rem;min-width:52rem}
+.ledger th{text-align:left;font:400 .66rem/1.4 Georgia,serif;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--mu);padding:.45rem .5rem;border-bottom:1.5px solid var(--ln)}
+.ledger td{padding:.5rem .5rem;border-bottom:1px solid #ededea;vertical-align:top}
+.ledger tr:last-child td{border-bottom:0}
+.ledger tr.now td{background:#fefce8}
+.ledger tr.now td:first-child{box-shadow:inset 3px 0 0 #292524}
+.ledger .wkid{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:600;white-space:nowrap}
+.ledger .none{color:var(--st);font-style:italic}
+.ledger .segbar{margin:0 0 .2rem;min-width:6rem}
+.ledger .segbar span{height:7px}
+.ministamp{display:inline-block;border:1.5px solid #292524;color:#292524;border-radius:5px;
+  padding:.08rem .3rem;transform:rotate(-2deg);
+  font:600 .54rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase}
+.ministamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c}
+/* the email digest */
+.mail{background:#fff;font:15px/1.5 Georgia,serif;color:#1c1917}
+.mailhead{padding:.8rem .9rem;border-bottom:1px solid #d6d3d1;background:#fbfbf8}
+.mailhead .subject{font-weight:700;font-size:.95rem;margin:0 0 .25rem;line-height:1.3}
+.mailhead .meta{margin:0;font:400 .7rem/1.5 "IBM Plex Mono",ui-monospace,monospace;color:#78716c}
+.mailbody{padding:.9rem;overflow-x:auto}
+.mailbody pre{margin:0;font:400 .72rem/1.65 "IBM Plex Mono",ui-monospace,monospace;color:#1c1917; white-space:pre}
+.mailbody .lnk{display:inline-block;margin-top:.6rem;font:400 .74rem/1.5 "IBM Plex Mono",ui-monospace,monospace}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.001ms!important}}
+@media (max-width:44rem){
+  .mstats{grid-template-columns:1fr 1fr}
+  .subjgrid{grid-template-columns:1fr}
+  .marginbox{grid-template-columns:1fr}
+  .marginbox .gutter{border-right:0;border-bottom:1px dashed var(--ln);border-radius:10px 10px 0 0}
+}
+</style>
+</head>
+<body>
+
+<svg class="vh" aria-hidden="true" focusable="false" width="0" height="0"><defs>
+  <symbol id="g-tick" viewBox="0 0 18 18">
+    <path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="currentColor" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="g-cross" viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="2.5"
+    stroke-linecap="round"><path d="M3.7 4.0C6.6 6.4 10.9 10.5 14.4 14.1"/>
+    <path d="M14.3 3.9C11.3 6.9 7.2 10.6 3.6 14.2"/></g></symbol>
+  <symbol id="g-strike" viewBox="0 0 18 18">
+    <path d="M2.6 9.6C6.1 9.0 11.4 9.7 15.4 8.8" fill="none" stroke="currentColor"
+      stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="g-hollow" viewBox="0 0 18 18">
+    <circle cx="9" cy="9" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="g-plus" viewBox="0 0 18 18">
+    <circle cx="9" cy="9" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <path d="M9 5.6V12.4M5.6 9H12.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+</defs></svg>
+
+<div class="page">
+
+<!-- ============================ 1 · MASTHEAD ========================== -->
+<header class="mast">
+  <p class="eyebrow">Education Tracker · design concept</p>
+  <h1>The ledger and the margin</h1>
+  <p class="lede">Every number on the weekly report is computed by the tracker from the record it
+    already holds, on every request — that is the ledger, and it changes the moment Dad excuses a
+    block. What Claude adds on Friday is judgement: what held, what slipped, one carry-forward line
+    per subject, next week's plan — stored once, dated and signed, in the margin.</p>
+  <div class="brief">
+    <div><b>What's computed</b><span>Study blocks done, short, missed, excused and extra, partitioned
+      by tracking; hours against the timetable; topic movement; coverage; attempts, practice and queue
+      tops. Derived on every request.</span></div>
+    <div><b>What's written</b><span>Held · Slipped · Next week, and one carry-forward line per subject.
+      Stored as a dated, signed note with a snapshot of the counts it was written against.</span></div>
+    <div><b>Where it lives</b><span><code>/week/{iso}</code> is the page for the parent;
+      <code>/weeks</code> is the term as a ledger; the Friday email is a digest with a link, not the
+      report.</span></div>
+    <div><b>Friday, 14:05</b><span>The routine reads the week in one call, writes the note as
+      <code>draft</code>, emails the digest. At 14:15 the review records the decisions and saves
+      version 2 as <code>reviewed</code>.</span></div>
+  </div>
+</header>
+
+<!-- ============================ 2 · JUMP NAV ========================== -->
+<nav class="jump" aria-label="Sections of this deck">
+  <span class="lab">Deck</span>
+  <a href="#week">Week page</a>
+  <a href="#phone">Phone</a>
+  <a href="#ledger">Term ledger</a>
+  <a href="#email">Email</a>
+  <a href="#built">How it's built</a>
+  <a href="#alternatives">Alternatives</a>
+  <a href="#verdict">Verdict</a>
+</nav>
+
+<!-- ====================== 3 · THE WEEK PAGE, DESKTOP ================== -->
+<section class="sec" id="week">
+  <div class="shead"><span class="stag">1</span><h2>The week page — <code>/week/2026-W37</code></h2></div>
+  <p class="thesis">Shown here in its <b>reviewed</b> state, after the 14:15 chat with Dad. Everything
+    above the margin is computed live from sessions, attempts, practice runs and excusals; everything
+    in Caveat was written once, on Friday, and carries its own timestamp. Nothing on this page can be
+    clicked to excuse a block — that happens in chat, through the tools.</p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/week/2026-W37</code></div>
+    <div class="mock">
+
+      <header class="wkhead">
+        <div>
+          <p class="kicker">Week 37 · Mon 7 – Fri 11 Sep 2026</p>
+          <h1>The week</h1>
+          <p class="weeknav mono"><a href="#">← 2026-W36</a> · <a href="#">all weeks</a> ·
+            <span class="off">2026-W38 →</span></p>
+        </div>
+        <p class="stamp" title="Saved by the parent-weekly-review chat, Friday 11 Sep at 14:52">
+          Reviewed with Dad<br>Fri 14:52</p>
+      </header>
+
+      <!-- b. headline stats -->
+      <div class="mstats">
+        <div class="card">
+          <p class="label">Study blocks</p>
+          <p class="big mono">18 of 21</p>
+          <div class="segbar" role="img"
+            aria-label="Twenty-one study blocks: seventeen done, one done but short, two missed, one excused">
+            <span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="s"></span><span class="m"></span><span class="m"></span><span class="x"></span>
+          </div>
+          <p class="sub mono">2 missed · 1 excused · 1 extra</p>
+          <p class="sub mono">movement 5 of 5 · review ✓</p>
+        </div>
+        <div class="card">
+          <p class="label">Hours</p>
+          <p class="big mono">11.4 of 13.3</p>
+          <div class="minibar" role="img" aria-label="11.4 hours logged of the 13.3 hours the timetable plans">
+            <i style="width:86%"></i></div>
+          <p class="sub mono">maths under — Thu missed, Fri short</p>
+        </div>
+        <div class="card">
+          <p class="label">Timed handwritten</p>
+          <p class="big">None this week</p>
+          <p class="sub mono">last: 25 min · 0 blanks · 1 Sep</p>
+        </div>
+        <div class="card">
+          <p class="label">Topics moved</p>
+          <p class="big mono">4 ↑ · 0 ↓</p>
+          <p class="sub mono">evidence only on 3 more</p>
+        </div>
+      </div>
+
+      <!-- c. the register -->
+      <h2 class="panel-title">The register</h2>
+      <div class="regwrap">
+        <div class="wk">
+          <div class="wkcol">
+            <div class="dhead"><h4>Monday</h4><span class="dd">7 Sep · 5 of 5</span></div>
+            <table class="dt"><caption class="vh">Monday 7 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked by Paige 09:30</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval warm-up (mixed)<span class="ev">10 questions · 14 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval warm-up — done, practice run logged 09:44</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:45</td><td class="l">Maths — new topic<span class="ev">Surds · 70 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Maths new topic — done, session logged 11:02</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lit — set text<span class="ev">Macbeth A1 · 55 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>English Literature set text — done, session logged 12:14</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:00</td><td class="l">CS — Python<span class="ev">lists + loops · 55 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Computer Science Python — done, session logged 14:00</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">14:15</td><td class="l">Lang — creative writing<span class="ev">drafting · 45 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>English Language creative writing — done, session logged 15:04</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Tuesday</h4><span class="dd">8 Sep · 4 of 5</span></div>
+            <table class="dt"><caption class="vh">Tuesday 8 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked by Paige 09:30</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval (Mon's work)<span class="ev">8 questions · 12 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval warm-up — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:45</td><td class="l">Maths — interleaved<span class="ev">mixed set · 75 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Maths interleaved practice — done, A17 re-test passed</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lit — second text<span class="ev">Macbeth A2 · 58 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>English Literature second text — done, session logged 12:14</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="miss"><td class="t">13:00</td><td class="l">Timed handwritten<span class="ev">no attempt logged</span></td><td class="g"><svg class="mk miss" width="16" height="16" role="img"><title>Timed handwritten practice, Tue 13:00–14:00 — missed, no attempt logged</title><use href="#g-cross"/></svg></td></tr>
+                <tr><td class="t">14:00</td><td class="l">CS — theory<span class="ev">Boolean logic · 60 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Computer Science theory — done, session logged 15:00</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Wednesday</h4><span class="dd">9 Sep · 1 of 1 · 1 excused</span></div>
+            <table class="dt"><caption class="vh">Wednesday 9 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Quick move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Quick move — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:10</td><td class="l">Retrieval quiz — Maths, Lit, CS<span class="ev">12 questions · 30 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval quiz — done, practice run logged 09:45</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="exc"><td class="t">09:45</td><td class="l" title="Excused by Dad — dentist">Spanish — vocab + listening<span class="ev">excused by Dad: dentist</span></td><td class="g"><svg class="mk exc" width="15" height="15" role="img"><title>Spanish vocab and listening, Wed 09:45 — excused by Dad: dentist</title><use href="#g-strike"/></svg></td></tr>
+                <tr class="extra"><td class="t">16:10</td><td class="l">Spanish — Shooting Gallery<span class="ev">12 min · extra</span></td><td class="g"><svg class="mk extra" width="14" height="14" role="img"><title>Extra work outside the timetable — Spanish Shooting Gallery, 12 min. Extras never offset a miss.</title><use href="#g-plus"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Thursday</h4><span class="dd">10 Sep · 2 of 3</span></div>
+            <table class="dt"><caption class="vh">Thursday 10 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move + retrieval warm-up</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move and retrieval warm-up — self-report, ticked by Paige 09:25</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="miss"><td class="t">09:25</td><td class="l">Deep block — Maths<span class="ev">no session logged</span></td><td class="g"><svg class="mk miss" width="16" height="16" role="img"><title>Deep block, Maths (odd ISO week), Thu 09:25–10:30 — missed, no session logged</title><use href="#g-cross"/></svg></td></tr>
+                <tr><td class="t">10:45</td><td class="l">Lit — poetry / planning<span class="ev">Macbeth essay plan · 60 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>English Literature poetry and essay planning — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:45</td><td class="l">Spanish — vocab review<span class="ev">flashcards · 15 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Spanish vocab review — done, practice run logged 12:00</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Friday</h4><span class="dd">11 Sep · 6 of 6</span></div>
+            <table class="dt"><caption class="vh">Friday 11 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked by Paige 09:30</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval warm-up (whole week)<span class="ev">14 questions · 15 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Whole-week retrieval warm-up — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="short"><td class="t">09:45</td><td class="l">Maths — consolidate<span class="ev">28 min of 75</span></td><td class="g"><svg class="mk short" width="15" height="15" role="img"><title>Maths consolidate and fix errors — done but short, 28 minutes of 75</title><use href="#g-tick"/></svg><span class="shortcap">28m</span></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lang — exam technique<span class="ev">Q2 + Q3 · 40 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>English Language exam technique — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:55</td><td class="l">Lit quotation retrieval<span class="ev">4 of 5 · 20 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lit quotation retrieval — done, 4 of 5</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:00</td><td class="l">CS — quiz + fix code<span class="ev">loops · 45 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Computer Science quiz and fix code — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:45</td><td class="l">Spanish — vocab + reading<span class="ev">30 min</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Spanish vocab and short reading — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="rev"><td class="t">14:15</td><td class="l">Weekly review with Dad<span class="ev">ticked 14:52</span></td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Weekly review with Dad — self-report, ticked from the review chat at 14:52</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+        </div>
+      </div>
+      <p class="cap">Twenty-one study blocks this week, plus five movement blocks and the review,
+        shown but counted separately. Extras are dotted and never offset a miss.</p>
+
+      <!-- d. missed, named plainly + decisions -->
+      <h2 class="panel-title">Missed</h2>
+      <ul class="named">
+        <li><span class="when">Tue 8 Sep · 13:00–14:00</span><br>
+          <b>Timed handwritten practice</b> — no attempt logged that day.</li>
+        <li><span class="when">Thu 10 Sep · 09:25–10:30</span><br>
+          <b>Deep block — Maths</b> (odd ISO week) — no maths session logged that day.</li>
+      </ul>
+
+      <h2 class="panel-title">Decisions for Dad</h2>
+      <ul class="decide">
+        <li class="settled"><span>Day off <b>Mon 14 Sep</b> — requested by Paige, “friend's birthday”</span>
+          <span class="said">approved — blocks moved to Sat morning</span></li>
+        <li class="settled"><span>Tue 13:00 Timed handwritten practice — excuse it?</span>
+          <span class="said no">not excused</span></li>
+        <li class="settled"><span>Wed 09:45 Spanish — vocab + listening — excuse it?</span>
+          <span class="said">excused — dentist</span></li>
+        <li class="settled"><span>Thu 09:25 Deep block, Maths — excuse it?</span>
+          <span class="said no">not excused</span></li>
+      </ul>
+      <p class="cap">Decided in the review chat, never here. This page has no button that changes the
+        record — <code>tracker_excuse_block</code> and <code>tracker_decide_day_off</code> are Dad's,
+        in chat.</p>
+
+      <!-- e. hours against the timetable -->
+      <h2 class="panel-title">Hours against the timetable</h2>
+      <div class="hrow"><span class="nm">Maths</span>
+        <span class="bar"><i class="under" style="width:63%"></i></span>
+        <span class="num mono">3.0 / 4.8</span></div>
+      <div class="hrow"><span class="nm">English Literature</span>
+        <span class="bar"><i style="width:100%"></i></span>
+        <span class="num mono">3.3 / 3.3</span></div>
+      <div class="hrow"><span class="nm">English Language</span>
+        <span class="bar"><i style="width:100%"></i></span>
+        <span class="num mono">1.4 / 1.4</span></div>
+      <div class="hrow"><span class="nm">Computer Science</span>
+        <span class="bar"><i style="width:100%"></i></span>
+        <span class="num mono">2.75 / 2.75</span></div>
+      <div class="hrow"><span class="nm">Spanish <small>incl. 12 min extra</small></span>
+        <span class="bar"><i class="under" style="width:95%"></i></span>
+        <span class="num mono">0.95 / 1.0</span></div>
+      <p class="cap">Planned is the timetable in force this week, single-subject blocks only; the mixed
+        retrieval blocks belong to no one subject. A short block counts the minutes logged.</p>
+
+      <!-- f. by subject -->
+      <h2 class="panel-title">By subject</h2>
+      <div class="subjgrid">
+
+        <article class="subj">
+          <div class="sh">
+            <div><h4><a href="#">Mathematics</a></h4><p class="sspec">AQA 8300 Higher · 64 topics</p></div>
+            <div class="cov"><span class="pc mono">25%</span><span class="delta mono">+2</span>
+              <svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">
+                <title>Maths coverage over eight weeks, rising from 14 to 25 per cent</title>
+                <polyline points="2,10.2 10.6,9 19.1,7.9 27.7,7.4 36.3,6.2 44.9,5.7 53.4,5.1 62,4"
+                  fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="62" cy="4" r="2" fill="#7c3aed"/></svg></div>
+          </div>
+          <p class="lab">Moved this week</p>
+          <ul class="chips"><li class="chip"><span class="ref">A17</span>
+            <span class="dot" style="background:#10b981" title="secure"></span>
+            <span class="arrow">→</span>
+            <span class="dot" style="background:#0ea5e9" title="exam-ready"></span>
+            secure → exam-ready</li></ul>
+          <dl class="kv">
+            <dt>Sat this week</dt><dd>None. Last attempt 19 Aug — Phase 1 exit check, 22/25, 0 blanks.</dd>
+            <dt>Queue top</dt><dd>A4 Simplify, expand, factorise — retest 2 of 2 still outstanding.</dd>
+          </dl>
+          <p class="hand">Thursday deep block, and A4's second retest.
+            <span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+
+        <article class="subj">
+          <div class="sh">
+            <div><h4><a href="#">English Literature</a></h4><p class="sspec">AQA 8702 · 205 topics</p></div>
+            <div class="cov"><span class="pc mono">2%</span><span class="delta mono">+2</span>
+              <svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">
+                <title>English Literature coverage over eight weeks, 0 per cent until this week's 2</title>
+                <polyline points="2,18 10.6,18 19.1,18 27.7,18 36.3,18 44.9,18 53.4,18 62,4"
+                  fill="none" stroke="#0f766e" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="62" cy="4" r="2" fill="#0f766e"/></svg></div>
+          </div>
+          <p class="lab">Moved this week</p>
+          <ul class="chips"><li class="chip"><span class="ref">N3</span> Macbeth
+            <span class="dot" style="background:#d6d3d1" title="not started"></span>
+            <span class="arrow">→</span>
+            <span class="dot" style="background:#fbbf24" title="developing"></span>
+            not started → developing</li></ul>
+          <dl class="kv">
+            <dt>Sat this week</dt><dd>None.</dd>
+            <dt>Queue top</dt><dd>N3 Macbeth — quotation recall 4/5, re-test before it can go secure.</dd>
+          </dl>
+          <p class="hand">An Inspector Calls not yet opened, tracker expects it Tuesday.
+            <span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+
+        <article class="subj">
+          <div class="sh">
+            <div><h4><a href="#">English Language</a></h4><p class="sspec">AQA 8700 · 126 topics</p></div>
+            <div class="cov"><span class="pc mono">1%</span><span class="delta mono">+1</span>
+              <svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">
+                <title>English Language coverage over eight weeks, 0 per cent until this week's 1</title>
+                <polyline points="2,18 10.6,18 19.1,18 27.7,18 36.3,18 44.9,18 53.4,18 62,4"
+                  fill="none" stroke="#1d4ed8" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="62" cy="4" r="2" fill="#1d4ed8"/></svg></div>
+          </div>
+          <p class="lab">Moved this week</p>
+          <ul class="chips"><li class="chip"><span class="ref">W1</span>
+            <span class="dot" style="background:#fbbf24" title="developing"></span>
+            evidence only — Level 5 descriptor on one piece</li></ul>
+          <dl class="kv">
+            <dt>Sat this week</dt><dd>None. Last timed piece 1 Sep — Q5, 25 min sustained, 0 blanks.</dd>
+            <dt>Queue top</dt><dd>W1 — a second unaided piece at the same level to promote it.</dd>
+          </dl>
+          <p class="hand">Second unaided Level-5 piece to secure W1.
+            <span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+
+        <article class="subj">
+          <div class="sh">
+            <div><h4><a href="#">Computer Science</a></h4><p class="sspec">AQA 8525 · 100 topics</p></div>
+            <div class="cov"><span class="pc mono">2%</span><span class="delta mono">+2</span>
+              <svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">
+                <title>Computer Science coverage over eight weeks, 0 per cent until this week's 2</title>
+                <polyline points="2,18 10.6,18 19.1,18 27.7,18 36.3,18 44.9,18 53.4,18 62,4"
+                  fill="none" stroke="#4d7c0f" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="62" cy="4" r="2" fill="#4d7c0f"/></svg></div>
+          </div>
+          <p class="lab">Moved this week</p>
+          <ul class="chips">
+            <li class="chip"><span class="ref">loops</span>
+              <span class="dot" style="background:#d6d3d1" title="not started"></span>
+              <span class="arrow">→</span>
+              <span class="dot" style="background:#fbbf24" title="developing"></span> developing</li>
+            <li class="chip"><span class="ref">selection</span>
+              <span class="dot" style="background:#d6d3d1" title="not started"></span>
+              <span class="arrow">→</span>
+              <span class="dot" style="background:#fbbf24" title="developing"></span> developing</li>
+          </ul>
+          <dl class="kv">
+            <dt>Sat this week</dt><dd>None.</dd>
+            <dt>Queue top</dt><dd>Trace tables — not started, and Paper 1 leans on them.</dd>
+          </dl>
+          <p class="hand">Trace tables, proposed for Tuesday's timed rotation.
+            <span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+
+        <article class="subj">
+          <div class="sh">
+            <div><h4><a href="#">Spanish</a></h4><p class="sspec">AQA 8692 · 100 topics · foundation for 2028</p></div>
+            <div class="cov"><span class="pc mono">1%</span><span class="delta mono">+0</span>
+              <svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">
+                <title>Spanish coverage over eight weeks, flat at 1 per cent since week three</title>
+                <polyline points="2,18 10.6,18 19.1,4 27.7,4 36.3,4 44.9,4 53.4,4 62,4"
+                  fill="none" stroke="#a21caf" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="62" cy="4" r="2" fill="#a21caf"/></svg></div>
+          </div>
+          <p class="lab">Moved this week</p>
+          <ul class="chips"><li class="chip">No topic movement — practice only</li></ul>
+          <dl class="kv">
+            <dt>Practice</dt><dd>3 runs · 34 items · 71% first time. <small>Last 30 days: 4 runs · 185
+              items · 76.8% · best run 56 in Shooting Gallery.</small></dd>
+            <dt>Sat this week</dt><dd>None.</dd>
+            <dt>Queue top</dt><dd>Set 1 Sports — due its spaced review.</dd>
+          </dl>
+          <p class="hand">Under its planned hour; drop to Wed + Fri only if the exam subjects overrun again.
+            <span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+
+      </div>
+
+      <!-- g. in the margin -->
+      <h2 class="panel-title">In the margin — the week's review</h2>
+      <ul class="vers">
+        <li><a href="#" title="Version 1, written by the Friday routine at 14:05">draft 14:05</a></li>
+        <li><span aria-current="true" title="Version 2, saved from the review chat at 14:52">reviewed 14:52</span></li>
+      </ul>
+      <div class="marginbox">
+        <div class="gutter">
+          <p class="who">Written, not computed</p>
+          <p>One note per week, append-only. Version 2 of 2, saved from the review chat on
+            Fri 11 Sep at 14:52 by Claude, with Dad in the room.</p>
+        </div>
+        <div class="body">
+          <h4>Held</h4>
+          <p class="hand">Four of five subjects landed on the timetable, or within minutes of it —
+            maths is the only real shortfall. A17 went to exam-ready on a spaced re-test with the
+            working shown, which is the good kind of promotion. Zero blanks on everything marked.</p>
+          <h4>Slipped</h4>
+          <p class="hand">Thursday's deep block went missing again — that is twice in three weeks, both
+            Thursdays. Worth saying once, then fixing the slot rather than repeating the ask; the
+            term-planner can move it. And no timed handwritten piece this week, so stamina has no new
+            reading — the last one is still 1 Sep.</p>
+          <h4>Next week</h4>
+          <p class="hand">Tuesday's timed piece is the Lit essay — the rotation says so after Lang Q5 on
+            1 Sep. W38 is even, so Thursday's deep block is CS. An Inspector Calls opens Tuesday.</p>
+          <p class="driftline">Written from the record at <b>Fri 14:52</b> (2 missed · 1 excused).<br>
+            Reviewed with Dad Fri 14:52 · decisions above recorded · review block ticked.</p>
+          <details class="older">
+            <summary>Read the draft, Fri 14:05</summary>
+            <p class="driftline" style="border-top:0;padding-top:.3rem">Written from the record at
+              <b>Fri 14:05</b> (3 missed · 0 excused). Since then: Wed 09:45 Spanish excused — dentist.</p>
+            <p class="hand">Decisions put to Dad: day off Mon 14 Sep? Tuesday's timed piece, Wednesday's
+              Spanish, Thursday's deep block — excuse any of them?<span class="sig">— Claude, Fri 14:05 ·
+              Friday routine</span></p>
+          </details>
+        </div>
+      </div>
+
+      <footer class="wkfoot">
+        <a href="#">All weeks</a> · <a href="#">/s/maths</a> · <a href="#">/s/english-literature</a> ·
+        <a href="#">/s/english-language</a> · <a href="#">/s/computer-science</a> ·
+        <a href="#">/s/spanish</a><br>
+        Digest emailed Fri 14:06 to Dad. Counts computed at request time; the note carries its own.
+      </footer>
+
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note why"><b>Why the split works</b><p>Dad can trust the top of the page because no
+      model wrote it, and the bottom because it is dated and says what it was written against. Two runs
+      of the routine can disagree about wording; not about how many blocks were missed.</p></div>
+    <div class="note weak"><b>The drift line</b><p>The one place the two halves touch. The draft was
+      written at 14:05, before Dad excused Wednesday's Spanish; rather than contradicting the register,
+      the note says what it knew. The reviewed version's snapshot matches, so the line goes quiet.</p></div>
+    <div class="note cost"><b>Rules kept</b><p>No streaks. Misses named with day, time, label and what
+      was absent. No cross-subject accuracy comparison. Nothing about Paige beyond the work — the page
+      is public. No control here excuses anything.</p></div>
+  </div>
+</section>
+
+<!-- ============================ 4 · PHONE ============================= -->
+<section class="sec" id="phone">
+  <div class="shead"><span class="stag">2</span><h2>The same page on a phone — the draft state</h2></div>
+  <p class="thesis">Fri 14:30, mid-review. Dad has just excused Wednesday in the chat; the routine's
+    draft is still the latest note, so the ledger has moved and the margin has not — which is exactly
+    what the drift line is for. One phone screen if the week was clean; two when it wasn't — the
+    headline and the misses stay above the fold.</p>
+
+  <div class="frame phone">
+    <div class="chrome"><i></i><i></i><i></i><code>390 px · /week/2026-W37 · Fri 14:30</code></div>
+    <div class="mock phone">
+
+      <header class="wkhead">
+        <div>
+          <p class="kicker">Week 37 · 7–11 Sep</p>
+          <h1>The week</h1>
+          <p class="weeknav mono"><a href="#">← W36</a> · <a href="#">all weeks</a></p>
+        </div>
+        <p class="stamp draft" title="Written by the Friday routine at 14:05; the review is still running">
+          Draft · Fri 14:05<br>Friday routine</p>
+      </header>
+
+      <div class="mstats">
+        <div class="card"><p class="label">Study blocks</p><p class="big mono">18 / 21</p>
+          <div class="segbar" role="img" aria-label="Seventeen done, one short, two missed, one excused">
+            <span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="s"></span><span class="m"></span><span class="m"></span><span class="x"></span>
+          </div>
+          <p class="sub mono">2 missed · 1 exc · 1 extra</p>
+          <p class="sub mono">movement 5/5 · review pending</p></div>
+        <div class="card"><p class="label">Hours</p><p class="big mono">11.4 / 13.3</p>
+          <div class="minibar" role="img" aria-label="11.4 of 13.3 hours"><i style="width:86%"></i></div>
+          <p class="sub mono">maths under</p></div>
+        <div class="card"><p class="label">Timed</p><p class="big">None</p>
+          <p class="sub mono">last 25 min · 0 blanks · 1 Sep</p></div>
+        <div class="card"><p class="label">Topics</p><p class="big mono">4 ↑ · 0 ↓</p>
+          <p class="sub mono">evidence only on 3</p></div>
+      </div>
+
+      <h2 class="panel-title">Missed</h2>
+      <ul class="named">
+        <li><span class="when">Tue 8 Sep · 13:00–14:00</span><br><b>Timed handwritten practice</b> —
+          no attempt logged.</li>
+        <li><span class="when">Thu 10 Sep · 09:25–10:30</span><br><b>Deep block — Maths</b> —
+          no session logged.</li>
+      </ul>
+
+      <h2 class="panel-title">Waiting on you</h2>
+      <ul class="decide">
+        <li><span>Day off <b>Mon 14 Sep</b> — Paige, “friend's birthday”</span>
+          <span class="ask">approve? — in the review chat</span></li>
+        <li><span>Tue 13:00 Timed handwritten</span>
+          <span class="ask">excuse? — say so in the review chat</span></li>
+        <li><span>Thu 09:25 Deep block, Maths</span>
+          <span class="ask">excuse? — say so in the review chat</span></li>
+      </ul>
+      <p class="cap">Decided in the review chat, never here.</p>
+
+      <h2 class="panel-title">The register</h2>
+      <div class="regwrap">
+        <div class="wk">
+          <div class="wkcol">
+            <div class="dhead"><h4>Monday</h4><span class="dd">7 Sep · 5 of 5</span></div>
+            <table class="dt"><caption class="vh">Monday 7 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval warm-up</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval warm-up — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:45</td><td class="l">Maths — new topic</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Maths new topic — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lit — set text</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lit set text — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:00</td><td class="l">CS — Python</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>CS Python — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">14:15</td><td class="l">Lang — creative writing</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lang creative writing — done</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Tuesday</h4><span class="dd">8 Sep · 4 of 5</span></div>
+            <table class="dt"><caption class="vh">Tuesday 8 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval (Mon)</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval warm-up — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:45</td><td class="l">Maths — interleaved</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Maths interleaved — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lit — second text</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lit second text — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="miss"><td class="t">13:00</td><td class="l">Timed handwritten<span class="ev">no attempt logged</span></td><td class="g"><svg class="mk miss" width="16" height="16" role="img"><title>Timed handwritten practice — missed, no attempt logged</title><use href="#g-cross"/></svg></td></tr>
+                <tr><td class="t">14:00</td><td class="l">CS — theory</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>CS theory — done</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Wednesday</h4><span class="dd">9 Sep · 1 of 1 · 1 excused</span></div>
+            <table class="dt"><caption class="vh">Wednesday 9 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Quick move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Quick move — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:10</td><td class="l">Retrieval quiz</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Retrieval quiz — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="exc"><td class="t">09:45</td><td class="l" title="Excused by Dad — dentist">Spanish — vocab<span class="ev">excused: dentist</span></td><td class="g"><svg class="mk exc" width="15" height="15" role="img"><title>Spanish vocab and listening — excused by Dad: dentist</title><use href="#g-strike"/></svg></td></tr>
+                <tr class="extra"><td class="t">16:10</td><td class="l">Spanish — Shooting Gallery<span class="ev">12 min · extra</span></td><td class="g"><svg class="mk extra" width="14" height="14" role="img"><title>Extra work outside the timetable — 12 min. Extras never offset a miss.</title><use href="#g-plus"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Thursday</h4><span class="dd">10 Sep · 2 of 3</span></div>
+            <table class="dt"><caption class="vh">Thursday 10 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move + retrieval</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move and retrieval warm-up — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="miss"><td class="t">09:25</td><td class="l">Deep block — Maths<span class="ev">no session logged</span></td><td class="g"><svg class="mk miss" width="16" height="16" role="img"><title>Deep block, Maths — missed, no session logged</title><use href="#g-cross"/></svg></td></tr>
+                <tr><td class="t">10:45</td><td class="l">Lit — poetry / planning</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lit poetry and planning — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:45</td><td class="l">Spanish — vocab review</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Spanish vocab review — done</title><use href="#g-tick"/></svg></td></tr>
+              </tbody></table>
+          </div>
+          <div class="wkcol">
+            <div class="dhead"><h4>Friday</h4><span class="dd">11 Sep · 6 of 6</span></div>
+            <table class="dt"><caption class="vh">Friday 11 Sep</caption>
+              <thead class="vh"><tr><th scope="col">Time</th><th scope="col">Block</th><th scope="col">Outcome</th></tr></thead><tbody>
+                <tr class="warm"><td class="t">09:00</td><td class="l">Move</td><td class="g"><svg class="mk done" width="11" height="11" role="img"><title>Move — self-report, ticked</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">09:30</td><td class="l">Retrieval (week)</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Whole-week retrieval — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="short"><td class="t">09:45</td><td class="l">Maths — consolidate<span class="ev">28 min of 75</span></td><td class="g"><svg class="mk short" width="15" height="15" role="img"><title>Maths consolidate — done but short, 28 minutes of 75</title><use href="#g-tick"/></svg><span class="shortcap">28m</span></td></tr>
+                <tr><td class="t">11:15</td><td class="l">Lang — exam technique</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lang exam technique — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">11:55</td><td class="l">Lit quotation retrieval</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Lit quotation retrieval — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:00</td><td class="l">CS — quiz + fix code</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>CS quiz and fix code — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr><td class="t">13:45</td><td class="l">Spanish — vocab + reading</td><td class="g"><svg class="mk done" width="15" height="15" role="img"><title>Spanish vocab and reading — done</title><use href="#g-tick"/></svg></td></tr>
+                <tr class="rev"><td class="t">14:15</td><td class="l">Weekly review with Dad<span class="ev">not ticked yet</span></td><td class="g"><svg class="mk pend" width="14" height="14" role="img"><title>Weekly review with Dad — pending, ticks when the review chat ends</title><use href="#g-hollow"/></svg></td></tr>
+              </tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="panel-title">Hours vs timetable</h2>
+      <div class="hrow"><span class="nm">Maths</span><span class="bar"><i class="under" style="width:63%"></i></span><span class="num mono">3.0 / 4.8</span></div>
+      <div class="hrow"><span class="nm">Lit</span><span class="bar"><i style="width:100%"></i></span><span class="num mono">3.3 / 3.3</span></div>
+      <div class="hrow"><span class="nm">Lang</span><span class="bar"><i style="width:100%"></i></span><span class="num mono">1.4 / 1.4</span></div>
+      <div class="hrow"><span class="nm">CS</span><span class="bar"><i style="width:100%"></i></span><span class="num mono">2.75 / 2.75</span></div>
+      <div class="hrow"><span class="nm">Spanish</span><span class="bar"><i class="under" style="width:95%"></i></span><span class="num mono">0.95 / 1.0</span></div>
+      <p class="cap">Planned = the timetable in force, single-subject blocks only.</p>
+
+      <h2 class="panel-title">By subject</h2>
+      <div class="subjgrid">
+        <article class="subj">
+          <div class="sh"><div><h4>Mathematics</h4><p class="sspec">25% · +2</p></div>
+            <svg class="spark" viewBox="0 0 64 20" width="64" height="18" role="img">
+              <title>Maths coverage, eight weeks, 14 to 25 per cent</title>
+              <polyline points="2,10.2 10.6,9 19.1,7.9 27.7,7.4 36.3,6.2 44.9,5.7 53.4,5.1 62,4"
+                fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+          <ul class="chips"><li class="chip"><span class="ref">A17</span>
+            <span class="dot" style="background:#10b981" title="secure"></span><span class="arrow">→</span>
+            <span class="dot" style="background:#0ea5e9" title="exam-ready"></span> exam-ready</li></ul>
+          <p class="hand">Thursday deep block, and A4's second retest.<span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+        <article class="subj">
+          <div class="sh"><div><h4>English Literature</h4><p class="sspec">2% · +2</p></div></div>
+          <ul class="chips"><li class="chip"><span class="ref">N3</span> Macbeth
+            <span class="dot" style="background:#d6d3d1" title="not started"></span><span class="arrow">→</span>
+            <span class="dot" style="background:#fbbf24" title="developing"></span> developing</li></ul>
+          <p class="hand">An Inspector Calls not yet opened, tracker expects it Tuesday.<span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+        <article class="subj">
+          <div class="sh"><div><h4>English Language</h4><p class="sspec">1% · +1</p></div></div>
+          <ul class="chips"><li class="chip"><span class="ref">W1</span> evidence only</li></ul>
+          <p class="hand">Second unaided Level-5 piece to secure W1.<span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+        <article class="subj">
+          <div class="sh"><div><h4>Computer Science</h4><p class="sspec">2% · +2</p></div></div>
+          <ul class="chips"><li class="chip"><span class="ref">loops</span> developing</li>
+            <li class="chip"><span class="ref">selection</span> developing</li></ul>
+          <p class="hand">Trace tables, proposed for Tuesday's timed rotation.<span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+        <article class="subj">
+          <div class="sh"><div><h4>Spanish</h4><p class="sspec">1% · 3 runs · 34 items · 71%</p></div></div>
+          <p class="hand">Under its planned hour; drop to Wed + Fri only if the exam subjects overrun again.<span class="sig">— Claude, Fri 14:05</span></p>
+        </article>
+      </div>
+
+      <h2 class="panel-title">In the margin</h2>
+      <ul class="vers"><li><span aria-current="true" title="Version 1, the Friday routine">draft 14:05</span></li></ul>
+      <div class="marginbox">
+        <div class="gutter"><p class="who">Written, not computed</p>
+          <p>Version 1 of 1. The review running now saves version 2.</p></div>
+        <div class="body">
+          <h4>Held</h4>
+          <p class="hand">Four of five subjects on the timetable or within minutes of it. A17 to
+            exam-ready on a spaced, worked re-test. Zero blanks on everything marked.</p>
+          <h4>Slipped</h4>
+          <p class="hand">Thursday's deep block missed — second time in three weeks. No timed
+            handwritten piece, so stamina has no new reading.</p>
+          <h4>Next week</h4>
+          <p class="hand">Tuesday's timed piece is the Lit essay. Deep block is CS — W38 is even.</p>
+          <p class="driftline">Written from the record at <b>Fri 14:05</b> (3 missed · 0 excused).
+            Since then: Wed 09:45 Spanish excused — dentist.</p>
+        </div>
+      </div>
+
+      <footer class="wkfoot"><a href="#">All weeks</a> · <a href="#">subjects</a><br>
+        Digest emailed Fri 14:06 to Dad.</footer>
+
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note why"><b>Above the fold</b><p>Headline, then misses, then the decisions waiting on
+      him. The register, hours and subject cards are below — they are the evidence for the headline,
+      not the headline.</p></div>
+    <div class="note weak"><b>The draft stamp earns its dashes</b><p>Dashed border and a lighter tilt.
+      It reads as provisional at a glance, which is exactly what it is for the forty-odd minutes
+      between 14:05 and the end of the review.</p></div>
+    <div class="note cost"><b>Same markup</b><p>One template, two states. The phone layout is the same
+      partials under a media query — the stat grid goes 2×2, the register's five columns stack, the
+      margin's gutter becomes a header strip.</p></div>
+  </div>
+</section>
+
+<!-- ========================= 5 · TERM LEDGER ========================== -->
+<section class="sec" id="ledger">
+  <div class="shead"><span class="stag">3</span><h2>The term as a ledger — <code>/weeks</code></h2></div>
+  <p class="thesis">One row per ISO week, oldest at the top, current week highlighted. Weeks before the
+    timetable started still have sessions, attempts and movement — they simply have no blocks to judge,
+    and the column says so rather than showing a zero.</p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/weeks</code></div>
+    <div class="mock">
+      <header class="wkhead">
+        <div><p class="kicker">Education Tracker</p><h1>All weeks</h1>
+          <p class="weeknav mono"><a href="#">← subjects</a></p></div>
+      </header>
+      <div class="regwrap" style="margin-top:1rem">
+        <table class="ledger">
+          <caption class="vh">Every ISO week on record, with blocks, hours, timed work, movement,
+            coverage and the review stamp</caption>
+          <thead><tr>
+            <th scope="col">Week</th><th scope="col">Blocks</th><th scope="col">Missed</th>
+            <th scope="col">Hours</th><th scope="col">Timed</th><th scope="col">Moved</th>
+            <th scope="col">Coverage · M / Lit / Lng / CS / Sp</th><th scope="col">Review</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <th scope="row" class="wkid">2026-W34<br><small>17–23 Aug</small></th>
+              <td class="none">— no timetable yet</td>
+              <td class="none">—</td>
+              <td class="mono">10.5 / —</td>
+              <td class="mono">22/25 · 0 blanks<br><small>Phase 1 exit check, 19 Aug</small></td>
+              <td class="mono">↑0 ↓0</td>
+              <td class="mono">20 · 0 · 0 · 0 · 0</td>
+              <td class="none">none</td>
+            </tr>
+            <tr>
+              <th scope="row" class="wkid">2026-W35<br><small>24–30 Aug</small></th>
+              <td class="none">— no timetable yet</td>
+              <td class="none">—</td>
+              <td class="mono">12.0 / —</td>
+              <td class="mono">—</td>
+              <td class="mono">↑0 ↓0</td>
+              <td class="mono">21 · 0 · 0 · 0 · 1</td>
+              <td class="none">none</td>
+            </tr>
+            <tr>
+              <th scope="row" class="wkid">2026-W36<br><small>31 Aug – 6 Sep</small></th>
+              <td class="none">— no timetable yet</td>
+              <td class="none">—</td>
+              <td class="mono">14.0 / —</td>
+              <td class="mono">25 min · 0 blanks<br><small>Lang Q5, 1 Sep</small></td>
+              <td class="mono">↑2 ↓1<br><small>A4 demoted</small></td>
+              <td class="mono">23 · 0 · 0 · 0 · 1</td>
+              <td class="none">none</td>
+            </tr>
+            <tr class="now">
+              <th scope="row" class="wkid">2026-W37<br><small>7–11 Sep</small></th>
+              <td>
+                <div class="segbar" role="img"
+                  aria-label="Seventeen done, one short, two missed, one excused">
+                  <span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="s"></span><span class="m"></span><span class="m"></span><span class="x"></span>
+                </div>
+                <span class="mono">18/21</span> <small>1 extra</small>
+              </td>
+              <td class="mono">2<br><small>1 excused</small></td>
+              <td class="mono">11.4 / 13.3</td>
+              <td class="mono">—</td>
+              <td class="mono">↑4 ↓0<br><small>+3 evidence</small></td>
+              <td class="mono">25 · 2 · 1 · 2 · 1</td>
+              <td><a href="#" class="ministamp" title="Reviewed with Dad, Fri 11 Sep 14:52">reviewed<br>14:52</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cap">Blocks counts study blocks only; movement and the review are shown on the week
+        page and counted separately, and extras never offset a miss. The ledger is computed on every
+        request — the Review column is the only thing a person or the routine ever writes.</p>
+      <footer class="wkfoot"><a href="#">This week</a> · <a href="#">subjects</a></footer>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note why"><b>Why a table</b><p>The term question is comparative — is the shape getting
+      better — and eight rows of the same eight columns answer it without a chart. The 21-segment bar
+      is the only picture and it is the same one as on the week page.</p></div>
+    <div class="note weak"><b>Pre-timetable weeks</b><p>The timetable is <code>valid_from
+      2026-09-07</code>, so W34–W36 have nothing to judge. Showing “— no timetable yet” rather than
+      “0/0” keeps the column honest when someone scrolls back in six months.</p></div>
+    <div class="note cost"><b>Cost to build</b><p>One page, one query per week from the same
+      <code>judgeWeek()</code> the index already calls, plus the latest <code>weekly_reviews</code> row
+      per week for the stamp column.</p></div>
+  </div>
+</section>
+
+<!-- =========================== 6 · EMAIL ============================== -->
+<section class="sec" id="email">
+  <div class="shead"><span class="stag">4</span><h2>The Friday digest</h2></div>
+  <p class="thesis">Sent at 14:06, a minute after the draft is saved. It is a summons to the page, not
+    a copy of it: the headline, what was missed, what is waiting on him, the hours line, the five
+    carry-forward lines, and one link. No charts, no images, no HTML that has to survive a mail client.</p>
+
+  <div class="frame phone">
+    <div class="chrome"><i></i><i></i><i></i><code>mail · Fri 14:06</code></div>
+    <div class="mail">
+      <div class="mailhead">
+        <p class="subject">Week 37 — 18 of 21 study blocks · 3 missed · 1 decision waiting</p>
+        <p class="meta">Education Tracker &lt;tracker@education.rmmann.co.uk&gt;<br>
+          to Dad · Fri 11 Sep 2026, 14:06</p>
+      </div>
+      <div class="mailbody">
+<pre>Week 37 · Mon 7 - Fri 11 Sep 2026
+18 of 21 study blocks · 3 missed · 0 excused
+· 1 extra · movement 5 of 5
+
+MISSED
+  Tue 13:00-14:00  Timed handwritten practice
+                   - no attempt logged
+  Wed 09:45-10:00  Spanish, vocab + listening
+                   - no practice logged
+  Thu 09:25-10:30  Deep block, Maths (odd week)
+                   - no session logged
+
+DAYS OFF
+  Mon 14 Sep - requested by Paige,
+  "friend's birthday" - waiting on you
+
+HOURS vs timetable        11.4 of 13.3
+  maths 3.0/4.8 · lit 3.3/3.3
+  lang 1.4/1.4 · cs 2.75/2.75
+  spanish 0.95/1.0
+
+CARRY-FORWARD
+  maths    Thursday deep block, and A4's
+           second retest
+  lit      An Inspector Calls not yet opened,
+           tracker expects it Tuesday
+  lang     second unaided Level-5 piece to
+           secure W1
+  cs       trace tables, proposed for
+           Tuesday's timed rotation
+  spanish  below split; Wed + Fri only if the
+           exam subjects overrun again
+
+Next Tuesday: Lit essay.</pre>
+        <a class="lnk" href="#">Open the week → education.rmmann.co.uk/week/2026-W37</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note why"><b>Why a digest</b><p>The record has one home. An email that carried the
+      report would be stale the moment Dad excused Wednesday's Spanish — and there would then be two
+      versions of the week, one of them wrong and un-fixable.</p></div>
+    <div class="note weak"><b>What it must carry</b><p>Enough to act on without opening anything: the
+      headline, the misses by name, and the decision waiting on him. Everything else is a reason to
+      tap the link.</p></div>
+    <div class="note cost"><b>Plain text</b><p>Monospace-ish, 60 columns, no images. Renders the same
+      in every client and reads fine when a phone strips the formatting.</p></div>
+  </div>
+</section>
+
+<!-- ======================== 7 · HOW IT'S BUILT ======================== -->
+<section class="sec" id="built">
+  <div class="shead"><span class="stag">5</span><h2>How it's built</h2></div>
+  <p class="thesis">The part the implementation session reads. Everything above is computed from what
+    the tracker already stores except one table, two tools and one routine.</p>
+
+  <div class="spec">
+    <h3>Schema — step 5</h3>
+    <div class="codebox"><pre>weekly_reviews (
+  id            INTEGER PRIMARY KEY,
+  week          TEXT    NOT NULL,          -- '2026-W37'
+  version       INTEGER NOT NULL,          -- 1, 2, 3 …
+  stage         TEXT    NOT NULL,          -- 'draft' | 'reviewed'
+  written_at    TEXT    NOT NULL,          -- ISO, Europe/London
+  written_by    TEXT    NOT NULL,          -- 'routine' | 'chat'
+  snapshot_json TEXT    NOT NULL,          -- counts, hours, missed[], movement refs
+  sections_json TEXT    NOT NULL,          -- held, slipped, next, carry_forward{}, …
+  note          TEXT,
+  UNIQUE (week, version)
+)</pre></div>
+    <p>Append-only. The latest version is shown; earlier ones stay readable on the page (the
+      <em>draft 14:05</em> chip). <code>snapshot_json</code> holds the counts, hours, missed list and
+      movement refs <em>as they stood when the note was written</em> — that is what makes the drift
+      line possible. <code>sections_json</code> holds <code>held</code>, <code>slipped</code>,
+      <code>next</code>, <code>carry_forward{slug: line}</code>, <code>rotation_next</code> and
+      <code>decisions[]</code>.</p>
+  </div>
+
+  <div class="spec">
+    <h3>Tools</h3>
+    <ul>
+      <li><code>tracker_week_report(week)</code> — one read that returns everything the page shows:
+        <code>judgeWeek</code> + per-subject changes + attempts + practice + queue tops. Counts come
+        back <b>partitioned by tracking</b> — <code>study</code> (evidence) is the headline, with
+        <code>movement</code> (self-report) and the review block beside it, never folded in. Hours are
+        read against <code>planned_by_subject</code>, computed from the timetable version in force for
+        that week — single-subject blocks only, so the mixed retrieval blocks are planned for no one
+        subject — not against a fixed targets split. The routine makes one call instead of twelve.</li>
+      <li><code>tracker_save_weekly_review(week, sections, stage, snapshot?)</code> — writes a new
+        version. The server fills the snapshot itself from <code>judgeWeek</code> and the week's
+        changes, so the model cannot mis-state the counts it is writing against.</li>
+      <li><code>tracker_get_weekly_review(week)</code> — the latest version plus the list of earlier
+        ones.</li>
+    </ul>
+  </div>
+
+  <div class="spec">
+    <h3>Pages</h3>
+    <ul>
+      <li><code>/week/{iso}</code> — already planned in the dashboard skill for the timetable. Gains
+        the by-subject section and the margin. One query per section, all computed at request time.
+        Both the headline card and <code>snapshot_json</code> use the same partition and the same
+        <code>planned_by_subject</code>, so the page and the note can never count differently.</li>
+      <li><code>/weeks</code> — new. One row per week, same <code>judgeWeek</code>, plus the latest
+        review row for the stamp column.</li>
+      <li>No page anywhere gains a control that writes to the record.</li>
+    </ul>
+  </div>
+
+  <div class="spec">
+    <h3>The Friday routine</h3>
+    <ul>
+      <li>Replaces the current Maths-dashboard prompt. Cron <b>Friday 14:05 Europe/London</b> —
+        <code>05 13 * * 5</code> in UTC while BST is in force, <code>05 14 * * 5</code> after the
+        October change. The DST shift has to be handled, not assumed away.</li>
+      <li>Steps: <code>tracker_week_report</code> → write the margin note with
+        <code>tracker_save_weekly_review(stage: 'draft')</code> → email the digest with the link.</li>
+      <li>14:15, in chat: the <b>parent-weekly-review</b> skill records the decisions, ticks the review
+        block and saves stage <code>reviewed</code> as version 2.</li>
+      <li><b>Blocker:</b> the routine currently has only the Google Drive connector attached. Without
+        the Education Tracker connector it cannot read the record at all.</li>
+    </ul>
+  </div>
+
+  <div class="spec">
+    <h3>Tests</h3>
+    <ul>
+      <li><code>/week/2026-W37</code> renders exactly the counts <code>judgeWeek</code> returns.</li>
+      <li>A saved review appears with its stamp, stage and time.</li>
+      <li>The drift line appears when the snapshot differs from live, and disappears when it matches.</li>
+      <li>A golden snapshot of the register for one fixed week, as the practice chart already has.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= 8 · ALTERNATIVES =========================== -->
+<section class="sec" id="alternatives">
+  <div class="shead"><span class="stag">6</span><h2>Alternatives considered</h2></div>
+  <div class="notes">
+    <div class="note weak"><b>a · the routine writes the whole report</b>
+      <p>Claude generates the week's HTML on Friday and the page serves the stored blob.</p>
+      <p><b>Rejected.</b> Two runs disagree, and the page goes stale the moment Dad excuses a block —
+        the register would still show Wednesday's Spanish as missed for the rest of the term.</p></div>
+    <div class="note weak"><b>b · narrative in every section</b>
+      <p>A sentence of Claude's commentary under each panel instead of one margin.</p>
+      <p><b>Rejected.</b> It blurs computed and written, which is the one distinction the parent needs
+        in order to trust either half. Caveat everywhere is Caveat nowhere.</p></div>
+    <div class="note weak"><b>c · the email carries the full report</b>
+      <p>Send the register, the hours and the subject cards as HTML mail.</p>
+      <p><b>Rejected.</b> The record has one home and the page has the links. A mail client is a poor
+        place to hold a number that changes on Saturday.</p></div>
+  </div>
+</section>
+
+<!-- ========================== 9 · VERDICT ============================= -->
+<section class="sec" id="verdict">
+  <div class="shead"><span class="stag">7</span><h2>Verdict</h2></div>
+  <table class="cmp">
+    <caption class="vh">What each half of the design is for</caption>
+    <thead><tr><th scope="col">Half</th><th scope="col">Who writes it</th><th scope="col">When it changes</th><th scope="col">Build</th></tr></thead>
+    <tbody>
+      <tr><td>The ledger</td><td>Nobody — derived from sessions, attempts, practice and excusals</td>
+        <td>On every request, including after Saturday's excusal</td><td>Small · one new page</td></tr>
+      <tr><td>The margin</td><td>Claude at 14:05, then Claude-with-Dad at 14:52</td>
+        <td>Only when a version is saved; earlier versions stay readable</td><td>Small · one table, two tools</td></tr>
+    </tbody>
+  </table>
+  <div class="rec">
+    <p><b>Recommendation: build it as drawn.</b> One page per week at <code>/week/{iso}</code>, one
+      ledger at <code>/weeks</code>, one stored note per week with a snapshot, and a digest email that
+      only links. The whole design rests on one rule — if a number can be computed, it is never
+      written down — and the Caveat is the visible edge of that rule.</p>
+    <p>Three things to decide now:</p>
+    <ol>
+      <li><b>The concept.</b> Ledger-and-margin, or something else, before the schema step lands.</li>
+      <li><b>The timing.</b> Friday 14:05 draft-before-review, as drawn — Dad reads a written week
+        before the chat, and the review has an agenda. Or Friday 17:00, one version, recorded after
+        the review — simpler, no drift line, no draft state, but nothing to read beforehand.</li>
+      <li><b>The split versus the timetable.</b> The skills report hours against a target split
+        (maths 5 · lit 4.5 · lang 3.5 · cs 3.5 · spanish 1.75) that the seeded timetable does not
+        deliver: an odd week plans maths 4.8 · lit 3.3 · lang 1.4 · cs 2.75 · spanish 1.0. This page
+        reads the timetable, because that is what the register judges — but the two need reconciling
+        one way or the other, and that is a <b>term-planner</b> job, not a reporting one.</li>
+      <li><b>The margin's reach.</b> Per-subject carry-forward lines <em>and</em> an overall note, as
+        drawn; or the overall note only, with carry-forward folded into <em>Slipped</em>. Per-subject
+        is five more lines a week to write and the thing the tutoring skills actually pick up on
+        Monday.</li>
+    </ol>
+    <p>Not up for decision: no UI anywhere for approving a day off or excusing a block. Those stay in
+      chat, through the MCP tools, with the reason recorded — the page only ever reports them.</p>
+  </div>
+</section>
+
+<footer class="deck">
+  Week 2026-W37 is illustrative but plausible: the register runs against the real timetable seed
+  (<code>valid_from 2026-09-07</code>, odd week, so Thursday's deep block is Maths) and the movement,
+  attempts and practice figures follow the real record — A4's demotion on 13 Aug, the Phase 1 exit check
+  22/25 on 19 Aug, Lang Q5 25 min 0 blanks on 1 Sep, four Spanish runs at 76.8% pooled. Pre-timetable
+  hours in the term ledger and the eight-week coverage sparklines are drawn to shape, not from the
+  record. Everything inside a frame is the live exercise-book design system; outside it is deck chrome.
+</footer>
+
+</div>
+</body>
+</html>

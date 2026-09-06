@@ -277,10 +277,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 30 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 33 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 30 of 30)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 33 of 33)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -724,6 +724,116 @@ body="$(call tracker_days_off '{}')"
 contains "tracker_days_off lists them" "$body" "Half term"
 contains "and flags what the parent still has to decide" "$body" "awaiting the parent"
 
+echo
+echo "== weekly review =="
+# One practice run on the Monday, after the maths block is already bound: the
+# retrieval block will not take a maths_session run, so it lands as an extra
+# and the week has an extra to place and a practice total to report.
+call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-weekly-review-1","source":"maths_session","label":"Times tables sprint","played_at":"2024-09-09T16:10:00Z","attempted":20,"correct":17,"incorrect":3,"duration_seconds":720}]}' > /dev/null
+
+body="$(call tracker_week_report '{"week":"2024-W37"}')"
+contains "tracker_week_report opens on the week and its dates" "$body" \
+  "Week 2024-W37 — 9 September 2024 to 13 September 2024"
+contains "the headline counts study blocks only" "$body" "Study blocks 2 of 21 done"
+contains "with movement counted separately" "$body" "movement ticked 1 of 5"
+contains "and the review block separately again" "$body" "review block not ticked"
+contains "the register speaks the one block format" "$body" "#3   09:45-11:00  Maths — new topic"
+contains "every missed block is named with day, time, label and what was absent" "$body" \
+  "Wed 09:45 Spanish — vocab + listening — no practice logged"
+contains "and a timed block says it was an attempt that was missing" "$body" \
+  "Tue 13:00 Timed handwritten practice — no attempt logged"
+contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
+contains "hours are read against the timetable's planned hours" "$body" "maths 1.93/4.83"
+contains "and totalled against the same figure" "$body" "of 13.33 planned hours"
+lacks "never against the skills' split" "$body" "/5.00"
+contains "the pending day off is put to the parent, not decided" "$body" "do not decide it"
+contains "each subject reports its practice" "$body" "practice: 3 runs, 40 attempted"
+contains "its coverage" "$body" "coverage 0% at the end of the week"
+contains "and the top of its review queue" "$body" "next in the queue:"
+contains "movement is reported per subject" "$body" "no topic movement this week"
+contains "and it ends with the caution week_status ends with" "$body" "sometimes a logging failure"
+
+# The written half. The note below claims eighteen blocks held; the snapshot the
+# server attaches says one. The snapshot is the one that is right.
+sections='{"held":"Eighteen of twenty-one study blocks held, or so this note claims.","slipped":"Everything but Monday morning: the week was seeded for the board, not worked.","next":"Tuesday opens with the timed handwritten piece that was missed here.","carry_forward":{"maths":"Surds: the exit ticket to re-run.","english-literature":"The set text was never opened.","english-language":"Creative writing block missed.","computer-science":"Python block missed.","spanish":"Wednesday vocab missed."},"rotation_next":"Lit essay"}'
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
+contains "tracker_save_weekly_review writes version 1" "$body" "Saved version 1 (draft) for 2024-W37"
+contains "the snapshot is the server's, whatever the note says" "$body" \
+  "Snapshot: study blocks 2 of 21 done"
+contains "and it points at the page" "$body" "Read it at /week/2024-W37"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
+contains "an identical re-save returns the version already there" "$body" \
+  "Version 1 (draft) for 2024-W37 already says exactly this"
+contains "and adds no row" "$body" "no version was added"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W37"}')"
+contains "tracker_get_weekly_review reads the draft back" "$body" "version 1 of 1 · draft"
+contains "and prints who wrote it as the claim it is" "$body" "written by the Friday routine"
+contains "with the sections in the page's order" "$body" "Held: Eighteen of twenty-one"
+contains "and the carry-forward line for each subject" "$body" "spanish: Wednesday vocab missed."
+lacks "and no drift line, because the record has not moved" "$body" "Since then:"
+contains "which it says plainly rather than leaving it silent" "$body" "The record has not moved since"
+
+# The reviewed version, carrying what the parent decided. A decision is
+# recorded here; it is never performed here.
+reviewed="{\"held\":\"Eighteen of twenty-one study blocks held, or so this note claims.\",\"slipped\":\"Reviewed with Dad: the Wednesday Spanish slot went to the dentist.\",\"next\":\"Tuesday opens with the timed handwritten piece that was missed here.\",\"carry_forward\":{\"maths\":\"Surds: the exit ticket to re-run.\",\"english-literature\":\"The set text was never opened.\",\"english-language\":\"Creative writing block missed.\",\"computer-science\":\"Python block missed.\",\"spanish\":\"Wednesday lost to the dentist.\"},\"rotation_next\":\"Lit essay\",\"decisions\":[{\"kind\":\"day_off\",\"ref\":\"$day_id\",\"decision\":\"deferred\",\"note\":\"Dad has not answered yet.\"},{\"kind\":\"excusal\",\"ref\":\"2024-09-11#20\",\"decision\":\"excused\",\"note\":\"dentist\"}]}"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$reviewed}")"
+contains "saving again writes version 2" "$body" "Saved version 2 (reviewed) for 2024-W37"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections}")"
+contains "a draft after a reviewed version is refused" "$body" "already has a reviewed version"
+contains "and the refusal names what to send instead" "$body" "Send stage 'reviewed' instead"
+
+bad="$(printf '%s' "$sections" | sed 's/{"maths"/{"biology":"Not a tracked subject.","maths"/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "a carry_forward key that is not a subject slug is refused" "$body" \
+  "sections.carry_forward names"
+contains "and the refusal names the slug it refused" "$body" "which is not a tracked subject"
+contains "and lists the slugs that do exist" "$body" "Known slugs: maths"
+contains "and nothing is written" "$body" "Nothing was written"
+
+bad="$(printf '%s' "$sections" | sed 's/"held":"[^"]*"/"held":""/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "an empty held is refused" "$body" "sections.held is required"
+
+bad="$(printf '%s' "$sections" | sed 's/,"rotation_next":"Lit essay"/,"rotation_next":"Lit essay","decisions":[{"kind":"excusal","ref":"2024-09-09#28","decision":"excused"}]/')"
+body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"reviewed\",\"written_by\":\"chat\",\"sections\":$bad}")"
+contains "a decision naming a block that does not run that day is refused" "$body" \
+  "No block 28 runs on Monday 2024-09-09"
+contains "and the refusal names both sides of the mismatch" "$body" \
+  "belongs to another day of the week"
+
+body="$(call tracker_save_weekly_review "{\"week\":\"2099-W01\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections}")"
+contains "a week that has not started cannot be reviewed" "$body" "has not started"
+
+# Excusing a block after the note was written is exactly the case the snapshot
+# exists for: the note stands, and the drift line says what has moved since.
+call tracker_excuse_block '{"date":"2024-09-11","block_key":20,"reason":"Dentist"}' > /dev/null
+body="$(call tracker_get_weekly_review '{"week":"2024-W37"}')"
+contains "the latest version is the one returned" "$body" "version 2 of 2 · reviewed"
+contains "excusing a block after the save makes the drift line appear" "$body" \
+  "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
+contains "and the drift line quotes the counts the snapshot was written against" "$body" \
+  "(19 missed · 0 excused)"
+contains "and the decisions it recorded are read back" "$body" "excusal 2024-09-11#20: excused"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W37","version":1}')"
+contains "an earlier version is still readable" "$body" "version 1 of 2 · draft"
+contains "and lists the versions that exist" "$body" "Versions: 1 draft"
+
+body="$(call tracker_get_weekly_review '{"week":"2024-W36"}')"
+contains "a week with no review says so and names the tool that writes one" "$body" \
+  "Write one with tracker_save_weekly_review"
+
+body="$(call tracker_week_report '{"week":"2024-W99"}')"
+contains "a malformed week is refused" "$body" "week must look like"
+
+body="$(call tracker_week_report '{"week":"2024-W20"}')"
+contains "a week with no timetable still reports the record" "$body" "No timetable was in force"
+
 if [ "$REMOTE" = 0 ]; then
   # The ladder has now run against a database in production's shape — subjects,
   # sessions, attempts, practice runs and a timetable. Re-opening it must not
@@ -785,7 +895,7 @@ if [ "$REMOTE" = 0 ]; then
   # make its column two or three times the height of its neighbours, which
   # wrecks the across-the-week comparison the board exists for.
   contains "extra work is a disclosure, not a list" "$week" '<details class="tt-extras">'
-  contains "and it says how much there was" "$week" "1 extra</span></summary>"
+  contains "and it says how much there was" "$week" "2 extra</span></summary>"
   lacks "and it starts closed" "$week" '<details class="tt-extras" open>'
 
   # A missed block must not offer a way to log work: the page is public and
@@ -802,6 +912,93 @@ if [ "$REMOTE" = 0 ]; then
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
   check "a malformed week is a 404" "$code" "404"
+
+  # ---- the weekly report, on the page --------------------------------------
+  # The ledger half: the page must read the same partitioned counts the tools
+  # reported, name every miss in words, and never make colour the only cue.
+  report="$(call tracker_week_report '{"week":"2024-W37"}')"
+  fraction="$(printf '%s' "$report" | grep -o 'Study blocks [0-9]* of [0-9]* done' \
+    | head -1 | sed 's/Study blocks //;s/ done//')"
+  code="$("${CURL[@]}" -o "$WORK/report.html" -w '%{http_code}' "$BASE/week/2024-W37")"
+  check "the weekly report renders" "$code" "200"
+  week="$(cat "$WORK/report.html")"
+  contains "the headline counts study blocks only, exactly as the tools count them" \
+    "$week" "<p class=\"big mono\">$fraction</p>"
+  contains "with movement counted separately" "$week" "movement ticked 1 of 5"
+  contains "and the review block separately again" "$week" "review block not ticked"
+  contains "the segmented bar says the counts in words, not in colour" "$week" \
+    'aria-label="21 study blocks: 2 done, 18 missed, 1 excused"'
+  contains "hours are read against the timetable's planned hours" "$week" "1.93 / 4.83"
+  contains "and the bar says which side of the plan it is on, in words" "$week" \
+    "under the timetable"
+
+  contains "a missed block is named with its day and time" "$week" \
+    'Tue 10 Sep · 13:00–14:00'
+  contains "and with its label" "$week" "<b>Timed handwritten practice</b>"
+  contains "and with what was absent" "$week" "no attempt logged that day"
+  contains "a missed Spanish block says practice was what was missing" "$week" \
+    "no practice logged that day"
+  contains "the excused block shows the parent's reason" "$week" \
+    'aria-label="Spanish — vocab + listening 09:45 — excused: Dentist"'
+  lacks "and an excused block is not named as missed" "$week" \
+    '<b>Spanish — vocab + listening</b> — no practice logged'
+  contains "the extra is on the page as an extra" "$week" \
+    'aria-label="extra work, outside the timetable"'
+  contains "the decisions are read-only, decided in the chat" "$week" \
+    "Decided in the review chat, never here"
+  contains "and the recorded decision names what Dad said" "$week" "excused — dentist"
+
+  # The written half: the stamp, the versions, and the drift between them.
+  contains "the saved review leaves its stamp on the page" "$week" '<p class="stamp"'
+  contains "and the stamp says it was reviewed" "$week" "Reviewed with Dad"
+  contains "the margin carries what was written" "$week" \
+    "Reviewed with Dad: the Wednesday Spanish slot went to the dentist."
+  contains "and one carry-forward line per subject" "$week" "Wednesday lost to the dentist."
+  contains "excusing a block after the save puts the drift line on the page" "$week" \
+    "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
+  contains "and the drift line quotes the counts the note was written against" "$week" \
+    "(19 missed · 0 excused)"
+
+  v1="$("${CURL[@]}" "$BASE/week/2024-W37?v=1")"
+  contains "?v=1 shows the first version" "$v1" "Eighteen of twenty-one study blocks held"
+  contains "and stamps it as the draft it is" "$v1" '<p class="stamp draft"'
+  contains "with both version chips" "$v1" 'aria-current="true"'
+  contains "and the later one still a link" "$v1" '/week/2024-W37?v=2'
+
+  # A week whose note was written against the record as it stands says nothing
+  # about drift at all: silence means the two still agree.
+  call tracker_log_session '{"subject":"maths","date":"2024-09-16","summary":"Maths consolidation, cut short after twenty minutes","block_key":3,"duration_minutes":20}' > /dev/null
+  call tracker_log_session '{"subject":"maths","date":"2024-08-28","summary":"Algebra revision, logged before the timetable existed","duration_minutes":45}' > /dev/null
+  clean='{"held":"Monday ran, and the maths block was logged even though it was cut short.","slipped":"The block was twenty minutes of the seventy-five it was given.","next":"Tuesday opens with the timed handwritten piece.","carry_forward":{"maths":"Finish the consolidation block that was cut short."},"rotation_next":"Maths section"}'
+  body="$(call tracker_save_weekly_review "{\"week\":\"2024-W38\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$clean}")"
+  contains "a note can be saved for the following week" "$body" "Saved version 1 (draft) for 2024-W38"
+  w38="$("${CURL[@]}" "$BASE/week/2024-W38")"
+  contains "a short block is named with the minutes it actually ran" "$w38" \
+    "20 minutes of 75 logged"
+  contains "and is not counted as plainly done" "$w38" "1 short"
+  contains "the draft stamp is dashed and says who claims to have written it" "$w38" \
+    '<p class="stamp draft"'
+  lacks "no drift line when the note still matches the record" "$w38" "Since then:"
+  contains "which is silence, not a sentence saying nothing changed" "$w38" \
+    "Written from the record at"
+
+  # The term ledger.
+  ledger="$("${CURL[@]}" "$BASE/weeks?from=2024-W38")"
+  contains "/weeks lists the week" "$ledger" "2024-W37"
+  contains "and links to it" "$ledger" 'href="/week/2024-W37"'
+  contains "and carries its stamp" "$ledger" 'class="ministamp"'
+  contains "with the same study-block fraction the week page shows" "$ledger" ">1/21<"
+  contains "and a mark saying the record has moved since the note" "$ledger" \
+    'aria-label="the record has moved since this note was written"'
+  contains "weeks before the first timetable say so" "$ledger" "no timetable yet"
+  contains "and still show the work that was logged in them" "$ledger" "0.8 / —"
+  contains "the ledger says the Review column is the only written one" "$ledger" \
+    "the only thing a person or the routine ever writes"
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/2026-W99")"
+  check "an impossible week falls back to the ledger with a 404" "$code" "404"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/weeks/nonsense")"
+  check "and /weeks takes no path under it" "$code" "404"
 
   # ---- the parent's controls ---------------------------------------------
   #
@@ -864,23 +1061,27 @@ if [ "$REMOTE" = 0 ]; then
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
     -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=skip&note=Dentist&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
-  contains "a block can be marked skipped, with the reason kept" "$week" "excused: Dentist"
+  contains "a block can be marked skipped, with the reason kept" "$week" \
+    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
 
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
     -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=clear&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
-  lacks "and clearing puts it back to what the evidence says" "$week" "excused: Dentist"
+  lacks "and clearing puts it back to what the evidence says" "$week" \
+    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
 
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
     -d "csrf=$CSRF&date=2024-09-11&reason=Grandma visiting&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
-  contains "a whole day can be marked off from the board" "$week" "Grandma visiting"
+  contains "a whole day can be marked off from the board" "$week" \
+    '<b>Day off</b>Grandma visiting'
   contains "and its blocks stop counting as missed" "$week" "day off"
 
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
     -d "csrf=$CSRF&date=2024-09-11&action=clear&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
-  lacks "and the day off can be undone" "$week" "Grandma visiting"
+  lacks "and the day off can be undone" "$week" \
+    '<b>Day off</b>Grandma visiting'
 
   # What the public sees of all that: the result, and no way to change it.
   anon="$("${CURL[@]}" "$BASE/week/2024-W37")"
@@ -891,6 +1092,16 @@ if [ "$REMOTE" = 0 ]; then
   check "signing out works" "$code" "303"
   after="$("${CURL[@]}" -b "$JAR" "$BASE/")"
   check "and the controls go with it" "$(n_of "$after" '<details class="blockctl"')" "0"
+
+  # And the report reads the same block the same way: what Dad asserted is
+  # accounted for, named as his word, and never counted as a miss.
+  report="$("${CURL[@]}" "$BASE/week/2024-W37")"
+  contains "the report names the hand-marked block under marked by hand" "$report" \
+    '<b>English Literature — set text</b> — marked done by Dad, no work was logged'
+  lacks "and it is not in the MISSED list" "$report" \
+    '<b>English Literature — set text</b> — no session logged that day'
+  contains "and the bar counts it apart from both done and missed, in words" "$report" \
+    'aria-label="21 study blocks: 2 done, 1 marked by hand, 17 missed, 1 excused"'
 fi
 
 echo

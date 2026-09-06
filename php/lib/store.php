@@ -449,7 +449,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 5;
+    private const SCHEMA_VERSION = 6;
 
     private function migrate(): void
     {
@@ -607,6 +607,15 @@ final class Store
             foreach (PRACTICE_SOURCE_SEED as $source) {
                 $this->upsertPracticeSource($source);
             }
+            return;
+        }
+
+        if ($v === 6) {
+            // The weekly review: the one thing on these pages that a person or
+            // the Friday routine writes rather than the tracker computing it.
+            // Versions are appended and never edited, so "what did we think on
+            // the Friday" survives the excusal that came after it.
+            $this->createWeeklyReviewTable();
             return;
         }
     }
@@ -812,6 +821,34 @@ final class Store
                created_at TEXT NOT NULL DEFAULT (datetime('now')),
                UNIQUE (date, block_key)
              )"
+        );
+    }
+
+
+    /**
+     * Margin notes against a week. Append-only: one row per version, the
+     * latest shown, the earlier ones still readable. snapshot_json is written
+     * by the server from judgeWeek() and the week's record, never by the
+     * caller, so a note cannot mis-state the week it was written about.
+     */
+    private function createWeeklyReviewTable(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS weekly_reviews (
+               id            INTEGER PRIMARY KEY AUTOINCREMENT,
+               week          TEXT NOT NULL,
+               version       INTEGER NOT NULL,
+               stage         TEXT NOT NULL CHECK (stage IN ('draft','reviewed')),
+               written_by    TEXT NOT NULL CHECK (written_by IN ('routine','chat')),
+               written_at    TEXT NOT NULL DEFAULT (datetime('now')),
+               snapshot_json TEXT NOT NULL,
+               sections_json TEXT NOT NULL,
+               note          TEXT,
+               UNIQUE (week, version)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_weekly_reviews_week ON weekly_reviews(week, version DESC)'
         );
     }
 
@@ -2515,6 +2552,826 @@ final class Store
             });
         }
         return $byDate;
+    }
+
+    // ---- the weekly review -------------------------------------------------
+    //
+    // Computed on the left, written in the margin. Two kinds of thing live
+    // here: the snapshot and the drift, which derive a week's figures from the
+    // record, and the note, which is the one thing on these pages nobody can
+    // derive — what a person made of the week. The snapshot is always built
+    // here, from the database, so a note cannot mis-state the week it sits
+    // beside.
+
+    /**
+     * Append one version of a week's margin note.
+     *
+     * The version is allocated inside the same BEGIN IMMEDIATE that writes the
+     * row, so two writers cannot both produce a version 3; UNIQUE (week,
+     * version) is the belt to that braces. An identical re-save — same stage,
+     * same written_by, byte-identical sections — returns the version already
+     * there rather than growing the ledger a phantom row, which is the rule
+     * client_run_id already serves for practice.
+     *
+     * @param array{week:string,stage:string,written_by:string,snapshot:array,
+     *              sections:array,note?:?string} $r
+     * @return array{status:'stored'|'duplicate',row:array<string,mixed>}
+     */
+    public function addWeeklyReview(array $r): array
+    {
+        $week     = (string) $r['week'];
+        $sections = self::reviewJson($r['sections']);
+        $snapshot = self::reviewJson($r['snapshot']);
+
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $latest = $this->one(
+                'SELECT * FROM weekly_reviews WHERE week = ? ORDER BY version DESC LIMIT 1',
+                [$week]
+            );
+            if (
+                $latest !== null
+                && (string) $latest['stage'] === (string) $r['stage']
+                && (string) $latest['written_by'] === (string) $r['written_by']
+                && (string) $latest['sections_json'] === $sections
+            ) {
+                $this->db->exec('COMMIT');
+                return ['status' => 'duplicate', 'row' => $this->hydrateWeeklyReview($latest)];
+            }
+            $version = $latest === null ? 1 : (int) $latest['version'] + 1;
+            $st = $this->db->prepare(
+                'INSERT INTO weekly_reviews
+                   (week, version, stage, written_by, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $week, $version, $r['stage'], $r['written_by'], $snapshot, $sections, $r['note'] ?? null,
+            ]);
+            $id = (int) $this->db->lastInsertId();
+            $this->db->exec('COMMIT');
+        } catch (Throwable $e) {
+            $this->db->exec('ROLLBACK');
+            throw $e;
+        }
+        return [
+            'status' => 'stored',
+            'row'    => $this->hydrateWeeklyReview(
+                $this->one('SELECT * FROM weekly_reviews WHERE id = ?', [$id])
+            ),
+        ];
+    }
+
+    /**
+     * The latest version for a week, or one named version. Null when the week
+     * has no note; that is not an error, most weeks do not have one yet.
+     */
+    public function weeklyReview(string $week, ?int $version = null): ?array
+    {
+        $row = $version === null
+            ? $this->one('SELECT * FROM weekly_reviews WHERE week = ? ORDER BY version DESC LIMIT 1', [$week])
+            : $this->one('SELECT * FROM weekly_reviews WHERE week = ? AND version = ?', [$week, $version]);
+        return $row === null ? null : $this->hydrateWeeklyReview($row);
+    }
+
+    /** @return array<int,array{id:int,version:int,stage:string,written_at:string,written_by:string}> */
+    public function weeklyReviewVersions(string $week): array
+    {
+        $rows = $this->all(
+            'SELECT id, version, stage, written_at, written_by FROM weekly_reviews
+             WHERE week = ? ORDER BY version',
+            [$week]
+        );
+        foreach ($rows as &$r) {
+            $r['id']      = (int) $r['id'];
+            $r['version'] = (int) $r['version'];
+        }
+        return $rows;
+    }
+
+    /**
+     * The latest note for each of several weeks, for the term ledger: one
+     * query rather than one per row.
+     *
+     * @param  array<int,string> $weeks ISO labels
+     * @return array<string,array<string,mixed>> week => latest row
+     */
+    public function latestWeeklyReviews(array $weeks): array
+    {
+        $weeks = array_values(array_unique($weeks));
+        if (!$weeks) {
+            return [];
+        }
+        $in   = implode(',', array_fill(0, count($weeks), '?'));
+        $out  = [];
+        foreach ($this->all(
+            "SELECT * FROM weekly_reviews WHERE week IN ($in) ORDER BY week, version",
+            $weeks
+        ) as $row) {
+            // Ascending, so the last row written for a week wins.
+            $out[(string) $row['week']] = $this->hydrateWeeklyReview($row);
+        }
+        return $out;
+    }
+
+    /** Canonical JSON, so "identical sections" is a byte comparison, not a guess. */
+    private static function reviewJson(mixed $v): string
+    {
+        return (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    private function hydrateWeeklyReview(array $r): array
+    {
+        $r['id']       = (int) $r['id'];
+        $r['version']  = (int) $r['version'];
+        $r['snapshot'] = json_decode((string) $r['snapshot_json'], true) ?: [];
+        $r['sections'] = json_decode((string) $r['sections_json'], true) ?: [];
+        return $r;
+    }
+
+    /**
+     * Planned hours per subject for one week, read off the timetable rather
+     * than off any target.
+     *
+     * The sum of the lengths of the Monday–Friday blocks that resolve to
+     * exactly one subject: a block that counts for nobody when it is done —
+     * the mixed retrieval warm-ups, the Tuesday timed rotation — counts for
+     * nobody when it is planned, so both sides of the comparison are built the
+     * same way. Alternating blocks resolve by this week's parity, so an odd
+     * week plans differently from an even one and the page compares like with
+     * like.
+     *
+     * @return array<string,float> slug => hours, 2dp, ordered by slug
+     */
+    public function plannedBySubject(string $monday): array
+    {
+        $monday = tt_monday($monday);
+        $cache  = [];
+        $mins   = [];
+        for ($i = 0; $i < 5; $i++) {
+            $date    = tt_add_days($monday, $i);
+            $version = $this->timetableVersionOn($date);
+            if (!$version) {
+                continue;
+            }
+            $id = (int) $version['id'];
+            $cache[$id] ??= $this->timetableBlocks($id);
+            $weekday = (int) (new DateTimeImmutable($date, tt_zone()))->format('N');
+            foreach ($cache[$id] as $b) {
+                if ($b['weekday'] !== $weekday || $b['tracking'] === 'none') {
+                    continue;
+                }
+                $subjects = tt_subjects_for($b, $date);
+                if (count($subjects) !== 1) {
+                    continue;
+                }
+                $slug = $subjects[0];
+                $mins[$slug] = ($mins[$slug] ?? 0) + (tt_mins($b['end']) - tt_mins($b['start']));
+            }
+        }
+        foreach ($mins as $slug => $m) {
+            $mins[$slug] = round($m / 60, 2);
+        }
+        ksort($mins);
+        return $mins;
+    }
+
+    /**
+     * Topic changes stamped inside a date range, newest first, with the topic
+     * name joined — the query history() runs, bounded at both ends so a caller
+     * can ask for one week rather than for the last N of them.
+     */
+    public function changesBetween(string $from, string $to, ?string $slug = null): array
+    {
+        $sql    = "SELECT c.*, COALESCE(t.name, '') AS topic_name
+                   FROM topic_changes c
+                   LEFT JOIN topics t ON t.subject_slug = c.subject_slug AND t.ref = c.ref
+                   WHERE date(c.changed_at) BETWEEN ? AND ?";
+        $params = [$from, $to];
+        if ($slug !== null) {
+            $sql .= ' AND c.subject_slug = ?';
+            $params[] = $slug;
+        }
+        return $this->all($sql . ' ORDER BY c.changed_at DESC, c.id DESC', $params);
+    }
+
+    /**
+     * The ISO weeks the ledger has anything to say about: this week back to
+     * the earliest week holding a session, an attempt, a practice run or a
+     * timetable, newest first and capped at $limit.
+     *
+     * @return array<int,array{week:string,monday:string}>
+     */
+    public function weeksWithActivity(int $limit = 26): array
+    {
+        $earliest = null;
+        foreach ([
+            'SELECT MIN(date) AS d FROM sessions',
+            'SELECT MIN(COALESCE(p.sat_on, a.date)) AS d
+               FROM attempt_papers p JOIN attempts a ON a.id = p.attempt_id',
+            'SELECT MIN(date(played_at)) AS d FROM practice_run',
+            'SELECT MIN(valid_from) AS d FROM timetable_versions',
+        ] as $sql) {
+            $d = $this->one($sql)['d'] ?? null;
+            if ($d !== null && $d !== '' && ($earliest === null || $d < $earliest)) {
+                $earliest = (string) $d;
+            }
+        }
+        $monday = tt_monday(tt_today());
+        // An empty record still has this week: the ledger opens on the week
+        // you are in rather than on nothing at all.
+        $first = $earliest === null ? $monday : tt_monday(substr($earliest, 0, 10));
+        $out   = [];
+        while ($monday >= $first && count($out) < $limit) {
+            $out[]  = ['week' => tt_iso_week($monday), 'monday' => $monday];
+            $monday = tt_add_days($monday, -7);
+        }
+        return $out;
+    }
+
+    /**
+     * What to work on next in one subject, in the three groups the queue has
+     * always had: ageing secures due a retrieval check, loose ends on
+     * otherwise-secure topics, and gaps with the lower tier first.
+     *
+     * Extracted from tracker_review_queue so the page and the tool select from
+     * one place — a queue that says one thing in chat and another on the board
+     * is worse than no queue at all.
+     *
+     * @return array{ageing:array<int,array{topic:array,weeks:?int}>,
+     *               loose:array<int,array>,gaps:array<int,array>}
+     */
+    public function reviewQueue(string $slug, int $ageingWeeks = 8): array
+    {
+        $all    = $this->listTopics($slug);
+        $ageing = [];
+        foreach ($all as $t) {
+            if ($t['status'] === 'secure' || $t['status'] === 'examready') {
+                $w = weeksSince($t['last_touched']);
+                // A topic with no date recorded is treated as the oldest
+                // thing there is: not knowing when it was last checked is
+                // not the same as having checked it recently.
+                if ($w === null || $w >= $ageingWeeks) {
+                    $ageing[] = ['topic' => $t, 'weeks' => $w];
+                }
+            }
+        }
+        usort($ageing, static fn($x, $y) => ($y['weeks'] ?? 999) <=> ($x['weeks'] ?? 999));
+
+        $loose = array_values(array_filter($all, static fn($t) => $t['watch'] && $t['status'] !== 'gap'));
+        $gaps  = array_values(array_filter($all, static fn($t) => $t['status'] === 'gap'));
+        usort($gaps, static fn($x, $y) => strcmp($x['tier'], $y['tier']));
+
+        return ['ageing' => $ageing, 'loose' => $loose, 'gaps' => $gaps];
+    }
+
+    /** The top line of one subject's queue: ageing first, then a loose end, then a gap. */
+    private function queueTop(string $slug): ?array
+    {
+        $q = $this->reviewQueue($slug);
+        if ($q['ageing']) {
+            $t = $q['ageing'][0]['topic'];
+            $w = $q['ageing'][0]['weeks'];
+            return ['kind' => 'ageing', 'ref' => $t['ref'], 'line' => $t['ref'] . ' ' . $t['name']
+                . ' — ' . ($w === null ? 'no date recorded' : $w . ' weeks since last touched')];
+        }
+        if ($q['loose']) {
+            $t = $q['loose'][0];
+            return ['kind' => 'loose', 'ref' => $t['ref'],
+                'line' => $t['ref'] . ' ' . $t['name'] . ' — ' . $t['watch']];
+        }
+        if ($q['gaps']) {
+            $t = $q['gaps'][0];
+            return ['kind' => 'gap', 'ref' => $t['ref'], 'line' => $t['ref'] . ' ' . $t['name']
+                . ' — gap (' . $t['strand'] . ', tier ' . $t['tier'] . ')'];
+        }
+        return null;
+    }
+
+    /**
+     * The server's account of one week, as it stands at the moment of asking.
+     *
+     * This is what gets frozen into snapshot_json beside a written note, and
+     * it is also what the week page reads, so the two cannot disagree about
+     * the figures. Every key is derived from the database; nothing here is
+     * ever supplied by a caller.
+     *
+     * @return array{
+     *   schema:int, week:string, monday:string, friday:string, captured_at:string,
+     *   timetable_version_id:?int,
+     *   counts:array<string,int>,
+     *   counts_by_tracking:array{evidence:array<string,int>,self_report:array<string,int>,
+     *                            review:array<string,int>},
+     *   hours_by_subject:array<string,float>, planned_by_subject:array<string,float>,
+     *   blocks:array<int,array<string,mixed>>, extras:array<int,array<string,mixed>>,
+     *   days_off:array<int,array<string,mixed>>, changes:array<int,array<string,mixed>>,
+     *   coverage:array<string,array{pct_start:int,pct_end:int,topics:int}>,
+     *   attempts:array<int,array<string,mixed>>,
+     *   practice:array<string,array<string,mixed>>,
+     *   timed:array{this_week:array<int,array<string,mixed>>,last:?array<string,mixed>},
+     *   queue_top:array<string,?array{kind:string,ref:string,line:string}>
+     * }
+     */
+    public function weekSnapshot(string $monday): array
+    {
+        $monday = tt_monday($monday);
+        $sunday = tt_add_days($monday, 6);
+        $w      = $this->judgeWeek($monday);
+        $flat   = $this->flattenWeek($w['days']);
+        $version = $this->timetableVersionOn($monday);
+
+        // Days off touching the week, plus everything still undecided on any
+        // date: a request the parent has not answered is part of the week's
+        // account even when it is for next month.
+        $daysOff = [];
+        foreach (array_merge(
+            $this->listDaysOff($monday, $sunday),
+            $this->listDaysOff(null, null, 'requested')
+        ) as $d) {
+            $daysOff[(int) $d['id']] = [
+                'id'           => (int) $d['id'],
+                'date_from'    => $d['date_from'],
+                'date_to'      => $d['date_to'],
+                'kind'         => $d['kind'],
+                'reason'       => $d['reason'],
+                'requested_by' => $d['requested_by'],
+                'status'       => $d['status'],
+            ];
+        }
+        ksort($daysOff);
+
+        $coverage  = [];
+        $practice  = [];
+        $queueTop  = [];
+        foreach ($this->listSubjects() as $s) {
+            $slug            = $s['slug'];
+            $coverage[$slug] = $this->coverageAcross($slug, $monday, $sunday);
+            $queueTop[$slug] = $this->queueTop($slug);
+            $runs = $this->listPracticeRuns($slug, ['since' => $monday, 'until' => $sunday]);
+            if (!$runs) {
+                continue;
+            }
+            $attempted = $correct = $retry = $best = 0;
+            foreach ($runs as $r) {
+                $attempted += (int) $r['attempted'];
+                $correct   += (int) $r['correct'];
+                $retry     += (int) $r['correct_after_retry'];
+                $best       = max($best, (int) $r['correct']);
+            }
+            $practice[$slug] = [
+                'runs'                => count($runs),
+                'attempted'           => $attempted,
+                'correct'             => $correct,
+                'correct_after_retry' => $retry,
+                // Pooled, never the mean of per-run percentages.
+                'first_time_pct'      => $attempted ? round($correct / $attempted * 100, 1) : null,
+                'best_score'          => $best,
+            ];
+        }
+
+        return [
+            'schema'               => 1,
+            'week'                 => $w['week'],
+            'monday'               => $monday,
+            'friday'               => tt_add_days($monday, 4),
+            'captured_at'          => gmdate('Y-m-d H:i:s'),
+            'timetable_version_id' => $version ? (int) $version['id'] : null,
+            'counts'               => $w['counts'],
+            'counts_by_tracking'   => self::countsByTracking($flat['blocks']),
+            'hours_by_subject'     => $w['hours_by_subject'],
+            'planned_by_subject'   => $this->plannedBySubject($monday),
+            'blocks'               => $flat['blocks'],
+            'extras'               => $flat['extras'],
+            'days_off'             => array_values($daysOff),
+            'changes'              => $this->weekChanges($monday, $sunday),
+            'coverage'             => $coverage,
+            'attempts'             => $this->attemptsSatBetween($monday, $sunday),
+            'practice'             => $practice,
+            'timed'                => $this->timedFor($monday, $flat['blocks']),
+            'queue_top'            => $queueTop,
+        ];
+    }
+
+    /**
+     * How a stored snapshot differs from the record as it stands now.
+     *
+     * The page and tracker_get_weekly_review render the same drift line from
+     * this, so a note read in chat and the same note read on the board cannot
+     * describe the week differently.
+     *
+     * `changes` is the ordered list of §6 differences, each
+     * `['text' => 'Wed 09:45 Spanish — vocab + listening excused — dentist',
+     *   'kind' => 'excused']`; `since` is those rendered as the second
+     * sentence, at most three of them, and empty when nothing has moved —
+     * silence means the note and the record still agree. `line` is the whole
+     * drift line, and `counts` / `live` are the study-block counts then and
+     * now.
+     *
+     * @param  array $snapshot a weekSnapshot(), as stored in snapshot_json
+     * @return array{changes:array<int,array{text:string,kind:string}>,since:string,
+     *               line:string,counts:array<string,int>,live:array<string,int>}
+     */
+    public function weekDrift(array $snapshot): array
+    {
+        $monday = (string) ($snapshot['monday'] ?? '');
+        if ($monday === '') {
+            $monday = tt_week_monday((string) ($snapshot['week'] ?? '')) ?? tt_monday(tt_today());
+        }
+        $live = $this->flattenWeek($this->judgeWeek($monday)['days']);
+
+        $was = [];
+        foreach ($snapshot['blocks'] ?? [] as $b) {
+            $was[$b['date'] . '#' . $b['block_key']] = $b;
+        }
+        $now = [];
+        foreach ($live['blocks'] as $b) {
+            $now[$b['date'] . '#' . $b['block_key']] = $b;
+        }
+
+        $changes = [];
+        $add = static function (array $b, string $verb, string $kind, ?string $reason = null) use (&$changes): void {
+            $changes[] = [
+                'kind' => $kind,
+                'text' => substr(TIMETABLE_DAYS[$b['weekday']], 0, 3) . ' ' . $b['start'] . ' '
+                    . $b['label'] . ' ' . $verb . ($reason ? ' — ' . $reason : ''),
+            ];
+        };
+
+        // The fixed order of §6: what was forgiven, what was un-forgiven, what
+        // turned up, what stopped counting, what the parent decided, what was
+        // logged outside the plan, and last the timetable itself moving.
+        foreach ($now as $key => $b) {
+            if ($b['status'] === 'excused' && (($was[$key]['status'] ?? '') !== 'excused')) {
+                $add($b, 'excused', 'excused', $b['reason']);
+            }
+        }
+        foreach ($was as $key => $b) {
+            if ($b['status'] === 'excused' && isset($now[$key]) && $now[$key]['status'] !== 'excused') {
+                $add($b, 'no longer excused', 'unexcused');
+            }
+        }
+        foreach ($now as $key => $b) {
+            if (($was[$key]['status'] ?? '') === 'missed' && $b['status'] === 'done') {
+                $add($b, 'now done', 'done');
+            }
+        }
+        // The parent saying a block happened is a change to the week's account
+        // and belongs in the drift, but it is his word rather than the
+        // record's, so it is said in his words and never as "now done".
+        foreach ($now as $key => $b) {
+            if (($was[$key]['status'] ?? '') === 'missed' && $b['status'] === 'declared') {
+                $add($b, 'marked done by Dad', 'declared', $b['reason']);
+            }
+        }
+        foreach ($now as $key => $b) {
+            if (($was[$key]['status'] ?? '') === 'done' && $b['status'] === 'missed') {
+                $add($b, 'now missed', 'missed');
+            }
+        }
+
+        // Day-off decisions are compared as decisions, not block by block, so
+        // approving one day does not print five near-identical lines.
+        $offWas = [];
+        foreach ($snapshot['days_off'] ?? [] as $d) {
+            $offWas[(int) $d['id']] = $d;
+        }
+        foreach ($this->listDaysOff($monday, tt_add_days($monday, 6)) as $d) {
+            $offWas[(int) $d['id']] ??= null;
+        }
+        foreach ($offWas as $id => $before) {
+            $after = $this->getDayOff((int) $id);
+            if (!$after) {
+                continue;
+            }
+            $status = (string) $after['status'];
+            if ($before !== null && (string) $before['status'] === $status) {
+                continue;
+            }
+            $span = $after['date_from'] === $after['date_to']
+                ? tt_pretty($after['date_from'])
+                : tt_pretty($after['date_from']) . ' to ' . tt_pretty($after['date_to']);
+            $changes[] = [
+                'kind' => 'day_off',
+                'text' => 'Day off ' . $span . ' ' . $status . ' — ' . $after['reason'],
+            ];
+        }
+
+        $wasExtra = [];
+        foreach ($snapshot['extras'] ?? [] as $e) {
+            $wasExtra[$e['date'] . '#' . $e['type'] . '#' . $e['id']] = true;
+        }
+        foreach ($live['extras'] as $e) {
+            if (!isset($wasExtra[$e['date'] . '#' . $e['type'] . '#' . $e['id']])) {
+                $changes[] = [
+                    'kind' => 'extra',
+                    'text' => substr(TIMETABLE_DAYS[(int) $e['weekday']], 0, 3) . ' ' . $e['at'] . ' '
+                        . $e['label'] . ' logged outside the timetable',
+                ];
+            }
+        }
+        foreach ($now as $key => $b) {
+            if (!isset($was[$key])) {
+                $add($b, 'added to the timetable', 'added');
+            }
+        }
+        foreach ($was as $key => $b) {
+            if (!isset($now[$key])) {
+                $add($b, 'no longer in the timetable', 'removed');
+            }
+        }
+
+        $texts = array_column($changes, 'text');
+        $since = '';
+        if ($texts) {
+            $since = 'Since then: ' . implode('; ', array_slice($texts, 0, 3))
+                . (count($texts) > 3 ? '; and ' . (count($texts) - 3) . ' more changes.' : '.');
+        }
+
+        $counts = ($snapshot['counts_by_tracking']['evidence'] ?? null)
+            ?: self::countsByTracking($snapshot['blocks'] ?? [])['evidence'];
+        $liveCounts = self::countsByTracking($live['blocks'])['evidence'];
+
+        // The stamp is local, like every time a person reads on these pages.
+        $captured = ((string) ($snapshot['captured_at'] ?? '')) ?: gmdate('Y-m-d H:i:s');
+        [$on, $at] = tt_local($captured);
+        $line = 'Written from the record at '
+            . (new DateTimeImmutable($on, tt_zone()))->format('D j M') . ' ' . $at
+            . ' (' . $counts['missed'] . ' missed · ' . $counts['excused'] . ' excused).'
+            . ($since === '' ? '' : ' ' . $since);
+
+        return [
+            'changes' => $changes,
+            'since'   => $since,
+            'line'    => $line,
+            'counts'  => $counts,
+            'live'    => $liveCounts,
+        ];
+    }
+
+    /**
+     * judgeWeek()'s days as two flat lists: every judged block with the date
+     * it ran on, and every extra with its day. Breaks are not judged, so they
+     * are in neither.
+     *
+     * Every judged status travels, `optional` and `declared` included: the
+     * status is carried whole and read where it is printed, so nothing here
+     * quietly turns a block the parent vouched for into a done one, or an
+     * untaken walk into a miss.
+     *
+     * @return array{blocks:array<int,array<string,mixed>>,extras:array<int,array<string,mixed>>}
+     */
+    private function flattenWeek(array $days): array
+    {
+        $blocks = [];
+        $extras = [];
+        foreach ($days as $day) {
+            foreach ($day['blocks'] as $b) {
+                if ($b['status'] === 'n/a') {
+                    continue;
+                }
+                $blocks[] = [
+                    'date'      => $day['date'],
+                    'weekday'   => $day['weekday'],
+                    'block_key' => $b['block_key'],
+                    'start'     => $b['start'],
+                    'end'       => $b['end'],
+                    'label'     => $b['label'],
+                    'kind'      => $b['kind'],
+                    'tracking'  => $b['tracking'],
+                    'subjects'  => $b['subjects'],
+                    'subject'   => $b['subject'],
+                    'status'    => $b['status'],
+                    'short'     => (bool) $b['short'],
+                    'minutes'   => $b['minutes'],
+                    'length'    => $b['length'],
+                    'reason'    => $b['reason'],
+                    'evidence'  => $b['evidence'],
+                ];
+            }
+            foreach ($day['extras'] as $e) {
+                $extras[] = [
+                    'date'    => $day['date'],
+                    'weekday' => $day['weekday'],
+                    'type'    => $e['type'],
+                    'id'      => $e['id'],
+                    'subject' => $e['subject'],
+                    'label'   => $e['label'],
+                    'at'      => $e['at'],
+                    'minutes' => $e['minutes'],
+                ];
+            }
+        }
+        return ['blocks' => $blocks, 'extras' => $extras];
+    }
+
+    /**
+     * The counts partitioned the way the pages read them: study blocks on
+     * their own, movement on its own, the Friday review block on its own.
+     * "23 of 27" puts a walk and a maths block in one fraction and the
+     * fraction then means nothing to whoever is reading it.
+     *
+     * `optional` and `declared` are counted like every other status and
+     * folded into none of them: a movement block that was not ticked is not
+     * a miss, and a block the parent marked done by hand is accounted for
+     * without being passed off as evidence. Whoever prints these has to keep
+     * them apart — `done + declared` is what happened, `done` is what the
+     * record can show.
+     *
+     * @param  array<int,array<string,mixed>> $blocks flattenWeek()'s blocks
+     * @return array<string,array<string,int>>
+     */
+    private static function countsByTracking(array $blocks): array
+    {
+        $blank = ['done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
+                  'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
+                  'declared' => 0, 'judged' => 0];
+        $out = ['evidence' => $blank, 'self_report' => $blank, 'review' => $blank];
+        foreach ($blocks as $b) {
+            $part = $b['tracking'] === 'evidence'
+                ? 'evidence'
+                : ($b['kind'] === 'review' ? 'review' : 'self_report');
+            $out[$part]['judged']++;
+            $out[$part][$b['status']] = ($out[$part][$b['status']] ?? 0) + 1;
+            if (!empty($b['short'])) {
+                $out[$part]['short']++;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Coverage at the start and the end of a week, replayed rather than
+     * stored: points now, less every change made after the instant asked
+     * about. The denominator is today's topic count, so an older week reads
+     * as coverage against today's syllabus — say so wherever it is shown
+     * rather than pretending otherwise.
+     *
+     * @return array{pct_start:int,pct_end:int,topics:int}
+     */
+    private function coverageAcross(string $slug, string $monday, string $sunday): array
+    {
+        $topics = $this->listTopics($slug);
+        $points = 0;
+        foreach ($topics as $t) {
+            $points += STATUS_POINTS[$t['status']] ?? 0;
+        }
+        $sinceStart = 0;
+        $sinceEnd   = 0;
+        foreach ($this->all(
+            'SELECT from_status, to_status, changed_at FROM topic_changes
+             WHERE subject_slug = ? AND changed_at >= ?',
+            [$slug, $monday . ' 00:00:00']
+        ) as $c) {
+            $delta = (STATUS_POINTS[$c['to_status']] ?? 0)
+                - (STATUS_POINTS[$c['from_status'] ?? ''] ?? 0);
+            $sinceStart += $delta;
+            if ((string) $c['changed_at'] > $sunday . ' 23:59:59') {
+                $sinceEnd += $delta;
+            }
+        }
+        $max = count($topics) * 3;
+        $pct = static fn(int $p): int => $max > 0 ? (int) round(($p / $max) * 100) : 0;
+        return [
+            'pct_start' => $pct($points - $sinceStart),
+            'pct_end'   => $pct($points - $sinceEnd),
+            'topics'    => count($topics),
+        ];
+    }
+
+    /** Every subject's topic changes inside the week, newest first. */
+    private function weekChanges(string $monday, string $sunday): array
+    {
+        $out = [];
+        foreach ($this->changesBetween($monday, $sunday) as $c) {
+            $out[] = [
+                'subject_slug' => $c['subject_slug'],
+                'ref'          => $c['ref'],
+                'topic_name'   => (string) ($c['topic_name'] ?? ''),
+                'from_status'  => $c['from_status'],
+                'to_status'    => $c['to_status'],
+                'evidence'     => $c['evidence'],
+                'session_id'   => $c['session_id'] === null ? null : (int) $c['session_id'],
+                'changed_at'   => $c['changed_at'],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Attempts whose papers were sat inside the week. A paper's own sat_on
+     * wins; without one it was sat the day of the attempt — the same rule the
+     * board judges by.
+     */
+    private function attemptsSatBetween(string $from, string $to): array
+    {
+        $rows = $this->all(
+            'SELECT a.* FROM attempts a
+             WHERE EXISTS (SELECT 1 FROM attempt_papers p
+                           WHERE p.attempt_id = a.id AND COALESCE(p.sat_on, a.date) BETWEEN ? AND ?)
+             ORDER BY a.date, a.id',
+            [$from, $to]
+        );
+        $out = [];
+        foreach ($rows as $a) {
+            $papers = [];
+            foreach ($this->listPapers((int) $a['id']) as $p) {
+                $papers[] = [
+                    'code'   => $p['code'],
+                    'score'  => (float) $p['score'],
+                    'max'    => (float) $p['max'],
+                    'blanks' => $p['blanks'] === null ? null : (int) $p['blanks'],
+                    'sat_on' => $p['sat_on'],
+                ];
+            }
+            $blanks = array_filter(array_column($papers, 'blanks'), static fn($b) => $b !== null);
+            $out[]  = [
+                'subject_slug' => $a['subject_slug'],
+                'attempt_id'   => (int) $a['id'],
+                'name'         => $a['name'],
+                'kind'         => $a['kind'],
+                'date'         => $a['date'],
+                'score'        => array_sum(array_column($papers, 'score')),
+                'max'          => array_sum(array_column($papers, 'max')),
+                'blanks'       => $blanks ? array_sum($blanks) : null,
+                'papers'       => $papers,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * The timed handwritten blocks that were actually done this week, and the
+     * last one before it.
+     *
+     * `minutes` is measured only when the evidence is a session that recorded
+     * a duration; against a marked paper there is no duration in the record,
+     * so the block's length stands in and is flagged — a page that prints a
+     * block length as "25 minutes sustained" is inventing stamina data. `last`
+     * walks back at most eight weeks and stops at the first hit.
+     *
+     * @param array<int,array<string,mixed>> $blocks flattenWeek()'s blocks
+     * @return array{this_week:array<int,array<string,mixed>>,last:?array<string,mixed>}
+     */
+    private function timedFor(string $monday, array $blocks): array
+    {
+        $pick = fn(array $rows): array => array_map(
+            [$this, 'timedDetail'],
+            array_values(array_filter(
+                $rows,
+                static fn(array $b): bool => $b['kind'] === 'timed_handwritten' && $b['status'] === 'done'
+            ))
+        );
+
+        $last = null;
+        for ($back = 1; $back <= 8 && $last === null; $back++) {
+            $earlier = $pick($this->flattenWeek(
+                $this->judgeWeek(tt_add_days($monday, -7 * $back))['days']
+            )['blocks']);
+            if ($earlier) {
+                $last = $earlier[count($earlier) - 1];
+            }
+        }
+        return ['this_week' => $pick($blocks), 'last' => $last];
+    }
+
+    /** One done timed block, with its minutes measured or estimated and its blanks. */
+    private function timedDetail(array $b): array
+    {
+        $ev      = $b['evidence'][0] ?? null;
+        $out     = [
+            'date'     => $b['date'],
+            'label'    => $b['label'],
+            'evidence' => null,
+            'minutes'  => $b['length'],
+            'measured' => false,
+            'blanks'   => null,
+        ];
+        if (!$ev) {
+            return $out;
+        }
+        if ($ev['type'] === 'session') {
+            $row = $this->one('SELECT duration_minutes FROM sessions WHERE id = ?', [(int) $ev['id']]);
+            if ($row && $row['duration_minutes'] !== null) {
+                $out['minutes']  = (int) $row['duration_minutes'];
+                $out['measured'] = true;
+            }
+            $out['evidence'] = 'session #' . $ev['id'];
+            return $out;
+        }
+        if ($ev['type'] === 'attempt') {
+            // The evidence id of an attempt block is the paper's: the paper is
+            // the thing with a date and a blanks count of its own.
+            $row = $this->one(
+                'SELECT p.blanks, p.code, a.name FROM attempt_papers p
+                 JOIN attempts a ON a.id = p.attempt_id WHERE p.id = ?',
+                [(int) $ev['id']]
+            );
+            $out['blanks']   = $row && $row['blanks'] !== null ? (int) $row['blanks'] : null;
+            $out['evidence'] = 'attempt paper #' . $ev['id']
+                . ($row ? ' — ' . trim($row['name'] . ' ' . $row['code']) : '');
+            return $out;
+        }
+        $out['evidence'] = $ev['type'] . ' #' . ($ev['id'] ?? '');
+        return $out;
     }
 
 }

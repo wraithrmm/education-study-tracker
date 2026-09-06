@@ -239,6 +239,138 @@ a.blk:hover{background:#faf9f5}
     scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .wkcol{flex:0 0 78%;scroll-snap-align:center}
 }
+/* ---- the weekly report: /week/{iso} and /weeks --------------------------
+   The ledger and the margin. Everything above the margin is computed on this
+   request; everything set in the handwriting stack was written once, on a
+   Friday, and carries its own timestamp. The two never share a typeface, so
+   which half you are reading is never in doubt. */
+.wkhead .weeknav{margin:.3rem 0 0;font-size:.78rem;color:var(--muted)}
+.wkhead .weeknav a{text-decoration:none;border-bottom:1px solid var(--line)}
+.wkhead .weeknav .off{color:#a8a29e}
+/* The stamp — the one mark on the page a person or the routine put there. */
+.stamp{display:inline-block;margin:0;border:2px solid #292524;color:#292524;border-radius:8px;
+  padding:.34rem .65rem;transform:rotate(-2.4deg);background:rgba(252,252,249,.7);
+  font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.6rem;font-weight:700;
+  line-height:1.35;letter-spacing:.13em;text-transform:uppercase;text-align:center;white-space:nowrap}
+.stamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c;transform:rotate(1.8deg)}
+.panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:.72rem;color:#374151;
+  font-weight:700;margin:1.6rem 0 .5rem}
+.cap{font-size:.72rem;color:var(--muted);margin:.4rem 0 0}
+.mstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin-top:1.1rem}
+.mstats .card{padding:.8rem .9rem}
+.mstats .card p.big{font-size:1.45rem;margin:.15rem 0 0;line-height:1.2}
+.mstats .sub{margin:.3rem 0 0;font-size:.72rem;color:#57534e}
+.segbar{display:flex;gap:2px;margin-top:.45rem}
+.segbar span{height:9px;flex:1;border-radius:2px;background:#e7e5e4}
+.segbar .d{background:#059669}
+.segbar .s{background:#f59e0b}
+.segbar .m{background:#dc2626}
+.segbar .x{background:#a8a29e}
+/* Marked by hand: stone and broken, the segment of the dashed tick the
+   register draws. Never the emerald of a block the record can prove. */
+.segbar .h{background:repeating-linear-gradient(90deg,#78716c 0 3px,#e0ddd6 3px 5px)}
+.minibar{height:9px;border-radius:999px;background:#e7e5e4;overflow:hidden;margin-top:.45rem}
+.minibar i{display:block;height:100%;background:#059669;border-radius:999px}
+.minibar i.under{background:#f59e0b}
+.named{margin:.2rem 0 0;padding:0;list-style:none}
+.named li{background:var(--card);border:1px solid var(--line);border-left:3px solid #dc2626;
+  border-radius:0 8px 8px 0;padding:.5rem .7rem;margin-top:.4rem;font-size:.88rem}
+.named.shortlist li{border-left-color:#d97706}
+.named.handlist li{border-left-color:#78716c;border-left-style:dashed}
+.named .when{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.76rem;color:#57534e}
+.decide{margin:.55rem 0 0;padding:0;list-style:none}
+.decide li{background:var(--card);border:1px dashed var(--line);border-radius:8px;
+  padding:.45rem .7rem;margin-top:.35rem;font-size:.85rem;display:flex;flex-wrap:wrap;
+  gap:.3rem .6rem;justify-content:space-between;align-items:baseline}
+.decide li.settled{border-style:solid;border-left:3px solid #059669}
+.decide .ask,.decide .said{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;
+  font-size:.7rem;font-weight:700;line-height:1.4}
+.decide .ask{color:#b45309}
+.decide .said{color:#166534}
+.decide .said.no{color:#b91c1c}
+.hrow{display:flex;align-items:center;gap:.6rem;margin:.3rem 0}
+.hrow .nm{width:11rem;flex:none;font-size:.85rem}
+.hrow .hbar{flex:1;height:15px;background:var(--card);border:1px solid var(--line);
+  border-radius:4px;overflow:hidden}
+.hrow .hbar i{display:block;height:100%;background:#059669}
+.hrow .hbar i.under{background:#f59e0b}
+.hrow .num{width:6.5rem;flex:none;text-align:right;font-size:.76rem;color:#44403c}
+.subjgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.subj{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.75rem .85rem}
+.subj .sh{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}
+.subj h4{font-size:1rem;font-weight:700;margin:0}
+.subj .sspec{margin:.05rem 0 0;font-size:.72rem;color:var(--muted)}
+.subj .cov{text-align:right;flex:none}
+.subj .pc{font-weight:700;font-size:1.05rem}
+.subj .delta{font-size:.72rem;color:#059669;margin-left:.25rem}
+.subj .delta.flat{color:var(--muted)}
+.subj .delta.down{color:#b91c1c}
+.subj .lab,.kv dt,.marginbox h4,.marginbox .who{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;
+  font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.subj .lab{margin:.6rem 0 .25rem}
+.sublab{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.62rem;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:.9rem 0 0}
+.subj .chips{margin:.25rem 0 0}
+.subj .chip{font-size:.7rem;color:#44403c}
+.subj .chip .ref{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-weight:700;color:var(--ink)}
+.subj .chip .arrow{color:#a8a29e}
+.spark{display:block;margin-top:.2rem}
+.kv{margin:.5rem 0 0;font-size:.75rem;color:#57534e}
+.kv dt{margin-top:.4rem}
+.kv dd{margin:.1rem 0 0}
+/* The margin. One typeface for everything written rather than computed. */
+.hand{font-family:"Caveat","Segoe Print","Bradley Hand",cursive;color:#57534e;
+  font-size:1.05rem;line-height:1.35}
+.subj .hand{margin:.6rem 0 0;padding:.45rem 0 0 .6rem;border-top:1px dashed var(--line);
+  border-left:2px solid #e7e5e4}
+.sig{display:block;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.58rem;
+  letter-spacing:.06em;color:#a8a29e;margin-top:.15rem}
+.marginbox{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:.5rem;
+  display:grid;grid-template-columns:12rem minmax(0,1fr)}
+.marginbox .gutter{border-right:1px dashed var(--line);padding:.85rem .8rem;background:#fdfdfb;
+  border-radius:10px 0 0 10px}
+.marginbox .gutter p{margin:0;font-size:.72rem;color:var(--muted)}
+.marginbox .who{display:block;color:#57534e;margin-bottom:.3rem}
+.marginbox .mbody{padding:.85rem .95rem}
+.marginbox h4{margin:.75rem 0 .2rem;letter-spacing:.14em}
+.marginbox h4:first-child{margin-top:0}
+.marginbox .hand{font-size:1.1rem;color:#44403c;margin:0}
+.vers{display:flex;flex-wrap:wrap;gap:.3rem;margin:.15rem 0 .5rem;padding:0;list-style:none}
+.vers li a,.vers li span{display:inline-block;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;
+  font-size:.62rem;font-weight:700;border:1px solid var(--line);border-radius:999px;
+  padding:.15rem .5rem;text-decoration:none;color:#57534e}
+.vers li span[aria-current]{background:#292524;border-color:#292524;color:#fcfcf9}
+.driftline{margin:.7rem 0 0;padding-top:.5rem;border-top:1px solid #ededea;font-size:.74rem;
+  color:#44403c;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;line-height:1.5}
+footer.wkfoot{margin-top:1.6rem}
+/* the term ledger */
+.ledger{min-width:52rem;font-size:.78rem}
+.ledger th{font-weight:700}
+.ledger .wkid{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-weight:700;
+  white-space:nowrap;text-align:left;font-size:.78rem;text-transform:none;letter-spacing:0;
+  color:var(--ink);padding:.5rem .6rem;border-bottom:1px solid #ededea}
+.ledger .quiet{color:#78716c;font-style:italic}
+.ledger td.mono{white-space:nowrap}
+.ledger .segbar{margin:0 0 .2rem;min-width:6rem}
+.ledger .segbar span{height:7px}
+.ledger tr.now td,.ledger tr.now th{background:#fefce8}
+.ledger tr.now th:first-child{box-shadow:inset 3px 0 0 #292524}
+.ministamp{display:inline-block;border:1.5px solid #292524;color:#292524;border-radius:5px;
+  padding:.08rem .3rem;transform:rotate(-2deg);text-decoration:none;
+  font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.56rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase}
+.ministamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c}
+.ministamp.none{border:0;transform:none;color:#a8a29e;letter-spacing:.06em}
+.driftdot{display:inline-block;width:7px;height:7px;border-radius:999px;background:#b45309;
+  margin-left:.3rem;vertical-align:middle}
+@media (max-width:52rem){
+  .mstats{grid-template-columns:1fr 1fr}
+  .subjgrid{grid-template-columns:1fr}
+  .marginbox{grid-template-columns:1fr}
+  .marginbox .gutter{border-right:0;border-bottom:1px dashed var(--line);
+    border-radius:10px 10px 0 0}
+  .hrow .nm{width:6.5rem;font-size:.78rem}
+}
 /* The board on paper: the week, its totals and its key, and nothing else. */
 @media print{
   .wk{gap:.3rem}
@@ -249,13 +381,28 @@ a.blk:hover{background:#faf9f5}
 }
 CSS;
 
-function dash_shell(string $title, string $body): string
+/**
+ * The handwriting the margin is set in, loaded only by the two pages that
+ * have a margin. It is an enhancement, not a dependency: the stack falls back
+ * through two system faces to plain cursive, so the note still reads as
+ * written-by-hand with the network off.
+ */
+const DASH_HAND_FONT = '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    . '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600'
+    . '&amp;display=swap">';
+
+/**
+ * `$head` is optional so a page can ask for something extra in the head —
+ * today only the handwriting font — without every other page paying for it.
+ */
+function dash_shell(string $title, string $body, string $head = ''): string
 {
     $t   = h($title);
     $css = DASH_CSS;
     return "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\">\n"
         . "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
-        . "<title>$t</title><style>$css</style></head>\n"
+        . "<title>$t</title>$head<style>$css</style></head>\n"
         . "<body><div class=\"wrap\">$body</div></body></html>";
 }
 
@@ -637,31 +784,925 @@ function tt_stamp(?string $monday, bool $isThisWeek): string
     return tt_pretty($monday) . ' to ' . tt_pretty(tt_add_days($monday, 6));
 }
 
-/** /week/{iso} — the same component, for a week that is not this one. */
-function render_week_page(Store $store, string $iso, bool $isParent = false): string
+// ---- the weekly report ---------------------------------------------------
+//
+// /week/{iso} is the ledger and the margin: every figure computed from the
+// record on this request, one written note underneath it, and never the two
+// mixed. The page reads one weekSnapshot() and the saved review rows; it does
+// not judge the week a second time to answer a question the snapshot already
+// answers.
+
+/**
+ * The partition every count on these pages is read in: study blocks on their
+ * own, movement on its own, the Friday review block on its own. The same rule
+ * the store applies when it builds `counts_by_tracking` — "23 of 27" puts a
+ * walk and a maths block in one fraction and the fraction stops meaning
+ * anything to whoever is reading it.
+ */
+function week_partition(array $b): string
+{
+    if (($b['tracking'] ?? '') === 'evidence') {
+        return 'evidence';
+    }
+    return ($b['kind'] ?? '') === 'review' ? 'review' : 'self_report';
+}
+
+/**
+ * The Friday review block in one word. It is self-reported, so it is never
+ * missed: it was ticked, it is still to come, or the week ran without it.
+ *
+ * @param array<string,int> $c the review partition of counts_by_tracking
+ */
+function week_review_block_word(array $c): string
+{
+    if ((int) ($c['done'] ?? 0) > 0) {
+        return 'ticked';
+    }
+    if (($c['upcoming'] ?? 0) + ($c['pending'] ?? 0) + ($c['now'] ?? 0) > 0) {
+        return 'pending';
+    }
+    return 'not ticked';
+}
+
+/**
+ * `counts_by_tracking` for a caller holding judgeWeek()['days'] instead of a
+ * snapshot — the term ledger, which judges twenty-six weeks and cannot afford
+ * a snapshot for each. The week page reads the snapshot's own copy and never
+ * recomputes it.
+ *
+ * @return array<string,array<string,int>>
+ */
+function week_counts(array $days): array
+{
+    $blank = ['done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
+              'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
+              'declared' => 0, 'judged' => 0];
+    $out = ['evidence' => $blank, 'self_report' => $blank, 'review' => $blank];
+    foreach ($days as $day) {
+        foreach ($day['blocks'] as $b) {
+            if ($b['status'] === 'n/a') {
+                continue;
+            }
+            $part = week_partition($b);
+            $out[$part]['judged']++;
+            $out[$part][$b['status']] = ($out[$part][$b['status']] ?? 0) + 1;
+            if (!empty($b['short'])) {
+                $out[$part]['short']++;
+            }
+        }
+    }
+    return $out;
+}
+
+/** judgeWeek()'s days as one ordered list of judged blocks, each with its date. */
+function week_blocks(array $days): array
+{
+    $out = [];
+    foreach ($days as $day) {
+        foreach ($day['blocks'] as $b) {
+            if ($b['status'] === 'n/a') {
+                continue;
+            }
+            $b['date']    = $day['date'];
+            $b['weekday'] = $day['weekday'];
+            $out[] = $b;
+        }
+    }
+    return $out;
+}
+
+/** '9–15 Sep 2024', or '31 Aug – 6 Sep 2024' when the week straddles a month. */
+function week_span(string $monday, string $sunday): string
+{
+    $a = new DateTimeImmutable($monday, tt_zone());
+    $b = new DateTimeImmutable($sunday, tt_zone());
+    return $a->format($a->format('M') === $b->format('M') ? 'j' : 'j M') . '–'
+        . $b->format('j M Y');
+}
+
+/** 'Tue 10 Sep', for a line naming a block. */
+function week_day_label(string $date): string
+{
+    return (new DateTimeImmutable($date, tt_zone()))->format('D j M');
+}
+
+/** The counts said in words, for the bar's aria-label. Colour is never the cue. */
+function week_count_words(array $c): string
+{
+    $plainDone = max(0, ($c['done'] ?? 0) - ($c['short'] ?? 0));
+    $bits = [];
+    foreach ([
+        [$plainDone, 'done'], [$c['short'] ?? 0, 'done but short'],
+        [$c['declared'] ?? 0, 'marked by hand'],
+        [$c['missed'] ?? 0, 'missed'], [$c['excused'] ?? 0, 'excused'],
+        [$c['optional'] ?? 0, 'optional'],
+        [$c['day_off'] ?? 0, 'on a day off'], [$c['now'] ?? 0, 'happening now'],
+        [$c['pending'] ?? 0, 'still to come today'], [$c['upcoming'] ?? 0, 'still to come'],
+    ] as [$n, $word]) {
+        if ($n > 0) {
+            $bits[] = $n . ' ' . $word;
+        }
+    }
+    return ($c['judged'] ?? 0) . ' study blocks: ' . ($bits ? implode(', ', $bits) : 'none judged');
+}
+
+/** One segment per study block, in the order the week ran. */
+function week_segbar(array $blocks, array $counts): string
+{
+    $class = ['done' => 'd', 'missed' => 'm', 'excused' => 'x', 'declared' => 'h'];
+    $word  = ['declared' => 'marked done by Dad, no work logged',
+              'optional' => 'optional, nothing counted against it'];
+    $out   = '<div class="segbar" role="img" aria-label="' . h(week_count_words($counts)) . '">';
+    foreach ($blocks as $b) {
+        $short = $b['status'] === 'done' && !empty($b['short']);
+        $c = $short ? 's' : ($class[$b['status']] ?? '');
+        $out .= '<span' . ($c === '' ? '' : ' class="' . $c . '"') . ' title="'
+            . h(week_day_label($b['date']) . ' ' . $b['start'] . ' ' . $b['label'] . ' — '
+                . ($short ? 'done, but short' : ($word[$b['status']] ?? $b['status']))) . '"></span>';
+    }
+    return $out . '</div>';
+}
+
+/**
+ * Eight weeks of coverage as one line. Scaled to its own series rather than to
+ * 0–100, because a subject sitting at 2% would otherwise be a flat line that
+ * hides a doubling; the title says the real figures.
+ *
+ * @param array<int,int> $series percentages, oldest first
+ */
+function week_spark(array $series, string $accent, string $title): string
+{
+    $n = count($series);
+    if ($n < 2) {
+        return '';
+    }
+    $min = min($series);
+    $max = max($series);
+    $pts = [];
+    foreach ($series as $i => $v) {
+        $x = 2 + ($i * (60 / ($n - 1)));
+        $y = $max === $min ? 11 : 18 - (($v - $min) / ($max - $min)) * 14;
+        $pts[] = round($x, 1) . ',' . round($y, 1);
+    }
+    $last = explode(',', $pts[$n - 1]);
+    return '<svg class="spark" viewBox="0 0 64 20" width="72" height="20" role="img">'
+        . '<title>' . h($title) . '</title>'
+        . '<polyline points="' . implode(' ', $pts) . '" fill="none" stroke="' . h($accent)
+        . '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>'
+        . '<circle cx="' . $last[0] . '" cy="' . $last[1] . '" r="2" fill="' . h($accent) . '"/></svg>';
+}
+
+/** A topic status as a coloured dot with its name on it. */
+function week_dot(?string $status): string
+{
+    return '<span class="dot" style="background:' . (STATUS_COLOUR[$status] ?? '#d6d3d1')
+        . '" title="' . h(STATUS_LABEL[$status] ?? (string) $status) . '"></span>';
+}
+
+/**
+ * The stamp: solid for a reviewed note, dashed for a draft, nothing at all
+ * when the week has none. The local time it was written, because that is the
+ * clock whoever wrote it was looking at.
+ */
+function week_stamp_badge(?array $review): string
+{
+    if ($review === null) {
+        return '';
+    }
+    [$on, $at]  = tt_local((string) $review['written_at']);
+    $when       = (new DateTimeImmutable($on, tt_zone()))->format('D j M') . ' ' . $at;
+    $byRoutine  = ($review['written_by'] ?? '') === 'routine';
+    $reviewed   = ($review['stage'] ?? '') === 'reviewed';
+    $who        = $byRoutine ? 'Friday routine' : 'review chat';
+    $head       = $reviewed ? ($byRoutine ? 'Reviewed' : 'Reviewed with Dad') : 'Draft';
+    return '<p class="stamp' . ($reviewed ? '' : ' draft') . '" title="'
+        . h(($reviewed ? 'Reviewed' : 'Draft') . ', version ' . $review['version'] . ', '
+            . mcp_written_by((string) $review['written_by']) . ' on ' . $when) . '">'
+        . h($head) . '<br>' . h($when) . '<br>' . h($who) . '</p>';
+}
+
+/**
+ * Everything below the register: what was missed, what is waiting on Dad, the
+ * hours against the timetable, the five subject cards, and the margin note.
+ * Split out from the page so the golden snapshot can pin the report without
+ * the register, which has a golden of its own shape already.
+ */
+function week_report_sections(
+    Store $store,
+    array $snap,
+    ?array $review,
+    array $versions,
+    string $iso
+): string {
+    $sections = is_array($review['sections'] ?? null) ? $review['sections'] : [];
+    $subjects = $store->listSubjects();
+    $names    = tt_subject_names($store);
+    $hasBoard = $snap['timetable_version_id'] !== null;
+    $out      = '';
+
+    if ($hasBoard) {
+        $out .= week_missed_section($snap);
+        $out .= week_decisions_section($snap, $review, $sections);
+        $out .= week_hours_section($snap, $names);
+    }
+    $out .= week_subject_section($store, $snap, $sections, $subjects, $review);
+    $out .= week_margin_section($store, $snap, $review, $versions, $iso);
+    return $out;
+}
+
+/**
+ * Missed, named plainly: day, time, label, and what was absent.
+ *
+ * Only a study block can be missed. A movement block that was not ticked is
+ * optional and belongs nowhere on this list, and a block the parent marked
+ * done by hand is accounted for under its own heading below — it is his word
+ * rather than the record's, but it is not a miss.
+ */
+function week_missed_section(array $snap): string
+{
+    $missed = $short = $hand = [];
+    foreach ($snap['blocks'] as $b) {
+        if ($b['status'] === 'missed') {
+            $missed[] = $b;
+        } elseif ($b['status'] === 'declared') {
+            $hand[] = $b;
+        } elseif ($b['status'] === 'done' && !empty($b['short'])) {
+            $short[] = $b;
+        }
+    }
+    $when = static fn(array $b): string => '<span class="when">' . h(week_day_label($b['date']))
+        . ' · ' . h($b['start']) . '–' . h($b['end']) . '</span><br>';
+
+    $out = '<h2 class="panel-title">Missed</h2>';
+    if (!$missed) {
+        $out .= '<p><small>Nothing was missed this week.</small></p>';
+    } else {
+        $out .= '<ul class="named">';
+        foreach ($missed as $b) {
+            $out .= '<li>' . $when($b) . '<b>' . h($b['label']) . '</b> — '
+                . h(mcp_absent($b)) . ' that day.</li>';
+        }
+        $out .= '</ul>';
+    }
+    if ($hand) {
+        $out .= '<p class="sublab">Marked by hand</p><ul class="named handlist">';
+        foreach ($hand as $b) {
+            $out .= '<li>' . $when($b) . '<b>' . h($b['label'])
+                . '</b> — marked done by Dad, no work was logged'
+                . ($b['reason'] ? ': ' . h((string) $b['reason']) : '') . '.</li>';
+        }
+        $out .= '</ul>';
+    }
+    if ($short) {
+        $out .= '<p class="sublab">Done, but short</p><ul class="named shortlist">';
+        foreach ($short as $b) {
+            $out .= '<li>' . $when($b) . '<b>' . h($b['label']) . '</b> — '
+                . (int) $b['minutes'] . ' minutes of ' . (int) $b['length'] . ' logged.</li>';
+        }
+        $out .= '</ul>';
+    }
+    return $out . '<p class="cap">A missed block means nothing was logged against it, which is '
+        . 'sometimes a logging failure rather than a missed morning. Movement and the review '
+        . 'block are never listed here: they are ticked or they are not, and not ticking one '
+        . 'costs nothing. A block marked by hand is Dad\'s word that it happened, counted apart '
+        . 'from the blocks the record proves. An extra never offsets a miss; it is counted '
+        . 'beside it.</p>';
+}
+
+/**
+ * What is waiting on Dad, or — once the week has been reviewed — what he
+ * decided. Read-only either way: the page has no control that writes.
+ */
+function week_decisions_section(array $snap, ?array $review, array $sections): string
+{
+    $reviewed  = ($review['stage'] ?? '') === 'reviewed';
+    $decisions = is_array($sections['decisions'] ?? null) ? $sections['decisions'] : [];
+    $out       = '<h2 class="panel-title">Decisions for Dad</h2><ul class="decide">';
+    $rows      = 0;
+
+    if ($reviewed && $decisions) {
+        $byRef = [];
+        foreach ($snap['blocks'] as $b) {
+            $byRef[$b['date'] . '#' . $b['block_key']] = $b;
+        }
+        $offs = [];
+        foreach ($snap['days_off'] as $d) {
+            $offs[(string) $d['id']] = $d;
+        }
+        $said = ['approved' => 'approved', 'declined' => 'declined', 'excused' => 'excused',
+                 'not_excused' => 'not excused', 'deferred' => 'still open'];
+        foreach ($decisions as $d) {
+            $ref   = (string) ($d['ref'] ?? '');
+            $what  = $ref;
+            if (($d['kind'] ?? '') === 'day_off' && isset($offs[$ref])) {
+                $o    = $offs[$ref];
+                $span = $o['date_from'] === $o['date_to']
+                    ? tt_pretty($o['date_from'])
+                    : tt_pretty($o['date_from']) . ' to ' . tt_pretty($o['date_to']);
+                $what = 'Day off <b>' . h($span) . '</b> — asked by ' . h($o['requested_by'])
+                    . ', &ldquo;' . h($o['reason']) . '&rdquo;';
+            } elseif (isset($byRef[$ref])) {
+                $b    = $byRef[$ref];
+                $what = h(week_day_label($b['date']) . ' ' . $b['start'] . ' ' . $b['label'])
+                    . ' — excuse it?';
+            } else {
+                $what = h($ref);
+            }
+            $verdict = $said[$d['decision'] ?? ''] ?? (string) ($d['decision'] ?? '');
+            $bad     = in_array($d['decision'] ?? '', ['declined', 'not_excused'], true);
+            $out    .= '<li class="settled"><span>' . $what . '</span><span class="said'
+                . ($bad ? ' no' : '') . '">' . h($verdict)
+                . (isset($d['note']) && $d['note'] !== null && $d['note'] !== ''
+                    ? ' — ' . h((string) $d['note']) : '') . '</span></li>';
+            $rows++;
+        }
+    } else {
+        foreach ($snap['days_off'] as $d) {
+            if ($d['status'] !== 'requested') {
+                continue;
+            }
+            $span = $d['date_from'] === $d['date_to']
+                ? tt_pretty($d['date_from'])
+                : tt_pretty($d['date_from']) . ' to ' . tt_pretty($d['date_to']);
+            $out .= '<li><span>Day off <b>' . h($span) . '</b> — asked by ' . h($d['requested_by'])
+                . ', &ldquo;' . h($d['reason']) . '&rdquo;</span>'
+                . '<span class="ask">approve? — in the review chat</span></li>';
+            $rows++;
+        }
+        foreach ($snap['blocks'] as $b) {
+            if ($b['status'] !== 'missed') {
+                continue;
+            }
+            $out .= '<li><span>' . h(week_day_label($b['date']) . ' ' . $b['start'] . ' '
+                    . $b['label']) . '</span>'
+                . '<span class="ask">excuse? — say so in the review chat</span></li>';
+            $rows++;
+        }
+    }
+    if ($rows === 0) {
+        $out .= '<li><span>Nothing is waiting on a decision.</span></li>';
+    }
+    return $out . '</ul><p class="cap">Decided in the review chat, never here. This page has no '
+        . 'button that changes the record — <code>tracker_excuse_block</code> and '
+        . '<code>tracker_decide_day_off</code> are Dad\'s, in chat.</p>';
+}
+
+/** Hours logged against the hours the timetable planned. Never a percentage of one. */
+function week_hours_section(array $snap, array $names): string
+{
+    $slugs = array_keys($snap['planned_by_subject'] + $snap['hours_by_subject']);
+    sort($slugs);
+    $out = '<h2 class="panel-title">Hours against the timetable</h2>';
+    if (!$slugs) {
+        $out .= '<p><small>Nothing planned and nothing logged.</small></p>';
+    }
+    foreach ($slugs as $slug) {
+        $done    = (float) ($snap['hours_by_subject'][$slug] ?? 0);
+        $planned = (float) ($snap['planned_by_subject'][$slug] ?? 0);
+        $under   = $planned > 0 && $done + 0.005 < $planned;
+        $width   = $planned > 0 ? min(100, (int) round($done / $planned * 100)) : ($done > 0 ? 100 : 0);
+        $out    .= '<div class="hrow"><span class="nm">' . h($names[$slug] ?? $slug) . '</span>'
+            . '<span class="hbar" role="img" aria-label="' . h(($names[$slug] ?? $slug) . ': '
+                . number_format($done, 2) . ' hours logged of ' . number_format($planned, 2)
+                . ' planned' . ($under ? ', under the timetable' : ', at or above the timetable'))
+            . '"><i' . ($under ? ' class="under"' : '') . ' style="width:' . $width . '%"></i></span>'
+            . '<span class="num mono">' . number_format($done, 2) . ' / '
+            . number_format($planned, 2) . '</span></div>';
+    }
+    return $out . '<p class="cap">Planned is the timetable in force this week, single-subject '
+        . 'blocks only; the mixed retrieval blocks and the timed rotation belong to no one '
+        . 'subject and are in neither figure. A short block counts the minutes logged.</p>';
+}
+
+/**
+ * One card per subject: coverage and its eight-week line, what moved with the
+ * status either side of it, anything sat, the practice, the top of the queue,
+ * and the one line the review carried forward for that subject.
+ */
+function week_subject_section(
+    Store $store,
+    array $snap,
+    array $sections,
+    array $subjects,
+    ?array $review
+): string {
+    if (!$subjects) {
+        return '';
+    }
+    $monday  = (string) $snap['monday'];
+    $sunday  = tt_add_days($monday, 6);
+    $carry   = is_array($sections['carry_forward'] ?? null) ? $sections['carry_forward'] : [];
+    $signed  = '';
+    if ($review !== null) {
+        [$on, $at] = tt_local((string) $review['written_at']);
+        $signed = '— Claude, ' . (new DateTimeImmutable($on, tt_zone()))->format('D j M') . ' ' . $at;
+    }
+
+    $out = '<h2 class="panel-title">By subject</h2><div class="subjgrid">';
+    foreach ($subjects as $s) {
+        $slug   = $s['slug'];
+        $cov    = $snap['coverage'][$slug] ?? ['pct_start' => 0, 'pct_end' => 0, 'topics' => 0];
+        $delta  = (int) $cov['pct_end'] - (int) $cov['pct_start'];
+        $accent = tt_accent([$slug]);
+
+        $out .= '<article class="subj"><div class="sh"><div>'
+            . '<h4><a href="/s/' . h($slug) . '">' . h($s['name']) . '</a></h4>'
+            . '<p class="sspec">' . h(trim(($s['spec_code'] ?? '') . ' ' . ($s['tier'] ?? '')))
+            . ' · ' . (int) $cov['topics'] . ' topics</p></div>'
+            . '<div class="cov"><span class="pc mono">' . (int) $cov['pct_end'] . '%</span>'
+            . '<span class="delta mono' . ($delta > 0 ? '' : ($delta < 0 ? ' down' : ' flat')) . '">'
+            . ($delta >= 0 ? '+' : '') . $delta . '</span>'
+            . week_coverage_spark($store, $slug, $s['name'], $monday, $sunday, $cov, $accent)
+            . '</div></div>';
+
+        // What moved, with the status either side of it.
+        $moved = array_values(array_filter(
+            $snap['changes'], static fn($c) => $c['subject_slug'] === $slug
+        ));
+        $out .= '<p class="lab">Moved this week</p><div class="chips">';
+        if (!$moved) {
+            $out .= '<span class="chip">No topic movement this week</span>';
+        }
+        foreach (array_slice($moved, 0, 6) as $c) {
+            $from = $c['from_status'];
+            $to   = $c['to_status'];
+            $out .= '<span class="chip"><b class="ref">' . h($c['ref']) . '</b> '
+                . h($c['topic_name']) . ' ' . week_dot($from)
+                . ($from === $to ? ' <span class="arrow">evidence only</span> '
+                    : ' <span class="arrow">&rarr;</span> ' . week_dot($to) . ' ')
+                . h((STATUS_LABEL[$from] ?? $from) . ($from === $to
+                    ? '' : ' → ' . (STATUS_LABEL[$to] ?? $to))) . '</span>';
+        }
+        $out .= '</div><dl class="kv">';
+
+        $sat = array_values(array_filter(
+            $snap['attempts'], static fn($a) => $a['subject_slug'] === $slug
+        ));
+        $out .= '<dt>Sat this week</dt><dd>';
+        if (!$sat) {
+            $out .= 'None.';
+        }
+        foreach ($sat as $a) {
+            $out .= h($a['name']) . ' — ' . (float) $a['score'] . '/' . (float) $a['max']
+                . ($a['blanks'] === null ? '' : ', ' . (int) $a['blanks'] . ' blank'
+                    . ((int) $a['blanks'] === 1 ? '' : 's'))
+                . ' (' . h(tt_pretty($a['date'])) . '). ';
+        }
+        $out .= '</dd>';
+
+        $p = $snap['practice'][$slug] ?? null;
+        if ($p) {
+            $out .= '<dt>Practice</dt><dd>' . (int) $p['runs'] . ' run'
+                . ((int) $p['runs'] === 1 ? '' : 's') . ' · ' . (int) $p['attempted'] . ' items'
+                . ($p['first_time_pct'] === null ? '' : ' · ' . $p['first_time_pct']
+                    . '% right first time') . ' · best run ' . (int) $p['best_score'] . '.</dd>';
+        }
+        $q = $snap['queue_top'][$slug] ?? null;
+        $out .= '<dt>Queue top</dt><dd>' . ($q ? h($q['line']) : 'Nothing waiting.') . '</dd></dl>';
+
+        $line = $carry[$slug] ?? null;
+        if (is_string($line) && $line !== '') {
+            $out .= '<p class="hand">' . h($line)
+                . ($signed === '' ? '' : '<span class="sig">' . h($signed) . '</span>') . '</p>';
+        }
+        $out .= '</article>';
+    }
+    return $out . '</div><p class="cap">Coverage is weighted by status and measured against '
+        . 'today\'s syllabus, so an older week reads against the topics that exist now. The line '
+        . 'is the eight weeks ending with this one, scaled to its own range.</p>';
+}
+
+/**
+ * The eight-week coverage line, replayed from the topic changes rather than
+ * stored: points as they stand, less every move made after each week's end.
+ * The last point is the card's own figure, by construction.
+ */
+function week_coverage_spark(
+    Store $store,
+    string $slug,
+    string $name,
+    string $monday,
+    string $sunday,
+    array $cov,
+    string $accent
+): string {
+    $topics = $store->listTopics($slug);
+    $max    = count($topics) * 3;
+    if ($max === 0) {
+        return '';
+    }
+    $points = 0;
+    foreach ($topics as $t) {
+        $points += STATUS_POINTS[$t['status']] ?? 0;
+    }
+    $until   = max(tt_today(), $sunday);
+    $changes = $store->changesBetween(tt_add_days($monday, -49), $until, $slug);
+    $series  = [];
+    for ($i = 7; $i >= 0; $i--) {
+        $end   = tt_add_days($sunday, -7 * $i) . ' 23:59:59';
+        $after = 0;
+        foreach ($changes as $c) {
+            if ((string) $c['changed_at'] > $end) {
+                $after += (STATUS_POINTS[$c['to_status']] ?? 0)
+                    - (STATUS_POINTS[$c['from_status'] ?? ''] ?? 0);
+            }
+        }
+        $series[] = (int) round((($points - $after) / $max) * 100);
+    }
+    return week_spark($series, $accent, $name . ' coverage over eight weeks, '
+        . $series[0] . '% to ' . $series[7] . '%');
+}
+
+/** The margin: the written half, its versions, and how far the record has moved since. */
+function week_margin_section(
+    Store $store,
+    array $snap,
+    ?array $review,
+    array $versions,
+    string $iso
+): string {
+    $out = '<h2 class="panel-title">In the margin — the week\'s review</h2>';
+    if ($review === null) {
+        return $out . '<div class="marginbox"><div class="gutter"><span class="who">Written, not '
+            . 'computed</span><p>Nothing yet.</p></div><div class="mbody"><p class="hand">No note '
+            . 'has been written for this week.</p><p class="cap">The Friday routine writes the '
+            . 'draft with <code>tracker_save_weekly_review</code>; the review chat saves the '
+            . 'reviewed version after it.</p></div></div>';
+    }
+
+    $current = (int) $review['version'];
+    $out    .= '<ul class="vers">';
+    foreach ($versions as $v) {
+        $label = $v['stage'] . ' ' . tt_local((string) $v['written_at'])[1];
+        $title = 'Version ' . $v['version'] . ', ' . mcp_written_by((string) $v['written_by']);
+        $out  .= '<li>' . ((int) $v['version'] === $current
+            ? '<span aria-current="true" title="' . h($title) . '">' . h($label) . '</span>'
+            : '<a href="/week/' . h($iso) . '?v=' . (int) $v['version'] . '" title="' . h($title)
+                . '">' . h($label) . '</a>') . '</li>';
+    }
+    $out .= '</ul>';
+
+    [$on, $at] = tt_local((string) $review['written_at']);
+    $when      = (new DateTimeImmutable($on, tt_zone()))->format('l j F') . ' at ' . $at;
+    $sections  = is_array($review['sections'] ?? null) ? $review['sections'] : [];
+    $drift     = $store->weekDrift(is_array($review['snapshot'] ?? null) ? $review['snapshot'] : $snap);
+
+    $out .= '<div class="marginbox"><div class="gutter"><span class="who">Written, not computed</span>'
+        . '<p>One note per week, append-only. Version ' . $current . ' of ' . count($versions)
+        . ', ' . h(mcp_written_by((string) $review['written_by'])) . ' on ' . h($when) . '.</p>'
+        . ($review['note'] === null || $review['note'] === ''
+            ? '' : '<p>' . h((string) $review['note']) . '</p>')
+        . '</div><div class="mbody">';
+    foreach (['held' => 'Held', 'slipped' => 'Slipped', 'next' => 'Next week'] as $key => $head) {
+        $text = (string) ($sections[$key] ?? '');
+        if ($text === '') {
+            continue;
+        }
+        $out .= '<h4>' . h($head) . '</h4><p class="hand">' . h($text) . '</p>';
+    }
+    if (isset($sections['rotation_next']) && $sections['rotation_next'] !== '') {
+        $out .= '<h4>Rotation next</h4><p class="hand">' . h((string) $sections['rotation_next'])
+            . '</p>';
+    }
+    $out .= '<p class="driftline">' . h($drift['line']) . '</p></div></div>';
+    return $out;
+}
+
+/**
+ * /week/{iso} — one week as the parent reads it. Everything above the margin
+ * comes from one weekSnapshot(); the register is the same component the index
+ * page draws, called rather than copied.
+ */
+function render_week_page(
+    Store $store,
+    string $iso,
+    bool $isParent = false,
+    ?int $version = null
+): string
 {
     $monday = tt_week_monday($iso);
     if ($monday === null) {
-        return dash_shell('Study trackers', '<header><div><p class="kicker">Study tracker</p>'
-            . '<h1>Not a week</h1></div></header><p>Weeks look like <code>2026-W37</code>.</p>'
-            . '<p><a href="/">Back to the subjects</a></p>');
+        // The route sends this with a 404: an impossible week falls back to
+        // the ledger rather than to a dead end.
+        return render_weeks($store);
     }
     $isThisWeek = $monday === tt_monday(tt_today());
-    $section    = render_timetable_section(
-        $store, $monday, $isThisWeek, $isParent, '/week/' . rawurlencode($iso)
-    );
-    if ($section === '') {
-        $section = '<p><small>No timetable was in force that week.</small></p>';
+    $snap       = $store->weekSnapshot($monday);
+    $versions   = $store->weeklyReviewVersions($iso);
+    $selfPath   = '/week/' . rawurlencode($iso);
+
+    $review = $store->weeklyReview($iso, $version);
+    if ($review === null && $version !== null) {
+        $review = $store->weeklyReview($iso);
     }
-    $stamp = $section === ''
-        ? ''
-        : '<p class="tt-stamp mono">' . h(tt_stamp($monday, $isThisWeek)) . '</p>';
-    return dash_shell(
-        'Week ' . $iso,
-        '<header><div><p class="kicker">Study tracker</p><h1>Week ' . h($iso) . '</h1></div>'
-        . '<div>' . $stamp . '<p><small><a href="/">All subjects</a></small></p></div></header>'
-        . $section
+
+    // Header. Prev and next are ±7 days through the ISO label; next is dead
+    // rather than absent when the week has not happened yet.
+    $prev   = tt_iso_week(tt_add_days($monday, -7));
+    $next   = tt_iso_week(tt_add_days($monday, 7));
+    $friday = tt_add_days($monday, 4);
+    $m      = new DateTimeImmutable($monday, tt_zone());
+    $f      = new DateTimeImmutable($friday, tt_zone());
+    $kicker = 'Week ' . (int) substr($iso, 6) . ' · '
+        . $m->format($m->format('M') === $f->format('M') ? 'D j' : 'D j M')
+        . ' – ' . $f->format('D j M Y');
+    $nav = '<a href="/week/' . h($prev) . '">&larr; ' . h($prev) . '</a> · '
+        . '<a href="/weeks">all weeks</a> · '
+        . (tt_add_days($monday, 7) > tt_today()
+            ? '<span class="off">' . h($next) . ' &rarr;</span>'
+            : '<a href="/week/' . h($next) . '">' . h($next) . ' &rarr;</a>');
+
+    $body = '<header class="wkhead"><div><p class="kicker">' . h($kicker) . '</p>'
+        . '<h1>The week</h1><p class="weeknav mono">' . $nav . '</p></div>'
+        . '<div>' . week_stamp_badge($review)
+        . tt_parent_line($store, $isParent, $selfPath) . '</div></header>';
+
+    // The register is the component the index page draws, called rather than
+    // copied, so the parent's controls live there and only there. Everything
+    // this page adds below it reads the record and writes nothing to it.
+    $register = render_timetable_section(
+        $store, $monday, $isThisWeek, $isParent, $selfPath
     );
+    if ($register === '') {
+        $body .= '<p><small>No timetable was in force that week.</small></p>';
+    } else {
+        $body .= week_headline_cards($snap, tt_subject_names($store))
+            . '<h2 class="panel-title">The register</h2>' . $register;
+    }
+
+    $body .= week_report_sections($store, $snap, $review, $versions, $iso);
+
+    $links = ['<a href="/weeks">All weeks</a>'];
+    foreach ($store->listSubjects() as $s) {
+        $links[] = '<a href="/s/' . h($s['slug']) . '">/s/' . h($s['slug']) . '</a>';
+    }
+    $body .= '<footer class="wkfoot">' . implode(' · ', $links) . '<br>'
+        . h('Every figure above the margin is computed at request time, ' . tt_stamp(null, true)
+            . '. The note carries its own timestamp.') . '</footer>';
+
+    return dash_shell('Week ' . $iso, $body, DASH_HAND_FONT);
+}
+
+/** The four headline cards: study blocks, hours, timed handwritten, movement. */
+function week_headline_cards(array $snap, array $names = []): string
+{
+    $ev   = $snap['counts_by_tracking']['evidence'];
+    $self = $snap['counts_by_tracking']['self_report'];
+    $rev  = $snap['counts_by_tracking']['review'];
+    $blocks = array_values(array_filter(
+        $snap['blocks'], static fn($b) => week_partition($b) === 'evidence'
+    ));
+
+    $sub1 = [];
+    // "Marked by hand" is named beside the fraction, never inside it: the big
+    // figure is what the record can prove, and Dad's word is accounted for
+    // next to it in his own words.
+    foreach (['missed' => 'missed', 'short' => 'short',
+              'declared' => 'marked by hand', 'excused' => 'excused'] as $k => $w) {
+        if (($ev[$k] ?? 0) > 0) {
+            $sub1[] = $ev[$k] . ' ' . $w;
+        }
+    }
+    if (count($snap['extras'])) {
+        $sub1[] = count($snap['extras']) . ' extra';
+    }
+    $out = '<div class="mstats"><div class="card"><p class="label">Study blocks</p>'
+        . '<p class="big mono">' . (int) $ev['done'] . ' of ' . (int) $ev['judged'] . '</p>'
+        . week_segbar($blocks, $ev)
+        . '<p class="sub mono">' . h($sub1 ? implode(' · ', $sub1) : 'nothing missed') . '</p>'
+        . '<p class="sub mono">movement ticked ' . (int) $self['done'] . ' of '
+        . (int) $self['judged']
+        . ' · review block ' . h(week_review_block_word($rev)) . '</p></div>';
+
+    $done = array_sum($snap['hours_by_subject']);
+    $plan = array_sum($snap['planned_by_subject']);
+    $under = [];
+    foreach ($snap['planned_by_subject'] as $slug => $p) {
+        if ((float) ($snap['hours_by_subject'][$slug] ?? 0) + 0.005 < (float) $p) {
+            $under[] = $names[$slug] ?? $slug;
+        }
+    }
+    if (count($under) > 2) {
+        $under = [count($under) . ' subjects'];
+    }
+    $out .= '<div class="card"><p class="label">Hours</p><p class="big mono">'
+        . number_format($done, 1) . ' of ' . number_format($plan, 1) . '</p>'
+        . '<div class="minibar" role="img" aria-label="' . h(number_format($done, 2)
+            . ' hours logged of the ' . number_format($plan, 2) . ' the timetable plans')
+        . '"><i' . ($done + 0.005 < $plan ? ' class="under"' : '') . ' style="width:'
+        . ($plan > 0 ? min(100, (int) round($done / $plan * 100)) : 0) . '%"></i></div>'
+        . '<p class="sub mono">' . h($under
+            ? implode(', ', $under) . ' under the timetable'
+            : 'every subject on or above its planned hours') . '</p></div>';
+
+    $timed = $snap['timed'];
+    $out  .= '<div class="card"><p class="label">Timed handwritten</p>';
+    if ($timed['this_week']) {
+        $bits = [];
+        foreach ($timed['this_week'] as $t) {
+            $bits[] = $t['label'] . ' — ' . $t['minutes'] . ' min'
+                . ($t['measured'] ? ' recorded' : ' (the block length, not a measured sitting)')
+                . ($t['blanks'] === null ? '' : ' · ' . $t['blanks'] . ' blanks');
+        }
+        $out .= '<p class="big mono">' . count($timed['this_week']) . ' this week</p>'
+            . '<p class="sub mono">' . h(implode(' · ', $bits)) . '</p>';
+    } else {
+        $l = $timed['last'];
+        $out .= '<p class="big">None this week</p><p class="sub mono">' . h($l
+            ? 'last: ' . $l['minutes'] . ' min'
+                . ($l['measured'] ? '' : ' (the block length)')
+                . ($l['blanks'] === null ? '' : ' · ' . $l['blanks'] . ' blanks')
+                . ' · ' . tt_pretty($l['date'])
+            : 'none in the eight weeks before it either, so stamina has no new reading')
+            . '</p>';
+    }
+    $out .= '</div>';
+
+    $up = $down = $flat = 0;
+    foreach ($snap['changes'] as $c) {
+        $d = (STATUS_POINTS[$c['to_status']] ?? 0) - (STATUS_POINTS[$c['from_status'] ?? ''] ?? 0);
+        $d > 0 ? $up++ : ($d < 0 ? $down++ : $flat++);
+    }
+    $out .= '<div class="card"><p class="label">Topics moved</p>'
+        . '<p class="big mono" role="img" aria-label="' . $up . ' topics promoted, ' . $down
+        . ' demoted">' . $up . ' &uarr; · ' . $down . ' &darr;</p>'
+        . '<p class="sub mono">' . h($flat === 0
+            ? 'no evidence-only entries'
+            : 'evidence only on ' . $flat . ' more') . '</p></div></div>';
+    return $out;
+}
+
+/**
+ * /weeks — the term as a ledger. One row per ISO week, newest first, one
+ * judgeWeek() per row and one pass over the topic changes for the whole span,
+ * rather than a query per week per subject.
+ */
+function render_weeks(Store $store, array $query = []): string
+{
+    $all  = $store->weeksWithActivity(1000);
+    $from = isset($query['from']) ? tt_week_monday((string) $query['from']) : null;
+    $skip = 0;
+    if ($from !== null) {
+        foreach ($all as $i => $w) {
+            if ($w['monday'] === $from) {
+                $skip = $i;
+                break;
+            }
+        }
+    }
+    $rows   = array_slice($all, $skip, 26);
+    $older  = count($all) > $skip + count($rows) ? $all[$skip + count($rows)]['week'] : null;
+    $today  = tt_monday(tt_today());
+    $subjects = $store->listSubjects();
+    $reviews  = $store->latestWeeklyReviews(array_column($rows, 'week'));
+
+    // Coverage, replayed once over the whole span rather than per week per
+    // subject: points as they stand now, less every move made since.
+    $span    = $rows ? $rows[count($rows) - 1]['monday'] : $today;
+    $changes = $store->changesBetween($span, max(tt_today(), $today), null);
+    $points  = [];
+    $maxPts  = [];
+    foreach ($subjects as $s) {
+        $topics = $store->listTopics($s['slug']);
+        $p      = 0;
+        foreach ($topics as $t) {
+            $p += STATUS_POINTS[$t['status']] ?? 0;
+        }
+        $points[$s['slug']] = $p;
+        $maxPts[$s['slug']] = count($topics) * 3;
+    }
+    $pctAt = static function (string $slug, string $cutoff) use ($changes, $points, $maxPts): int {
+        if (($maxPts[$slug] ?? 0) === 0) {
+            return 0;
+        }
+        $after = 0;
+        foreach ($changes as $c) {
+            if ($c['subject_slug'] === $slug && (string) $c['changed_at'] > $cutoff) {
+                $after += (STATUS_POINTS[$c['to_status']] ?? 0)
+                    - (STATUS_POINTS[$c['from_status'] ?? ''] ?? 0);
+            }
+        }
+        return (int) round((($points[$slug] - $after) / $maxPts[$slug]) * 100);
+    };
+
+    $head = '<tr><th scope="col">Week</th><th scope="col">Study blocks</th>'
+        . '<th scope="col">Missed</th><th scope="col">Hours</th><th scope="col">Timed</th>'
+        . '<th scope="col">Moved</th><th scope="col" aria-label="Coverage, one figure per subject '
+        . 'in the order listed under the table">Coverage</th><th scope="col">Review</th></tr>';
+
+    $bodyRows = '';
+    foreach ($rows as $r) {
+        $monday = $r['monday'];
+        $sunday = tt_add_days($monday, 6);
+        $w      = $store->judgeWeek($monday);
+        $counts = week_counts($w['days']);
+        $ev     = $counts['evidence'];
+        $board  = $store->timetableVersionOn(tt_add_days($monday, 4)) !== null;
+        $blocks = array_values(array_filter(
+            week_blocks($w['days']), static fn($b) => week_partition($b) === 'evidence'
+        ));
+        $planned = array_sum($store->plannedBySubject($monday));
+        $doneHrs = array_sum($w['hours_by_subject']);
+
+        $cells = '<th scope="row" class="wkid"><a href="/week/' . h($r['week']) . '">'
+            . h($r['week']) . '</a><br><small>' . h(week_span($monday, $sunday))
+            . '</small></th>';
+
+        if ($board) {
+            $extras = 0;
+            foreach ($w['days'] as $d) {
+                $extras += count($d['extras']);
+            }
+            $cells .= '<td>' . week_segbar($blocks, $ev) . '<span class="mono">' . (int) $ev['done']
+                . '/' . (int) $ev['judged'] . '</span>'
+                . ((int) $ev['declared'] > 0
+                    ? ' <small>' . (int) $ev['declared'] . ' by hand</small>' : '')
+                . ($extras ? ' <small>' . $extras . ' extra</small>' : '') . '</td>'
+                . '<td class="mono">' . (int) $ev['missed']
+                . ((int) $ev['excused'] > 0 ? '<br><small>' . (int) $ev['excused'] . ' excused</small>' : '')
+                . '</td><td class="mono">' . number_format($doneHrs, 1) . ' / '
+                . number_format($planned, 1) . '</td>';
+        } else {
+            $cells .= '<td class="quiet">— no timetable yet</td><td class="quiet">—</td>'
+                . '<td class="mono">' . number_format($doneHrs, 1) . ' / —</td>';
+        }
+
+        // Timed: the pieces by name. Minutes are not printed here, because the
+        // block length is not a measured sitting and the week page is where
+        // the measured figure lives.
+        $timed = array_values(array_filter(
+            week_blocks($w['days']),
+            static fn($b) => $b['kind'] === 'timed_handwritten' && $b['status'] === 'done'
+        ));
+        $cells .= '<td class="mono">' . ($timed
+            ? count($timed) . ' piece' . (count($timed) === 1 ? '' : 's')
+                . '<br><small>' . h($timed[0]['label']) . '</small>'
+            : '—') . '</td>';
+
+        $up = $down = 0;
+        foreach ($changes as $c) {
+            $on = substr((string) $c['changed_at'], 0, 10);
+            if ($on < $monday || $on > $sunday) {
+                continue;
+            }
+            $d = (STATUS_POINTS[$c['to_status']] ?? 0) - (STATUS_POINTS[$c['from_status'] ?? ''] ?? 0);
+            $d > 0 ? $up++ : ($d < 0 ? $down++ : null);
+        }
+        $cells .= '<td class="mono">&uarr;' . $up . ' &darr;' . $down . '</td>';
+
+        $nums = [];
+        foreach ($subjects as $s) {
+            $end   = $pctAt($s['slug'], $sunday . ' 23:59:59');
+            $start = $pctAt($s['slug'], tt_add_days($monday, -1) . ' 23:59:59');
+            $nums[] = '<span title="' . h($s['name'] . ' ' . $end . '%, '
+                . ($end - $start >= 0 ? '+' : '') . ($end - $start) . ' this week') . '">'
+                . $end . '</span>';
+        }
+        $cells .= '<td class="mono">' . implode(' · ', $nums) . '</td>';
+
+        $rev = $reviews[$r['week']] ?? null;
+        if ($rev === null) {
+            $cells .= '<td><span class="ministamp none">none</span></td>';
+        } else {
+            $drift = $store->weekDrift(is_array($rev['snapshot'] ?? null) ? $rev['snapshot'] : []);
+            $cells .= '<td><a class="ministamp' . ($rev['stage'] === 'draft' ? ' draft' : '')
+                . '" href="/week/' . h($r['week']) . '" title="' . h(ucfirst((string) $rev['stage'])
+                    . ', version ' . $rev['version'] . ', '
+                    . mcp_written_by((string) $rev['written_by'])) . '">' . h($rev['stage'])
+                . '<br>' . h(tt_local((string) $rev['written_at'])[1]) . '</a>'
+                . ($drift['changes']
+                    ? '<span class="driftdot" role="img" aria-label="the record has moved since '
+                        . 'this note was written"></span>' : '') . '</td>';
+        }
+        $bodyRows .= '<tr' . ($monday === $today ? ' class="now"' : '') . '>' . $cells . '</tr>';
+    }
+
+    $order = [];
+    foreach ($subjects as $s) {
+        $order[] = $s['name'];
+    }
+    $body = '<header class="wkhead"><div><p class="kicker">Study tracker</p><h1>All weeks</h1>'
+        . '<p class="weeknav mono"><a href="/">&larr; subjects</a> · '
+        . '<a href="/week/' . h(tt_iso_week($today)) . '">this week</a></p></div></header>'
+        . '<div class="tablewrap"><table class="ledger">'
+        . '<caption class="sr-only">Every ISO week on record, with study blocks, hours, timed '
+        . 'work, movement, coverage and the review stamp</caption><thead>' . $head . '</thead>'
+        . '<tbody>' . ($bodyRows ?: '<tr><td colspan="8">Nothing on record yet.</td></tr>')
+        . '</tbody></table></div>'
+        . '<p class="cap">Study blocks counts study blocks only; movement and the review block are '
+        . 'shown on the week page and counted separately, and a movement block that was not '
+        . 'ticked is not a miss. A block Dad marked by hand is counted apart from the ones the '
+        . 'record proves, and extras never offset a miss. '
+        . 'Coverage columns are, in order: ' . h(implode(' · ', $order)) . '. '
+        . 'The ledger is computed on every request — the Review column is the only thing a person '
+        . 'or the routine ever writes.</p>'
+        . ($older === null
+            ? ''
+            : '<p><small><a href="/weeks?from=' . h($older) . '">Earlier weeks &rarr;</a></small></p>')
+        . '<footer class="wkfoot"><a href="/">Subjects</a> · <a href="/week/'
+        . h(tt_iso_week($today)) . '">This week</a></footer>';
+
+    return dash_shell('All weeks', $body, DASH_HAND_FONT);
 }
 
 /**
