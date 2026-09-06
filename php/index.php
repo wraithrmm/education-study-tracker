@@ -116,6 +116,7 @@ require_once __DIR__ . '/lib/practice.php';
 require_once __DIR__ . '/lib/seed.php';
 require_once __DIR__ . '/lib/oauth.php';
 require_once __DIR__ . '/lib/mcp.php';
+require_once __DIR__ . '/lib/parent.php';
 require_once __DIR__ . '/lib/dashboard.php';
 
 try {
@@ -292,16 +293,108 @@ if (preg_match('#^/api/subjects/([^/]+)$#', $path, $m)) {
 
 // ---- dashboard ----------------------------------------------------------
 
+// ---- the parent's own controls ------------------------------------------
+//
+// The board stays readable to anyone with the link. Writing to it does not:
+// these are the parent's, behind a signed cookie obtained with the service
+// password, with a CSRF token on every post.
+
+if ($path === '/login') {
+    if ($method === 'GET') {
+        send_html(render_login($store, $password, $_GET['next'] ?? '/', false));
+    }
+    if ($method !== 'POST') {
+        send_json(['error' => 'method_not_allowed'], 405);
+    }
+    $sent = (string) (body()['password'] ?? '');
+    if ($sent === '' || !hash_equals($password, $sent)) {
+        // A small delay on every failure. The passphrase is long enough that
+        // guessing is hopeless anyway, but an unthrottled login form on a
+        // public URL is an invitation to try.
+        usleep(400000);
+        send_html(render_login($store, $password, body()['next'] ?? '/', true), 401);
+    }
+    parent_set_cookie(parent_issue($store, $password), PARENT_TTL);
+    parent_redirect(parent_safe_next(body()['next'] ?? '/'));
+}
+
+if ($path === '/logout' && $method === 'POST') {
+    parent_set_cookie('', -1);
+    parent_redirect('/');
+}
+
+/** Every write below is the parent's, and says so. */
+$requireParent = static function () use ($store, $password): void {
+    if (!parent_signed_in($store, $password) || !parent_check_csrf($store, body())) {
+        send_json(['error' => 'forbidden',
+            'error_description' => 'Sign in as the parent first.'], 403);
+    }
+};
+
+// Mark a whole day off, or undo it. The record keeps who asked and why, the
+// same as a day off booked through the tools.
+if ($path === '/tt/day' && $method === 'POST') {
+    $requireParent();
+    $b    = body();
+    $date = mcp_date($b, 'date', null);
+    if ($date === null) {
+        send_json(['error' => 'bad_request', 'error_description' => 'date required'], 400);
+    }
+    if (($b['action'] ?? '') === 'clear') {
+        $existing = $store->dayOffCovering($date);
+        if ($existing) {
+            $store->decideDayOff((int) $existing['id'], 'decline', 'Cleared from the board.');
+        }
+    } else {
+        $reason = trim((string) ($b['reason'] ?? ''));
+        $store->addDayOff([
+            'date_from' => $date, 'date_to' => $date, 'kind' => 'day_off',
+            'reason'    => $reason !== '' ? $reason : 'Day off',
+            'requested_by' => 'parent',
+        ]);
+    }
+    parent_redirect(parent_safe_next($b['next'] ?? '/'));
+}
+
+// One block: marked done without evidence, skipped with a reason, or cleared
+// back to whatever the evidence says.
+if ($path === '/tt/block' && $method === 'POST') {
+    $requireParent();
+    $b    = body();
+    $date = mcp_date($b, 'date', null);
+    $key  = (int) ($b['block_key'] ?? 0);
+    if ($date === null || $key < 1) {
+        send_json(['error' => 'bad_request', 'error_description' => 'date and block_key required'], 400);
+    }
+    $note = trim((string) ($b['note'] ?? ''));
+    switch ($b['action'] ?? '') {
+        case 'done':
+            $store->setTick($date, $key, 'parent', $note !== '' ? $note : null);
+            $store->setExcusal($date, $key, null);
+            break;
+        case 'skip':
+            $store->setExcusal($date, $key, $note !== '' ? $note : 'Skipped');
+            break;
+        case 'clear':
+            $store->setExcusal($date, $key, null);
+            $store->clearTick($date, $key);
+            break;
+        default:
+            send_json(['error' => 'bad_request', 'error_description' => 'unknown action'], 400);
+    }
+    parent_redirect(parent_safe_next($b['next'] ?? '/'));
+}
+
 if ($path === '/') {
     $dashboardGuard();
-    send_html(render_index($store, $_GET));
+    send_html(render_index($store, $_GET, parent_signed_in($store, $password)));
 }
 
 // Any week, past or present, on the same component as the index page. The
 // ISO week is the identifier because that is what the review talks in.
 if (preg_match('#^/week/(\d{4}-W\d{2})$#', $path, $m)) {
     $dashboardGuard();
-    send_html(render_week_page($store, $m[1], $_GET));
+    send_html(render_week_page($store, $m[1], $_GET, parent_signed_in($store, $password)));
 }
 
 if (preg_match('#^/s/([^/]+)$#', $path, $m)) {

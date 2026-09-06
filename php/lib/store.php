@@ -2031,6 +2031,17 @@ final class Store
         return $this->all($sql . ' ORDER BY date_from, id', $params);
     }
 
+    /** The day off covering a date, if one is approved or still requested. */
+    public function dayOffCovering(string $date): ?array
+    {
+        return $this->one(
+            "SELECT * FROM days_off
+             WHERE status != 'declined' AND date_from <= ? AND ? <= date_to
+             ORDER BY id DESC LIMIT 1",
+            [$date, $date]
+        );
+    }
+
     public function getDayOff(int $id): ?array
     {
         return $this->one('SELECT * FROM days_off WHERE id = ?', [$id]);
@@ -2105,6 +2116,12 @@ final class Store
         );
     }
 
+    public function clearTick(string $date, int $blockKey): void
+    {
+        $st = $this->db->prepare('DELETE FROM timetable_ticks WHERE date = ? AND block_key = ?');
+        $st->execute([$date, $blockKey]);
+    }
+
     // ---- judging ----------------------------------------------------------
 
     /**
@@ -2130,7 +2147,7 @@ final class Store
         $counts = [
             'done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
             'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
-            'extra' => 0, 'judged' => 0,
+            'declared' => 0, 'extra' => 0, 'judged' => 0,
         ];
         $hours = [];
         foreach ($days as $day) {
@@ -2341,6 +2358,23 @@ final class Store
                     }
                     $rows[] = $row;
                     continue;
+                } else {
+                    // The parent can say a study block happened when the work
+                    // itself was never logged — she read the set text on the
+                    // sofa, she did the maths at her grandmother's. That is a
+                    // real thing and the board should carry it, but it is an
+                    // assertion, not evidence, so it gets its own status and
+                    // its own mark. Evidence, where it exists, always wins:
+                    // this branch is only reached when nothing bound.
+                    $tick = $ticks[$date . '/' . $key] ?? null;
+                    if ($tick && $tick['by'] === 'parent') {
+                        $row['status']   = 'declared';
+                        $row['reason']   = $tick['note'] ?: null;
+                        $row['evidence'] = [['type' => 'tick', 'id' => (int) $tick['id'],
+                                             'by' => $tick['by']]];
+                        $rows[] = $row;
+                        continue;
+                    }
                 }
 
                 // Nothing logged and nothing excusing it, so the clock decides.

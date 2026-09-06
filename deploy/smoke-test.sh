@@ -824,6 +824,95 @@ if [ "$REMOTE" = 0 ]; then
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
   check "a malformed week is a 404" "$code" "404"
+
+  # ---- the parent's controls ---------------------------------------------
+  #
+  # The board stays readable by anyone with the link; writing to it does not.
+  # Every one of these checks is the difference between a family's record and
+  # a public guestbook.
+  JAR="$WORK/cookies.txt"
+  n_of() { printf '%s' "$1" | grep -o "$2" | wc -l | tr -d ' '; }
+
+  anon="$("${CURL[@]}" "$BASE/")"
+  check "signed out, the board offers no block controls" "$(n_of "$anon" '<details class="blockctl"')" "0"
+  check "signed out, no day-off controls either" "$(n_of "$anon" 'action="/tt/day"')" "0"
+  check "and no CSRF token is handed out" "$(n_of "$anon" 'name=\"csrf\"')" "0"
+  contains "but the way in is findable" "$anon" "Sign in to edit"
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d 'date=2024-09-09&block_key=3&action=done')"
+  check "a write with no cookie is refused" "$code" "403"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/day" -d 'date=2024-09-09')"
+  check "so is a day off with no cookie" "$code" "403"
+
+  code="$("${CURL[@]}" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/login" -d 'password=wrong')"
+  check "the wrong password does not sign you in" "$code" "401"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" -b "$JAR" \
+    -d 'date=2024-09-09&block_key=3&action=done')"
+  check "and leaves no usable cookie behind" "$code" "403"
+
+  code="$("${CURL[@]}" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/login" \
+    -d "password=$PASSWORD&next=/")"
+  check "the right password signs you in" "$code" "303"
+
+  auth="$("${CURL[@]}" -b "$JAR" "$BASE/")"
+  if [ "$(n_of "$auth" '<details class="blockctl"')" -gt 0 ]; then
+    pass "signed in, every block carries a control"
+  else
+    fail "signed in, no block controls rendered"
+  fi
+  contains "and the day headers offer a day off" "$auth" 'action="/tt/day"'
+  contains "and it says who you are" "$auth" "Signed in as Dad"
+  CSRF="$(printf '%s' "$auth" | grep -o 'name="csrf" value="[a-f0-9]*"' | head -1 | grep -o '[a-f0-9]\{32\}')"
+  if [ -n "$CSRF" ]; then pass "a CSRF token is issued"; else fail "no CSRF token on the page"; fi
+
+  code="$("${CURL[@]}" -b "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d 'date=2024-09-09&block_key=5&action=done')"
+  check "a signed-in write still needs its CSRF token" "$code" "403"
+  code="$("${CURL[@]}" -b "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d "csrf=notthetoken&date=2024-09-09&block_key=5&action=done")"
+  check "and a wrong one is no better" "$code" "403"
+
+  # Marked done without evidence: carried, but never dressed up as evidence.
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=5&action=done&note=Read it on the sofa&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a block can be marked done without evidence" "$week" \
+    'marked done by Dad; no work was logged: Read it on the sofa'
+  lacks "and it is not passed off as a derived done" "$week" \
+    'aria-label="English Literature — set text 11:15 — done"'
+  contains "the totals name it separately" "$week" "marked by hand"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=skip&note=Dentist&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a block can be marked skipped, with the reason kept" "$week" "excused: Dentist"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=clear&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  lacks "and clearing puts it back to what the evidence says" "$week" "excused: Dentist"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
+    -d "csrf=$CSRF&date=2024-09-11&reason=Grandma visiting&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a whole day can be marked off from the board" "$week" "Grandma visiting"
+  contains "and its blocks stop counting as missed" "$week" "day off"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
+    -d "csrf=$CSRF&date=2024-09-11&action=clear&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  lacks "and the day off can be undone" "$week" "Grandma visiting"
+
+  # What the public sees of all that: the result, and no way to change it.
+  anon="$("${CURL[@]}" "$BASE/week/2024-W37")"
+  contains "the public view shows what the parent recorded" "$anon" "marked done by Dad"
+  check "but still offers no controls" "$(n_of "$anon" '<details class="blockctl"')" "0"
+
+  code="$("${CURL[@]}" -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/logout")"
+  check "signing out works" "$code" "303"
+  after="$("${CURL[@]}" -b "$JAR" "$BASE/")"
+  check "and the controls go with it" "$(n_of "$after" '<details class="blockctl"')" "0"
 fi
 
 echo

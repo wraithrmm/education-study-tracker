@@ -32,8 +32,28 @@ DEPLOYMENT.md has the recipe for poking at it by hand.
 | Variable | Purpose |
 |---|---|
 | `PUBLIC_URL` | The exact public HTTPS origin, no trailing slash. Used as the OAuth issuer and the `resource` value, so a mismatch breaks the handshake. |
-| `TRACKER_PASSWORD` | Consent-screen password. Required; the service refuses to serve without it. |
+| `TRACKER_PASSWORD` | Consent-screen password, and the parent's sign-in for the board at `/login`. Required; the service refuses to serve without it. |
 | `DASHBOARD_PUBLIC` | `true` (default) leaves the dashboard readable to anyone with the link. `false` puts it behind the same token as the API. |
+
+### Editing the board
+
+The timetable board is readable by anyone with the link, deliberately — she
+should be able to glance at it without signing in. Changing it is the parent's
+alone: sign in at `/login` with `TRACKER_PASSWORD` and the board grows controls.
+
+A day header gets an **off** button, which books an approved day off with an
+optional reason. Each block's status mark becomes a button offering **done
+anyway** — for work that really happened but was never logged — and **skipped**,
+which excuses it with a reason. Both are reversible.
+
+A block marked done by hand is never shown as a derived done: it gets its own
+mark and its own line in the totals, because the board's whole claim is that a
+tick means work was logged. Evidence always wins — log the session and the
+assertion is superseded.
+
+Sign-in is a signed, httpOnly cookie carrying its own expiry; there is no
+session table. Changing `TRACKER_PASSWORD` signs every device out. Writes need
+both the cookie and a CSRF token.
 | `DB_PATH` | Defaults to `../tracker-shared/data/tracker.db`, outside the document root. |
 
 ## Connecting Claude
