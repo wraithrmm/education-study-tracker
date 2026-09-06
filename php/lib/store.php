@@ -587,8 +587,11 @@ final class Store
                 $this->db->exec('ALTER TABLE practice_run ADD COLUMN block_key INTEGER');
             }
 
-            // Design A is the one the parent approved to run first. All three
-            // ship behind this switch; ?design= overrides it per request.
+            // Vestigial: three designs were built behind a switch, and only
+            // the week strip was kept. Nothing reads this key any more. The
+            // write stays because this step has already run against the live
+            // database, and an applied migration is a record of what happened
+            // rather than something to tidy up afterwards.
             if ($this->meta('timetable_design') === null) {
                 $this->setMeta('timetable_design', 'a');
             }
@@ -2068,6 +2071,17 @@ final class Store
         return $this->all($sql . ' ORDER BY date_from, id', $params);
     }
 
+    /** The day off covering a date, if one is approved or still requested. */
+    public function dayOffCovering(string $date): ?array
+    {
+        return $this->one(
+            "SELECT * FROM days_off
+             WHERE status != 'declined' AND date_from <= ? AND ? <= date_to
+             ORDER BY id DESC LIMIT 1",
+            [$date, $date]
+        );
+    }
+
     public function getDayOff(int $id): ?array
     {
         return $this->one('SELECT * FROM days_off WHERE id = ?', [$id]);
@@ -2142,6 +2156,12 @@ final class Store
         );
     }
 
+    public function clearTick(string $date, int $blockKey): void
+    {
+        $st = $this->db->prepare('DELETE FROM timetable_ticks WHERE date = ? AND block_key = ?');
+        $st->execute([$date, $blockKey]);
+    }
+
     // ---- judging ----------------------------------------------------------
 
     /**
@@ -2166,7 +2186,8 @@ final class Store
 
         $counts = [
             'done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
-            'now' => 0, 'pending' => 0, 'upcoming' => 0, 'extra' => 0, 'judged' => 0,
+            'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
+            'declared' => 0, 'extra' => 0, 'judged' => 0,
         ];
         $hours = [];
         foreach ($days as $day) {
@@ -2353,6 +2374,19 @@ final class Store
                         $rows[] = $row;
                         continue;
                     }
+                    // A self-reported block is never marked missed. There is no
+                    // evidence to derive from, so "not ticked" and "did not
+                    // happen" are different things and the board must not
+                    // conflate them — least of all for the movement blocks,
+                    // which are hers to take and not work to be judged on.
+                    // Ticking still counts towards done; not ticking costs
+                    // nothing.
+                    if (!($date === $today
+                          && $nowMin >= tt_mins($b['start']) && $nowMin < tt_mins($b['end']))) {
+                        $row['status'] = $date > $today ? 'upcoming' : 'optional';
+                        $rows[] = $row;
+                        continue;
+                    }
                 } elseif (isset($bound[$key])) {
                     $e = $bound[$key];
                     $row['status']   = 'done';
@@ -2364,6 +2398,23 @@ final class Store
                     }
                     $rows[] = $row;
                     continue;
+                } else {
+                    // The parent can say a study block happened when the work
+                    // itself was never logged — she read the set text on the
+                    // sofa, she did the maths at her grandmother's. That is a
+                    // real thing and the board should carry it, but it is an
+                    // assertion, not evidence, so it gets its own status and
+                    // its own mark. Evidence, where it exists, always wins:
+                    // this branch is only reached when nothing bound.
+                    $tick = $ticks[$date . '/' . $key] ?? null;
+                    if ($tick && $tick['by'] === 'parent') {
+                        $row['status']   = 'declared';
+                        $row['reason']   = $tick['note'] ?: null;
+                        $row['evidence'] = [['type' => 'tick', 'id' => (int) $tick['id'],
+                                             'by' => $tick['by']]];
+                        $rows[] = $row;
+                        continue;
+                    }
                 }
 
                 // Nothing logged and nothing excusing it, so the clock decides.
@@ -2951,6 +3002,14 @@ final class Store
                 $add($b, 'now done', 'done');
             }
         }
+        // The parent saying a block happened is a change to the week's account
+        // and belongs in the drift, but it is his word rather than the
+        // record's, so it is said in his words and never as "now done".
+        foreach ($now as $key => $b) {
+            if (($was[$key]['status'] ?? '') === 'missed' && $b['status'] === 'declared') {
+                $add($b, 'marked done by Dad', 'declared', $b['reason']);
+            }
+        }
         foreach ($now as $key => $b) {
             if (($was[$key]['status'] ?? '') === 'done' && $b['status'] === 'missed') {
                 $add($b, 'now missed', 'missed');
@@ -3041,6 +3100,11 @@ final class Store
      * it ran on, and every extra with its day. Breaks are not judged, so they
      * are in neither.
      *
+     * Every judged status travels, `optional` and `declared` included: the
+     * status is carried whole and read where it is printed, so nothing here
+     * quietly turns a block the parent vouched for into a done one, or an
+     * untaken walk into a miss.
+     *
      * @return array{blocks:array<int,array<string,mixed>>,extras:array<int,array<string,mixed>>}
      */
     private function flattenWeek(array $days): array
@@ -3093,13 +3157,21 @@ final class Store
      * "23 of 27" puts a walk and a maths block in one fraction and the
      * fraction then means nothing to whoever is reading it.
      *
+     * `optional` and `declared` are counted like every other status and
+     * folded into none of them: a movement block that was not ticked is not
+     * a miss, and a block the parent marked done by hand is accounted for
+     * without being passed off as evidence. Whoever prints these has to keep
+     * them apart — `done + declared` is what happened, `done` is what the
+     * record can show.
+     *
      * @param  array<int,array<string,mixed>> $blocks flattenWeek()'s blocks
      * @return array<string,array<string,int>>
      */
     private static function countsByTracking(array $blocks): array
     {
         $blank = ['done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
-                  'now' => 0, 'pending' => 0, 'upcoming' => 0, 'judged' => 0];
+                  'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
+                  'declared' => 0, 'judged' => 0];
         $out = ['evidence' => $blank, 'self_report' => $blank, 'review' => $blank];
         foreach ($blocks as $b) {
             $part = $b['tracking'] === 'evidence'

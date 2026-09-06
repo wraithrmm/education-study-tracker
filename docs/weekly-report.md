@@ -116,8 +116,8 @@ Captured, all of it for the Monday–Sunday of `week`:
 | `week`, `monday`, `friday` | `judgeWeek()['week']`, `['monday']`, Monday + 4. |
 | `captured_at` | `gmdate('Y-m-d H:i:s')` — UTC, like every other stamp. |
 | `timetable_version_id` | `timetableVersionOn($monday)['id']`, or null when no timetable was in force. |
-| `counts` | `judgeWeek()['counts']` verbatim: `done, short, missed, excused, day_off, now, pending, upcoming, extra, judged`. |
-| `counts_by_tracking` | The same counts partitioned into `evidence`, `self_report` and `review` — see the partition rule in §6. |
+| `counts` | `judgeWeek()['counts']` verbatim: `done, short, missed, excused, day_off, now, pending, upcoming, optional, declared, extra, judged`. |
+| `counts_by_tracking` | The same counts partitioned into `evidence`, `self_report` and `review`, each carrying every status including `optional` and `declared` — see the partition rule in §6. |
 | `hours_by_subject` | `judgeWeek()['hours_by_subject']` verbatim (hours, 2dp, done blocks plus extras). |
 | `planned_by_subject` | Planned hours per subject for **this** week, computed from the timetable version in force — see below. |
 | `blocks[]` | Every judged block of the week (`status !== 'n/a'`), flattened from `judgeWeek()['days']`: `date, weekday, block_key, start, end, label, kind, tracking, subjects, subject, status, short, minutes, length, reason, evidence[]`. This is the missed list, and it is what the drift line diffs against. |
@@ -349,7 +349,7 @@ with every block `upcoming` and a line saying so; it is not an error to look ahe
 **Returns** the version it wrote, its stage, the local time it was written, the counts the
 snapshot captured — partitioned as §6 requires — and the page URL: `Saved version 2 (reviewed) for
 2026-W37, written Fri 11 Sep 14:52. Snapshot: study blocks 18 of 21 done (1 short), 2 missed,
-1 excused, 1 extra; movement 5 of 5; review block ticked. Read it at /week/2026-W37.`
+1 excused, 1 extra; movement ticked 5 of 5; review block ticked. Read it at /week/2026-W37.`
 
 **Refusals**, each naming what to do instead:
 
@@ -430,7 +430,7 @@ back to the subject page rather than a dead end.
 | Header: kicker `WEEK 37 · MON 7 – FRI 11 SEP 2026`, h1 "The week", prev/next links, stamp | `tt_week_monday`, `tt_pretty`; prev/next by ±7 days through `tt_iso_week`. The stamp is the latest `weeklyReview($week)`: reviewed → solid ink-stone rotated badge with the local `written_at`; draft → the same badge, dashed; none → no stamp. |
 | Four headline cards: study blocks with the segmented bar, hours, timed/handwritten, topics moved | `judgeWeek($monday)['counts']` partitioned as below, `['hours_by_subject']` against `planned_by_subject`, the timed derivation in §3, and the week's `changes[]` counted up (↑ promotions, ↓ demotions, "evidence only on N more" = changes where `from_status === to_status`). |
 | The register: five day columns, each judged block a row | `judgeWeek($monday)['days']` — nothing else. Breaks (`status === 'n/a'`) are not rendered. Extras are appended to their day as dotted rows. |
-| Missed, named plainly | The `missed` and `short` rows of the same `days` array. Day, time, label, and what was absent, derived from the block's `tracking` and `kind`: no session / no attempt / no practice. |
+| Missed, named plainly | The `missed` and `short` rows of the same `days` array. Day, time, label, and what was absent, derived from the block's `tracking` and `kind`: no session / no attempt / no practice. Only study blocks can be here: a movement block that was not ticked is `optional`, and a `declared` block is listed under **Marked by hand** below it — day, time, label, "marked done by Dad, no work was logged" and his note. |
 | Decisions for Dad | `listDaysOff(status: 'requested')` and the missed rows; in the reviewed state, `sections.decisions[]` instead, matched by `ref`. Caption: decided in the review chat, never here — there is no button. |
 | Hours against the timetable | `hours_by_subject` against `planned_by_subject` (§3). Under the planned figure is amber, at or over is emerald. Hours, never a percentage of a percentage. |
 | By subject, five cards | Per slug: `progressFor()` for coverage; the replay in §3 for the 8-week sparkline and the delta; `changesBetween($monday, $sunday)` filtered to the slug for the movement chips; attempts sat in the week for "Sat this week"; `listPracticeRuns($slug, ['since' => $monday, 'until' => $sunday])` for the practice line; `Store::reviewQueue($slug)` for the queue top; and `sections.carry_forward[$slug]` for the margin line. |
@@ -446,11 +446,17 @@ denominator (§3); and `weeksWithActivity(int $limit)` for `/weeks`.
 `tracking` is `evidence`. Movement is counted and shown separately, and the Friday review block
 separately again. "23 of 27" puts a walk and a maths block in the same fraction, and the fraction
 then means nothing to the person reading it. So: a headline of `18 of 21 study blocks`, a line
-under it reading `movement 5 of 5 · review block ticked` (or `pending`), and the same partition
+under it reading `movement ticked 5 of 5 · review block ticked` (or `pending`), and the same partition
 everywhere a count appears — the stat card, the save tool's return, the digest subject line, the
 `/weeks` row and the snapshot's `counts_by_tracking`. Against `docs/timetable-seed.json` a full
 Monday–Friday week is 21 evidence blocks, 5 movement blocks and 1 review block; breaks
 (`status === 'n/a'`) are not judged and are not counted anywhere.
+
+`optional` and `declared` are folded into nothing. A self-reported block that was not ticked is
+`optional`: it is neither done nor missed, it never appears in a missed list, and not ticking one
+costs her nothing. A study block the parent ticked without any work logged is `declared`: it is
+counted, named as `N marked by hand` beside the fraction and never inside it, and it is not a
+miss. `done` is what the record can prove; `done + declared` is what is said to have happened.
 
 The counts themselves are `judgeWeek()`'s and are never recomputed in the renderer — the page
 partitions them, it does not re-derive them. Hours likewise come from `hours_by_subject` as-is;
@@ -508,8 +514,9 @@ Rule:
 
 1. Build a map `date#block_key → status` from `snapshot.blocks`, and the same from a live
    `judgeWeek()` of that week.
-2. Differences, in this fixed order: excusals gained, excusals removed, missed → done, done →
-   missed, day-off approvals, extras added, blocks added or removed by a timetable re-cut.
+2. Differences, in this fixed order: excusals gained, excusals removed, missed → done, missed →
+   declared (`<Day> <time> <label> marked done by Dad[ — note]`), done → missed, day-off
+   approvals, extras added, blocks added or removed by a timetable re-cut.
 3. Render each as `<Day> <start> <label> <verb>[ — <reason>]`. At most three, then
    `; and N more changes.`
 4. No differences → no second sentence. Silence means the note and the record still agree; a

@@ -634,8 +634,12 @@ contains "block 2 stays missed: a teaching session is not retrieval practice" \
   "$body" "#2 Retrieval warm-up (mixed)"
 contains "block 5 is missed — nothing was logged for it" "$body" "#5 English Literature"
 
-# A retrieval_ practice run is the one thing that does satisfy block 2.
-body="$(call tracker_log_practice '{"subject":"maths","runs":[{"source":"maths_session","label":"Retrieval warm-up","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+# A practice run on the same day that is NOT retrieval. It must not satisfy the
+# retrieval block, and having nowhere to bind it becomes the day's extra work.
+# The result of the write is checked: an unasserted write that quietly failed
+# would make both of the checks below pass for the wrong reason.
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-tt-1","source":"maths_session","label":"Ad-hoc maths drill","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+contains "a practice run outside any block is stored" "$body" "1 stored"
 body="$(call tracker_today '{"date":"2024-09-09"}')"
 contains "a non-retrieval practice source still does not satisfy the retrieval block" \
   "$body" "#2 Retrieval warm-up (mixed)"
@@ -720,7 +724,7 @@ body="$(call tracker_week_report '{"week":"2024-W37"}')"
 contains "tracker_week_report opens on the week and its dates" "$body" \
   "Week 2024-W37 — 9 September 2024 to 13 September 2024"
 contains "the headline counts study blocks only" "$body" "Study blocks 1 of 21 done"
-contains "with movement counted separately" "$body" "movement 1 of 5"
+contains "with movement counted separately" "$body" "movement ticked 1 of 5"
 contains "and the review block separately again" "$body" "review block not ticked"
 contains "the register speaks the one block format" "$body" "#3   09:45-11:00  Maths — new topic"
 contains "every missed block is named with day, time, label and what was absent" "$body" \
@@ -728,11 +732,11 @@ contains "every missed block is named with day, time, label and what was absent"
 contains "and a timed block says it was an attempt that was missing" "$body" \
   "Tue 13:00 Timed handwritten practice — no attempt logged"
 contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
-contains "hours are read against the timetable's planned hours" "$body" "maths 1.45/4.83"
+contains "hours are read against the timetable's planned hours" "$body" "maths 1.68/4.83"
 contains "and totalled against the same figure" "$body" "of 13.33 planned hours"
 lacks "never against the skills' split" "$body" "/5.00"
 contains "the pending day off is put to the parent, not decided" "$body" "do not decide it"
-contains "each subject reports its practice" "$body" "practice: 1 run, 20 attempted"
+contains "each subject reports its practice" "$body" "practice: 2 runs, 30 attempted"
 contains "its coverage" "$body" "coverage 0% at the end of the week"
 contains "and the top of its review queue" "$body" "next in the queue:"
 contains "movement is reported per subject" "$body" "no topic movement this week"
@@ -852,20 +856,29 @@ if [ "$REMOTE" = 0 ]; then
   contains "with the subjects list still below it" "$page" "<h2>Subjects</h2>"
   contains "and the date it thinks it is, in monospace" "$page" 'class="tt-stamp mono"'
 
-  for d in a b c; do
-    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/?design=$d")"
-    check "?design=$d renders" "$code" "200"
-  done
-
   code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
   check "a past week renders on its own page" "$code" "200"
   week="$(cat "$WORK/week.html")"
   contains "the done block says so in words" "$week" 'aria-label="Maths — new topic 09:45 — done"'
   contains "the missed block says so in words" "$week" 'aria-label="English Literature — set text 11:15 — missed"'
   contains "a ticked movement block is done" "$week" 'aria-label="Move — walk, bike or dance 09:00 — done"'
+
+  # A self-reported block is never marked missed: there is no evidence to
+  # derive from, so "not ticked" and "did not happen" are different things.
+  # Tuesday's movement block is never ticked anywhere in this run.
+  contains "an unticked movement block is optional, not missed" \
+    "$week" 'aria-label="Move 09:00 — optional, nothing logged"'
+  lacks "so it never gets a red cross" "$week" 'aria-label="Move 09:00 — missed"'
   contains "a break is a rule, not a chip" "$week" 'class="brk"'
   contains "the done block links to the work that made it done" "$week" '/session/'
   contains "and the week totals are spelled out" "$week" "blocks so far"
+
+  # Extra work is folded away, not dropped: a day with several extras used to
+  # make its column two or three times the height of its neighbours, which
+  # wrecks the across-the-week comparison the board exists for.
+  contains "extra work is a disclosure, not a list" "$week" '<details class="tt-extras">'
+  contains "and it says how much there was" "$week" "2 extra</span></summary>"
+  lacks "and it starts closed" "$week" '<details class="tt-extras" open>'
 
   # A missed block must not offer a way to log work: the page is public and
   # unauthenticated, so there is nothing safe for it to link to.
@@ -873,46 +886,11 @@ if [ "$REMOTE" = 0 ]; then
   check "a missed block links nowhere" "$missed_link" "0"
 
 
-  # The three designs are three layouts over one judge and one status
-  # vocabulary. The same block, on the same week, must say the same words in
-  # all three — only the markup around them differs.
-  mark='aria-label="Maths — new topic 09:45 — done"'
-  for d in a b c; do
-    code="$("${CURL[@]}" -o "$WORK/w-$d.html" -w '%{http_code}' "$BASE/week/2024-W37?design=$d")"
-    check "design $d renders a past week" "$code" "200"
-    contains "design $d says the block is done, in the same words" "$(cat "$WORK/w-$d.html")" "$mark"
-  done
-
-  contains "design A is the week strip" "$(cat "$WORK/w-a.html")" 'class="wk"'
-  contains "design B is the day list and the week dot-row" "$(cat "$WORK/w-b.html")" 'class="dotrow"'
-  contains "and B expands a day in place, without script" "$(cat "$WORK/w-b.html")" '<details class="dotday'
-  contains "design C is the register" "$(cat "$WORK/w-c.html")" 'class="reg'
-  contains "and C counts each day in a footer" "$(cat "$WORK/w-c.html")" '<td class="t">done</td>'
-  contains "C prints" "$(cat "$WORK/w-c.html")" '@media print'
-
-  # C collapses to one column on a phone — but only where there is a today to
-  # collapse to. A week that is already over shows whole and scrolls.
-  lacks "a past week has no today, so C shows it whole" "$(cat "$WORK/w-c.html")" 'class="reg oneday"'
-  this_c="$("${CURL[@]}" "$BASE/?design=c")"
-  if printf '%s' "$this_c" | grep -qF 'class="reg oneday"'; then
-    pass "C collapses to today on a phone"
-  elif printf '%s' "$this_c" | grep -qF 'No blocks today'; then
-    pass "C collapses to today on a phone (nothing scheduled today, so it says so)"
-  else
-    fail "C neither collapsed to today nor said there was nothing on"
-  fi
-  this_c_week="$("${CURL[@]}" "$BASE/?design=c&week=1")"
-  lacks "and the toggle opens the whole week again" "$this_c_week" 'class="reg oneday"'
-
-  # B's time bar is a CSS animation with a server-computed delay: the block's
-  # remaining time is visible with no JavaScript at all.
-  body="$("${CURL[@]}" "$BASE/?design=b")"
-  check "the index renders design B" "$?" "0"
-  if printf '%s' "$body" | grep -q 'class="nowcard"\|class="tt-quiet"\|class="dotrow"'; then
-    pass "design B leads with the current block, or says there is none"
-  else
-    fail "design B rendered neither a now card nor a reason there is none"
-  fi
+  # There is one board. The status vocabulary it speaks is the same on the
+  # index page and on any other week's page, because both render the one
+  # component from the one judge.
+  contains "the week page is the week strip" "$week" 'class="wk"'
+  contains "and it prints" "$week" '@media print'
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
   check "a malformed week is a 404" "$code" "404"
@@ -928,11 +906,11 @@ if [ "$REMOTE" = 0 ]; then
   week="$(cat "$WORK/report.html")"
   contains "the headline counts study blocks only, exactly as the tools count them" \
     "$week" "<p class=\"big mono\">$fraction</p>"
-  contains "with movement counted separately" "$week" "movement 1 of 5"
+  contains "with movement counted separately" "$week" "movement ticked 1 of 5"
   contains "and the review block separately again" "$week" "review block not ticked"
   contains "the segmented bar says the counts in words, not in colour" "$week" \
     'aria-label="21 study blocks: 1 done, 19 missed, 1 excused"'
-  contains "hours are read against the timetable's planned hours" "$week" "1.45 / 4.83"
+  contains "hours are read against the timetable's planned hours" "$week" "1.68 / 4.83"
   contains "and the bar says which side of the plan it is on, in words" "$week" \
     "under the timetable"
 
@@ -1003,6 +981,109 @@ if [ "$REMOTE" = 0 ]; then
   check "an impossible week falls back to the ledger with a 404" "$code" "404"
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/weeks/nonsense")"
   check "and /weeks takes no path under it" "$code" "404"
+
+  # ---- the parent's controls ---------------------------------------------
+  #
+  # The board stays readable by anyone with the link; writing to it does not.
+  # Every one of these checks is the difference between a family's record and
+  # a public guestbook.
+  JAR="$WORK/cookies.txt"
+  n_of() { printf '%s' "$1" | grep -o "$2" | wc -l | tr -d ' '; }
+
+  anon="$("${CURL[@]}" "$BASE/")"
+  check "signed out, the board offers no block controls" "$(n_of "$anon" '<details class="blockctl"')" "0"
+  check "signed out, no day-off controls either" "$(n_of "$anon" 'action="/tt/day"')" "0"
+  check "and no CSRF token is handed out" "$(n_of "$anon" 'name=\"csrf\"')" "0"
+  contains "but the way in is findable" "$anon" "Sign in to edit"
+
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d 'date=2024-09-09&block_key=3&action=done')"
+  check "a write with no cookie is refused" "$code" "403"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/day" -d 'date=2024-09-09')"
+  check "so is a day off with no cookie" "$code" "403"
+
+  code="$("${CURL[@]}" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/login" -d 'password=wrong')"
+  check "the wrong password does not sign you in" "$code" "401"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" -b "$JAR" \
+    -d 'date=2024-09-09&block_key=3&action=done')"
+  check "and leaves no usable cookie behind" "$code" "403"
+
+  code="$("${CURL[@]}" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/login" \
+    -d "password=$PASSWORD&next=/")"
+  check "the right password signs you in" "$code" "303"
+
+  auth="$("${CURL[@]}" -b "$JAR" "$BASE/")"
+  if [ "$(n_of "$auth" '<details class="blockctl"')" -gt 0 ]; then
+    pass "signed in, every block carries a control"
+  else
+    fail "signed in, no block controls rendered"
+  fi
+  contains "and the day headers offer a day off" "$auth" 'action="/tt/day"'
+  contains "and it says who you are" "$auth" "Signed in as Dad"
+  CSRF="$(printf '%s' "$auth" | grep -o 'name="csrf" value="[a-f0-9]*"' | head -1 | grep -o '[a-f0-9]\{32\}')"
+  if [ -n "$CSRF" ]; then pass "a CSRF token is issued"; else fail "no CSRF token on the page"; fi
+
+  code="$("${CURL[@]}" -b "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d 'date=2024-09-09&block_key=5&action=done')"
+  check "a signed-in write still needs its CSRF token" "$code" "403"
+  code="$("${CURL[@]}" -b "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/tt/block" \
+    -d "csrf=notthetoken&date=2024-09-09&block_key=5&action=done")"
+  check "and a wrong one is no better" "$code" "403"
+
+  # Marked done without evidence: carried, but never dressed up as evidence.
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=5&action=done&note=Read it on the sofa&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a block can be marked done without evidence" "$week" \
+    'marked done by Dad; no work was logged: Read it on the sofa'
+  lacks "and it is not passed off as a derived done" "$week" \
+    'aria-label="English Literature — set text 11:15 — done"'
+  contains "the totals name it separately" "$week" "marked by hand"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=skip&note=Dentist&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a block can be marked skipped, with the reason kept" "$week" \
+    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
+    -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=clear&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  lacks "and clearing puts it back to what the evidence says" "$week" \
+    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
+    -d "csrf=$CSRF&date=2024-09-11&reason=Grandma visiting&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  contains "a whole day can be marked off from the board" "$week" \
+    '<b>Day off</b>Grandma visiting'
+  contains "and its blocks stop counting as missed" "$week" "day off"
+
+  "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
+    -d "csrf=$CSRF&date=2024-09-11&action=clear&next=/"
+  week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
+  lacks "and the day off can be undone" "$week" \
+    '<b>Day off</b>Grandma visiting'
+
+  # What the public sees of all that: the result, and no way to change it.
+  anon="$("${CURL[@]}" "$BASE/week/2024-W37")"
+  contains "the public view shows what the parent recorded" "$anon" "marked done by Dad"
+  check "but still offers no controls" "$(n_of "$anon" '<details class="blockctl"')" "0"
+
+  code="$("${CURL[@]}" -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/logout")"
+  check "signing out works" "$code" "303"
+  after="$("${CURL[@]}" -b "$JAR" "$BASE/")"
+  check "and the controls go with it" "$(n_of "$after" '<details class="blockctl"')" "0"
+
+  # And the report reads the same block the same way: what Dad asserted is
+  # accounted for, named as his word, and never counted as a miss.
+  report="$("${CURL[@]}" "$BASE/week/2024-W37")"
+  contains "the report names the hand-marked block under marked by hand" "$report" \
+    '<b>English Literature — set text</b> — marked done by Dad, no work was logged'
+  lacks "and it is not in the MISSED list" "$report" \
+    '<b>English Literature — set text</b> — no session logged that day'
+  contains "and the bar counts it apart from both done and missed, in words" "$report" \
+    'aria-label="21 study blocks: 1 done, 1 marked by hand, 18 missed, 1 excused"'
 fi
 
 echo

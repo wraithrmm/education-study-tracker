@@ -191,6 +191,11 @@ function mcp_block_line(array $b): string
         $status = 'excused — ' . ($b['reason'] ?? 'no reason given');
     } elseif ($status === 'day_off') {
         $status = 'day off — ' . ($b['reason'] ?? '');
+    } elseif ($status === 'declared') {
+        $status = 'marked by hand — Dad says it happened; no work was logged'
+            . ($b['reason'] ? ': ' . $b['reason'] : '');
+    } elseif ($status === 'optional') {
+        $status = 'optional — not ticked, and nothing counted against it';
     }
     $subs = $b['subjects'] ? implode('/', $b['subjects']) : '—';
     $ev   = '';
@@ -444,28 +449,57 @@ function mcp_snapshot_counts_line(array $snapshot): string
 {
     $by = $snapshot['counts_by_tracking'] ?? [];
     $ev = $by['evidence'] ?? ['done' => 0, 'judged' => 0, 'short' => 0, 'missed' => 0,
-                              'excused' => 0, 'day_off' => 0];
+                              'excused' => 0, 'day_off' => 0, 'declared' => 0];
     $s  = 'study blocks ' . $ev['done'] . ' of ' . $ev['judged'] . ' done'
         . ($ev['short'] ? ' (' . $ev['short'] . ' short)' : '')
         . ', ' . $ev['missed'] . ' missed, ' . $ev['excused'] . ' excused';
+    // Never inside the done fraction: the parent's word is accounted for
+    // beside the evidence, never as evidence.
+    if (!empty($ev['declared'])) {
+        $s .= ', ' . $ev['declared'] . ' marked by hand';
+    }
     if (!empty($ev['day_off'])) {
         $s .= ', ' . $ev['day_off'] . ' on a day off';
     }
     $s .= ', ' . (int) ($snapshot['counts']['extra'] ?? 0) . ' extra';
+    // Movement is ticked or it is not; there is no miss to report, so the
+    // fraction says what it is a fraction of.
     if (!empty($by['self_report']['judged'])) {
-        $s .= '; movement ' . $by['self_report']['done'] . ' of ' . $by['self_report']['judged'];
+        $s .= '; movement ticked ' . $by['self_report']['done'] . ' of '
+            . $by['self_report']['judged'];
     }
     if (!empty($by['review']['judged'])) {
-        $s .= '; review block ' . ($by['review']['done'] ? 'ticked' : 'not ticked');
+        $s .= '; review block ' . mcp_review_block_word($by['review']);
     }
     return $s;
+}
+
+/**
+ * The Friday review block in one word: ticked, still to come, or a week that
+ * ran without it. Never "missed" — it is self-reported, so there is nothing
+ * to derive a miss from.
+ *
+ * @param array<string,int> $c the review partition of counts_by_tracking
+ */
+function mcp_review_block_word(array $c): string
+{
+    if (!empty($c['done'])) {
+        return 'ticked';
+    }
+    if (($c['upcoming'] ?? 0) + ($c['pending'] ?? 0) + ($c['now'] ?? 0) > 0) {
+        return 'pending';
+    }
+    return 'not ticked';
 }
 
 /** What was absent from a block that was not done, in the words the board uses. */
 function mcp_absent(array $b): string
 {
     if (($b['tracking'] ?? '') !== 'evidence') {
-        return 'not ticked';
+        // A self-reported block is never absent. Nothing was logged because
+        // nothing was ever going to be, so "not ticked" is the whole of it
+        // and none of it is counted against her.
+        return 'not ticked — nothing is counted against it';
     }
     return match ($b['kind']) {
         'timed_handwritten' => 'no attempt logged',
@@ -1882,8 +1916,10 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 $study = array_values(array_filter($blocks, static fn($b) => $b['tracking'] === 'evidence'));
                 $rest  = array_values(array_filter($blocks, static fn($b) => $b['tracking'] !== 'evidence'));
                 $done  = count(array_filter($study, static fn($b) => $b['status'] === 'done'));
+                $hand  = count(array_filter($study, static fn($b) => $b['status'] === 'declared'));
                 $lines[] = "\n" . TIMETABLE_DAYS[(int) $blocks[0]['weekday']] . " $date — $done/"
-                    . count($study) . ' study blocks done';
+                    . count($study) . ' study blocks done'
+                    . ($hand ? ", $hand marked by hand" : '');
                 foreach (array_merge($study, $rest) as $b) {
                     $lines[] = '  ' . mcp_block_line($b);
                 }
@@ -1901,6 +1937,20 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             foreach ($missed as $b) {
                 $lines[] = '- ' . $short($b) . ' ' . $b['start'] . ' ' . $b['label']
                     . ' — ' . mcp_absent($b);
+            }
+            // What the parent vouched for, listed apart from both: it is
+            // accounted for, it is not a miss, and it is not evidence either.
+            $hand = array_values(array_filter(
+                $snap['blocks'], static fn($b) => $b['status'] === 'declared'
+            ));
+            if ($hand) {
+                $lines[] = "\nMARKED BY HAND — Dad said these happened; no work was logged";
+                foreach ($hand as $b) {
+                    $lines[] = '- ' . $short($b) . ' ' . $b['start'] . ' ' . $b['label']
+                        . ' — marked done by Dad'
+                        . ($b['reason'] ? ': ' . $b['reason'] : '')
+                        . '. It is counted apart from the blocks the record proves.';
+                }
             }
             $shorts = array_values(array_filter($snap['blocks'], static fn($b) => !empty($b['short'])));
             foreach ($shorts as $b) {
