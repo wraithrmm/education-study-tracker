@@ -25,7 +25,7 @@ body{margin:0;color:var(--ink);background-color:#fcfcf9;
                    linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px);
   background-size:24px 24px;
   font-family:Georgia,"Times New Roman",serif;line-height:1.5}
-.wrap{max-width:56rem;margin:0 auto;padding:2rem 1rem 4rem}
+.wrap{max-width:66rem;margin:0 auto;padding:2rem 1rem 4rem}
 .mono{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 header{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;justify-content:space-between;
   border-bottom:2px solid #292524;padding-bottom:1rem}
@@ -124,28 +124,69 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .tt{margin:1.5rem 0 0}
 .tt-head{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:baseline;justify-content:space-between}
 .tt-head h2{margin:0;font-size:1.15rem}
-.tt-stamp{font-size:.78rem;color:var(--muted);margin:0}
+.tt-stamp{font-size:.9rem;color:var(--muted);margin:0}
 .tt .mk{flex:none;display:block}
 .tt .markwrap{display:flex;flex-direction:column;align-items:center;gap:0;flex:none;line-height:1}
-.tt .shortcap{font-size:.56rem;font-weight:700;letter-spacing:.04em;color:#b45309;
+.tt .shortcap{font-size:.66rem;font-weight:700;letter-spacing:.04em;color:#b45309;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 .mk.pulse{animation:ttpulse 2.2s ease-in-out infinite;transform-origin:center}
 @keyframes ttpulse{0%,100%{opacity:1}50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){.mk.pulse{animation:none}}
-.tt-ribbon{display:block;font-size:.7rem;line-height:1.35;padding:.25rem .45rem;border-radius:5px;
+.tt-ribbon{display:block;font-size:.82rem;line-height:1.35;padding:.25rem .45rem;border-radius:5px;
   background:#f5f5f4;border:1px solid var(--line);color:#57534e;margin:0 0 .35rem}
 .tt-ribbon.req{background:transparent;border-style:dashed}
-.tt-ribbon b{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
+.tt-ribbon b{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
 .tt-quiet{background:var(--card);border:1px dashed var(--line);border-radius:10px;
   padding:.8rem 1rem;font-size:.9rem;color:#57534e;margin:.5rem 0 0}
 .tt-total{margin:.9rem 0 0;padding-top:.6rem;border-top:1px solid var(--line);
   font-size:.78rem;color:#57534e}
 .tt-total .sep{color:#a8a29e;padding:0 .25rem}
 .tt-total b{color:var(--ink)}
-.tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.7rem;color:var(--muted)}
+.tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.82rem;color:var(--muted)}
 .tt-legend span{display:flex;align-items:center;gap:.25rem}
-.tt-sub{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#374151;
-  font-weight:700;margin:1.1rem 0 0}
+/* The parent's controls. Invisible to everyone else, and quiet even for him:
+   the board is for reading, and these are for the times it is wrong. */
+.tt-signin{margin:.3rem 0 0;text-align:right}
+.tt-signin button{font:inherit;font-size:inherit;background:none;border:0;padding:0;
+  color:var(--muted);text-decoration:underline;cursor:pointer}
+.tt-ctl,.tt-ctl-menu{display:inline}
+.dhead .tt-ctl,.dhead .tt-ctl-menu{margin-left:auto}
+.dhead .tt-ctl button,.dhead .tt-ctl-menu>summary{font:inherit;font-size:.68rem;
+  color:var(--muted);background:none;border:1px solid var(--line);border-radius:999px;
+  padding:0 .4rem;cursor:pointer;list-style:none}
+.tt summary{list-style:none}
+.tt summary::marker{content:""}
+.tt summary::-webkit-details-marker{display:none}
+.dhead .tt-ctl button:hover,.dhead .tt-ctl-menu>summary:hover{border-color:#a8a29e;color:var(--ink)}
+.tt-ctl-menu[open]>summary{border-color:#292524;color:var(--ink)}
+.tt-ctl-menu form,.blockctl-body form{display:flex;flex-wrap:wrap;gap:.25rem;
+  margin:.3rem 0 .1rem;padding:.35rem;background:#faf9f5;border:1px solid var(--line);
+  border-radius:8px}
+.dhead .tt-ctl-menu{position:relative}
+.dhead .tt-ctl-menu>form,.dhead .tt-ctl-menu form{position:absolute;right:0;
+  top:calc(100% + .3rem);z-index:5;width:12.5rem;flex-direction:column;align-items:stretch;
+  margin:0;box-shadow:0 6px 18px -8px rgba(28,25,23,.45)}
+.dhead .tt-ctl-menu input[type=text]{flex:none;width:100%}
+.tt-ctl-menu input[type=text],.blockctl-body input[type=text]{font:inherit;font-size:.76rem;
+  padding:.2rem .35rem;border:1px solid var(--line);border-radius:5px;flex:1 1 7rem;min-width:0}
+.tt-ctl-menu button[type=submit],.blockctl-body button{font:inherit;font-size:.74rem;
+  padding:.2rem .5rem;border:1px solid var(--line);border-radius:5px;background:#fff;
+  cursor:pointer;white-space:nowrap}
+.tt-ctl-menu button[type=submit]:hover,.blockctl-body button:hover{border-color:#292524}
+/* The mark itself is the trigger — the red cross is the button. */
+.blockctl{flex:none;position:relative}
+.blockctl>summary{list-style:none;cursor:pointer;display:block;border-radius:6px}
+.blockctl>summary::-webkit-details-marker{display:none}
+.blockctl>summary:hover{outline:2px solid #d6d3d1;outline-offset:1px}
+.blockctl>summary:focus-visible{outline:2px solid #7c3aed;outline-offset:2px}
+.blockctl[open]>summary{outline:2px solid #292524;outline-offset:1px}
+/* A popover, so opening one never changes the height of its column — the
+   whole point of the board is that the five columns compare. */
+.blockctl-body{position:absolute;right:0;top:calc(100% + .3rem);z-index:5;width:12.5rem}
+.blockctl-body form{margin:0;flex-direction:column;align-items:stretch;
+  box-shadow:0 6px 18px -8px rgba(28,25,23,.45)}
+.blockctl-body input[type=text]{flex:none;width:100%}
+.blk.s-declared .bl{color:#57534e}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
@@ -157,33 +198,39 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
   padding:.45rem .45rem .5rem;position:relative}
 .wkcol.is-today{border-color:#292524;box-shadow:0 1px 0 #292524,3px 4px 10px -6px rgba(28,25,23,.55)}
 .wkcol.is-past{background:#fdfdfc}
-.daytab{position:absolute;top:-.62rem;left:.5rem;font-size:.58rem;font-weight:700;letter-spacing:.14em;
+.daytab{position:absolute;top:-.66rem;left:.5rem;font-size:.68rem;font-weight:700;letter-spacing:.14em;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;color:#b91c1c;background:#fcfcf9;
   border:1.5px solid #dc2626;border-radius:4px;padding:0 .3rem;transform:rotate(-1.6deg)}
 .dhead{display:flex;align-items:baseline;justify-content:space-between;gap:.3rem;
   padding:.15rem .15rem .35rem;border-bottom:1px solid #ededea;margin-bottom:.15rem}
-.dhead .dn{font-weight:700;font-size:.82rem}
-.dhead .dd{font-size:.66rem;color:var(--muted)}
+.dhead .dn{font-weight:700;font-size:.98rem}
+.dhead .dd{font-size:.78rem;color:var(--muted)}
 .blk{display:flex;align-items:center;gap:.4rem;padding:.28rem .3rem .28rem .45rem;
   border-left:3px solid var(--acc,#d6d3d1);border-radius:0 4px 4px 0;margin:.14rem 0;
   text-decoration:none;color:inherit}
-.blk .bt{font-size:.62rem;color:var(--muted);flex:none;width:2.15rem;
+.blk .bt{font-size:.76rem;color:var(--muted);flex:none;width:2.6rem;
   font-variant-numeric:tabular-nums}
-.blk .bl{flex:1;min-width:0;font-size:.72rem;line-height:1.22;overflow:hidden;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.blk .bl{flex:1;min-width:0;font-size:.88rem;line-height:1.25;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
 .blk.s-missed{background:rgba(220,38,38,.055)}
 .blk.s-now{background:rgba(124,58,237,.07);box-shadow:inset 0 0 0 1px rgba(124,58,237,.28);
   border-radius:4px}
 .blk.s-done .bl,.blk.s-excused .bl{color:#57534e}
 .blk.s-excused .bl{text-decoration:line-through;text-decoration-color:#a8a29e}
 .blk.s-upcoming,.blk.s-pending{opacity:.66}
+.blk.s-optional{opacity:.62}
 a.blk:hover{background:#faf9f5}
 .brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
-.tt-extras{margin:.3rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
-  font-size:.66rem;color:#57534e}
-.tt-extras b{display:block;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
+.tt-extras{margin:.35rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
+  font-size:.78rem;color:#57534e}
+.tt-extras>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.3rem;
   color:var(--muted)}
-.tt-extras div{display:flex;gap:.3rem;align-items:center;margin-top:.15rem}
+.tt-extras>summary::-webkit-details-marker{display:none}
+.tt-extras>summary:hover{color:var(--ink)}
+.tt-extras>summary:focus-visible{outline:2px solid #7c3aed;outline-offset:2px;border-radius:4px}
+.tt-extras>summary::after{content:"▸";margin-left:auto;font-size:.7em;color:var(--muted)}
+.tt-extras[open]>summary::after{content:"▾"}
+.tt-extras-list div{margin-top:.25rem;line-height:1.25}
 .tt-extras a{color:inherit}
 /* Phone first in behaviour, if not in source order: below 40rem the five
    columns become one strip, and the page scrolls it to today. */
@@ -192,95 +239,12 @@ a.blk:hover{background:#faf9f5}
     scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .wkcol{flex:0 0 78%;scroll-snap-align:center}
 }
-/* Design B — now / next, then the week. The time bar drains with a CSS
-   animation whose delay is computed server-side, so the block's remaining
-   time is visible without a line of JavaScript. */
-.nowcard{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:1rem 1.1rem .8rem;border-left:5px solid var(--acc,#78716c);margin-top:.5rem}
-.nowcard .eye{font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--acc,#78716c);margin:0 0 .3rem;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
-.nowcard h3{margin:0;font-size:1.75rem;line-height:1.12}
-.nowcard .nnote{margin:.35rem 0 0;font-size:.85rem;color:#57534e}
-.nowcard .ends{margin:.55rem 0 .5rem;font-size:.8rem;color:#44403c}
-.tbar{height:9px;border-radius:999px;background:#eceae5;overflow:hidden}
-.tbar>i{display:block;height:100%;border-radius:999px;background:var(--acc,#78716c);
-  animation:ttdrain linear forwards}
-@keyframes ttdrain{from{width:100%}to{width:0}}
-@media (prefers-reduced-motion:reduce){.tbar>i{animation:none;width:var(--left,50%)}}
-.nextline{margin:.5rem 0 0;font-size:.85rem;color:#57534e}
-.nextline .mono{color:var(--ink)}
-.todaylist{background:var(--card);border:1px solid var(--line);border-radius:10px;
-  overflow:hidden;margin-top:.4rem}
-.trow{display:flex;align-items:center;gap:.55rem;padding:.4rem .65rem;
-  border-bottom:1px solid #f0efec;border-left:3px solid var(--acc,#e7e5e4);
-  text-decoration:none;color:inherit}
-.trow:last-child{border-bottom:0}
-.trow .tt-t{flex:none;width:2.7rem;font-size:.7rem;color:var(--muted)}
-.trow .tt-l{flex:1;min-width:0;font-size:.85rem}
-.trow.s-done,.trow.s-excused{opacity:.62}
-.trow.s-excused .tt-l{text-decoration:line-through;text-decoration-color:#a8a29e}
-.trow.s-now{background:#fdfcf7;box-shadow:inset 0 0 0 1px rgba(124,58,237,.2)}
-.trow.s-missed{background:rgba(220,38,38,.05)}
-.trow.brkrow{padding:0;border-left:0;height:0;border-bottom:1px dashed #ededea}
-a.trow:hover{background:#faf9f5}
-.dotrow{margin-top:.4rem;display:grid;gap:.3rem}
-.dotday{background:var(--card);border:1px solid var(--line);border-radius:8px}
-.dotday>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.5rem;
-  padding:.4rem .6rem}
-.dotday>summary::-webkit-details-marker{display:none}
-.dotday>summary:focus-visible{outline:2px solid #7c3aed;outline-offset:-2px;border-radius:8px}
-.dotday.is-today{border-color:#292524}
-.dotday .dname{font-size:.78rem;width:5.4rem;flex:none}
-.dotday .marks{display:flex;flex-wrap:wrap;gap:.2rem;flex:1}
-.dotday .dcount{font-size:.68rem;color:var(--muted);flex:none}
-.dotday .inner{padding:.1rem .6rem .5rem;border-top:1px solid #f0efec}
-
-/* Design C — the register. Rows are time slots, columns are days. Densest of
-   the three, and the only one where a missed block reads as a pattern: a
-   column of crosses at one slot says that slot is being avoided. */
-.regwrap{overflow-x:auto;margin-top:.5rem}
-.reg{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
-  border-radius:10px;overflow:hidden;font-size:.75rem;table-layout:fixed;margin-top:0}
-.reg th,.reg td{border-bottom:1px solid #f0efec;border-right:1px solid #f0efec;
-  padding:.22rem .3rem;vertical-align:top;text-align:left}
-.reg th.t,.reg td.t{width:3.4rem;font-size:.66rem;color:var(--muted);text-align:right;
-  background:#fbfbf8;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
-.reg thead th{font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  color:#44403c;border-bottom:1.5px solid var(--line);padding:.35rem .3rem}
-.reg thead th.is-today{color:#b91c1c;border-bottom:2px solid #dc2626;background:#fefce8}
-.reg td.is-today{background:#fefce8}
-.reg td.is-now{box-shadow:inset 0 0 0 1.5px #7c3aed}
-.reg .cell{display:flex;gap:.28rem;align-items:flex-start;
-  border-left:2.5px solid var(--acc,transparent);padding-left:.28rem;
-  text-decoration:none;color:inherit}
-.reg .cell .cl{flex:1;min-width:0;line-height:1.2;font-size:.68rem}
-.reg .cell.s-missed{background:rgba(220,38,38,.06)}
-.reg .cell.s-excused .cl{text-decoration:line-through;text-decoration-color:#a8a29e;
-  color:var(--muted)}
-.reg .cell.s-upcoming,.reg .cell.s-pending{opacity:.6}
-.reg .cell.s-break{border-left-color:#e7e5e4;color:#a8a29e;font-style:italic}
-.reg tfoot td{font-size:.68rem;font-weight:700;border-top:1.5px solid var(--line);
-  border-bottom:0;color:#44403c;padding:.35rem .3rem;
-  font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
-.reg tfoot td.is-today{background:#fefce8}
-.reg .ribcell{padding:.25rem .3rem}
-.reg .ribcell .tt-ribbon{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
-/* The collapse is a media query, so the link that undoes it only means
-   anything at the width where it applies. */
-.reg-toggle{display:none;font-size:.78rem;margin:.5rem 0 0}
-@media (max-width:40rem){.reg-toggle{display:block}}
-/* On a phone the register collapses to today's column; the toggle is a link,
-   not a script, so it works with JavaScript off. */
-@media (max-width:40rem){
-  .reg.oneday th:not(.t):not(.is-today),
-  .reg.oneday td:not(.t):not(.is-today){display:none}
-}
+/* The board on paper: the week, its totals and its key, and nothing else. */
 @media print{
-  .reg td.is-today,.reg thead th.is-today,.reg tfoot td.is-today{background:transparent}
-  .reg thead th.is-today{border-bottom:2px solid #292524;color:inherit}
-  .reg{font-size:9pt;page-break-inside:avoid}
-  .tt-legend,.reg-toggle,.tt-total{font-size:8pt}
-  header,footer,.item,h2{display:none}
+  .wk{gap:.3rem}
+  .wkcol{break-inside:avoid;box-shadow:none}
+  .tt-legend,.tt-total{font-size:8pt}
+  .tt-signin,.tt-extras,.blockctl,.tt-ctl,.tt-ctl-menu,footer,.item,h2{display:none}
   .tt{margin:0}
 }
 CSS;
@@ -342,17 +306,6 @@ function tt_accent(array $subjects): string
     return 'hsl(' . (crc32($slug) % 360) . ' 45% 40%)';
 }
 
-/** Which design this request renders. ?design= wins, for one request only. */
-function tt_design(Store $store, array $query): string
-{
-    $d = strtolower((string) ($query['design'] ?? ''));
-    if (in_array($d, ['a', 'b', 'c'], true)) {
-        return $d;
-    }
-    $stored = strtolower((string) ($store->meta('timetable_design') ?? 'a'));
-    return in_array($stored, ['a', 'b', 'c'], true) ? $stored : 'a';
-}
-
 /**
  * A status mark. Shape carries the status as well as colour, and the
  * aria-label says it in words, so neither colour vision nor the legend is
@@ -361,8 +314,10 @@ function tt_design(Store $store, array $query): string
 function tt_mark(array $b): string
 {
     $name = $b['label'] . ' ' . $b['start'];
+    // 19px, not 16: the mark carries the status, so it has to be as legible as
+    // the label beside it — including from across the room.
     $svg  = static function (string $inner, string $label, string $cls = ''): string {
-        return '<svg class="mk' . ($cls ? ' ' . $cls : '') . '" width="16" height="16" '
+        return '<svg class="mk' . ($cls ? ' ' . $cls : '') . '" width="19" height="19" '
             . 'viewBox="0 0 18 18" role="img" aria-label="' . h($label) . '">' . $inner . '</svg>';
     };
     $wrap = static fn(string $inner): string => '<span class="markwrap">' . $inner . '</span>';
@@ -414,6 +369,23 @@ function tt_mark(array $b): string
             return $wrap($svg(
                 '<circle cx="9" cy="9" r="2.2" fill="#d6d3d1"/>', "$name — still to come"
             ));
+        case 'declared':
+            // Hollow, and stone rather than emerald: the parent said so, the
+            // record did not. The board must never pass one off as the other.
+            return $wrap($svg(
+                '<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#78716c" '
+                . 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+                . 'stroke-dasharray="2.6 2"/>',
+                "$name — marked done by Dad; no work was logged"
+                . ($b['reason'] ? ': ' . $b['reason'] : '')
+            ));
+        case 'optional':
+            // Neither tick nor cross: this one is hers to take, and the board
+            // has no evidence either way.
+            return $wrap($svg(
+                '<circle cx="9" cy="9" r="4.4" fill="none" stroke="#e0ddd6" stroke-width="1.3"/>',
+                "$name — optional, nothing logged"
+            ));
         default:
             return '';
     }
@@ -421,7 +393,7 @@ function tt_mark(array $b): string
 
 function tt_extra_mark(): string
 {
-    return '<svg class="mk" width="16" height="16" viewBox="0 0 18 18" role="img" '
+    return '<svg class="mk" width="19" height="19" viewBox="0 0 18 18" role="img" '
         . 'aria-label="extra work, outside the timetable">'
         . '<circle cx="9" cy="9" r="6.3" fill="none" stroke="#059669" stroke-width="1.4"/>'
         . '<path d="M9 5.6 9 12.4M5.6 9 12.4 9" stroke="#059669" stroke-width="1.6" '
@@ -465,9 +437,17 @@ function tt_evidence_href(array $ev, ?string $subject): ?string
 function tt_total_line(array $w, array $names): string
 {
     $c     = $w['counts'];
-    $soFar = $c['done'] + $c['missed'] + $c['excused'] + $c['now'] + $c['pending'];
+    // Optional blocks are deliberately absent from the denominator: ticking one
+    // counts towards done, not ticking one costs nothing. A block the parent
+    // marked done is counted — it is accounted for — but named separately,
+    // because the board should never quietly present an assertion as evidence.
+    $done  = $c['done'] + $c['declared'];
+    $soFar = $done + $c['missed'] + $c['excused'] + $c['now'] + $c['pending'];
     $ahead = $c['upcoming'] + $c['day_off'];
-    $parts = ['<b>this week</b>', $c['done'] . ' of ' . $soFar . ' blocks so far'];
+    $parts = ['<b>this week</b>', $done . ' of ' . $soFar . ' blocks so far'];
+    if ($c['declared']) {
+        $parts[] = $c['declared'] . ' marked by hand';
+    }
     if ($ahead) {
         $parts[] = $ahead . ' still to come';
     }
@@ -480,8 +460,9 @@ function tt_total_line(array $w, array $names): string
 function tt_legend(): string
 {
     $rows = [
-        ['done', 'done'], ['short', ''], ['now', 'now'], ['pending', 'pending'],
-        ['missed', 'missed'], ['excused', 'excused'], ['upcoming', 'to come'],
+        ['done', 'done'], ['short', ''], ['declared', 'marked by hand'], ['now', 'now'],
+        ['pending', 'pending'], ['missed', 'missed'], ['excused', 'excused'],
+        ['optional', 'optional'], ['upcoming', 'to come'],
     ];
     $out = '<p class="tt-legend">';
     foreach ($rows as [$status, $text]) {
@@ -500,7 +481,7 @@ function tt_legend(): string
  * tab. The parent's question is comparative across five days, so a vertical
  * run of marks answers it before a word is read.
  */
-function tt_design_a(array $w, array $names): string
+function tt_design_a(array $w, array $names, ?array $ctl = null): string
 {
     $out = '<div class="wk">';
     foreach ($w['days'] as $day) {
@@ -515,8 +496,9 @@ function tt_design_a(array $w, array $names): string
         if ($day['is_today']) {
             $out .= '<span class="daytab">TODAY</span>';
         }
-        $out .= '<p class="dhead"><span class="dn">' . substr($day['day_name'], 0, 3) . '</span>'
-            . '<span class="dd mono">' . h(tt_short_date($day['date'])) . '</span></p>'
+        $out .= '<div class="dhead"><span class="dn">' . substr($day['day_name'], 0, 3) . '</span>'
+            . '<span class="dd mono">' . h(tt_short_date($day['date'])) . '</span>'
+            . ($ctl ? tt_day_control($day, $ctl['csrf'], $ctl['next']) : '') . '</div>'
             . tt_ribbon($day['day_off']);
 
         foreach ($day['blocks'] as $b) {
@@ -530,312 +512,59 @@ function tt_design_a(array $w, array $names): string
             foreach ($b['evidence'] as $ev) {
                 $href = tt_evidence_href($ev, $b['subject']);
             }
-            $tag   = $href ? 'a' : 'div';
-            $attrs = 'class="blk s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
-            if ($href) {
-                $attrs .= ' href="' . h($href) . '"';
-            }
+            $cls = 'class="blk s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
             if ($b['status'] === 'excused' && $b['reason']) {
-                $attrs .= ' title="' . h('Excused: ' . $b['reason']) . '"';
+                $cls .= ' title="' . h('Excused: ' . $b['reason']) . '"';
+            } elseif ($b['status'] === 'declared' && $b['reason']) {
+                $cls .= ' title="' . h('Marked done by Dad: ' . $b['reason']) . '"';
             }
-            $out .= "<$tag $attrs><span class=\"bt mono\">" . h($b['start']) . '</span>'
-                . '<span class="bl">' . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
+            if ($ctl) {
+                // Signed in, the mark becomes the control, so the chip cannot
+                // also be one big link — the label carries the link instead.
+                $label = $href
+                    ? '<a class="bl" href="' . h($href) . '">' . h($b['label']) . '</a>'
+                    : '<span class="bl">' . h($b['label']) . '</span>';
+                $out .= "<div $cls><span class=\"bt mono\">" . h($b['start']) . '</span>'
+                    . $label
+                    . tt_block_control($b, $day['date'], $ctl['csrf'], $ctl['next'], tt_mark($b))
+                    . '</div>';
+            } else {
+                $tag = $href ? 'a' : 'div';
+                if ($href) {
+                    $cls .= ' href="' . h($href) . '"';
+                }
+                $out .= "<$tag $cls><span class=\"bt mono\">" . h($b['start']) . '</span>'
+                    . '<span class="bl">' . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
+            }
         }
 
-        if ($day['extras']) {
-            $out .= '<div class="tt-extras"><b>extra</b>';
-            foreach ($day['extras'] as $e) {
-                $href = tt_evidence_href($e, $e['subject']);
-                $text = h(($names[$e['subject']] ?? $e['subject']) . ' — ' . $e['label']);
-                $out .= '<div>' . tt_extra_mark()
-                    . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
-            }
-            $out .= '</div>';
-        }
-        $out .= '</div>';
+        $out .= tt_extras_block($day['extras'], $names) . '</div>';
     }
     return $out . '</div>';
 }
 
 /**
- * Design B — now / next, then the week.
+ * The extra work of a day — logged, real, and outside the timetable.
  *
- * The research the timetable came from is mostly about time blindness, and
- * this is the only design that answers it: the current block is the biggest
- * thing on the page and its remaining time is a bar that visibly drains. The
- * checklist below fills from the top as the day goes, which is endowed
- * progress doing its job — the movement block is ticked before the first hard
- * block starts, so the day is already begun.
+ * Collapsed by default. A busy day can carry several of these, and expanded
+ * they made one column two or three times the height of its neighbours, which
+ * wrecks the comparison across the week that the board exists for. The count
+ * stays visible, so nothing is hidden — only folded.
  */
-function tt_design_b(array $w, array $names, bool $isThisWeek): string
-{
-    $today = null;
-    foreach ($w['days'] as $day) {
-        if ($day['is_today']) {
-            $today = $day;
-        }
-    }
-
-    $out = '';
-    if ($today !== null) {
-        $judged = array_values(array_filter(
-            $today['blocks'], static fn(array $b): bool => $b['status'] !== 'n/a'
-        ));
-        $nowBlock = null;
-        $next     = null;
-        $nowMin   = tt_mins(tt_now()->format('H:i'));
-        foreach ($judged as $b) {
-            if ($b['status'] === 'now' && $nowBlock === null) {
-                $nowBlock = $b;
-            }
-            if ($next === null && tt_mins($b['start']) > $nowMin) {
-                $next = $b;
-            }
-        }
-        $out .= tt_ribbon($today['day_off']);
-
-        if ($nowBlock !== null) {
-            $acc     = tt_accent($nowBlock['subjects']);
-            $len     = (tt_mins($nowBlock['end']) - tt_mins($nowBlock['start'])) * 60;
-            $gone    = ($nowMin - tt_mins($nowBlock['start'])) * 60;
-            $left    = tt_mins($nowBlock['end']) - $nowMin;
-            $pct     = $len > 0 ? max(0, min(100, (int) round((1 - $gone / $len) * 100))) : 0;
-            $out .= '<div class="nowcard" style="--acc:' . h($acc) . ';--left:' . $pct . '%">'
-                . '<p class="eye">Now · ' . h($nowBlock['start']) . '–' . h($nowBlock['end']) . '</p>'
-                . '<h3>' . h($nowBlock['label']) . '</h3>'
-                . ($nowBlock['note'] ? '<p class="nnote">' . h($nowBlock['note']) . '</p>' : '')
-                . '<p class="ends mono">ends ' . h($nowBlock['end']) . ' · ' . $left . ' min left</p>'
-                . '<div class="tbar" role="img" aria-label="' . $left
-                . ' minutes left of this block"><i style="animation-duration:' . $len
-                . 's;animation-delay:-' . $gone . 's"></i></div></div>';
-            if ($next !== null) {
-                $out .= '<p class="nextline">then <span class="mono">' . h($next['start'])
-                    . '</span> ' . h($next['label']) . '</p>';
-            }
-        } elseif ($next !== null) {
-            $acc = tt_accent($next['subjects']);
-            $out .= '<div class="nowcard" style="--acc:' . h($acc) . '">'
-                . '<p class="eye">Next · ' . h($next['start']) . '</p>'
-                . '<h3>' . h($next['label']) . '</h3>'
-                . ($next['note'] ? '<p class="nnote">' . h($next['note']) . '</p>' : '')
-                . '<p class="ends mono">starts ' . h($next['start']) . ' · in '
-                . (tt_mins($next['start']) - $nowMin) . ' min</p></div>';
-        } else {
-            $out .= '<p class="tt-quiet">Nothing left on the timetable today.</p>';
-        }
-
-        if ($judged) {
-            $out .= '<h3 class="tt-sub">Today</h3><div class="todaylist">';
-            foreach ($today['blocks'] as $b) {
-                if ($b['status'] === 'n/a') {
-                    $out .= '<div class="trow brkrow" aria-hidden="true"></div>';
-                    continue;
-                }
-                $out .= tt_row($b, 'trow', 'tt-t', 'tt-l');
-            }
-            $out .= '</div>';
-            $out .= tt_extras_block($today['extras'], $names, 'extra today');
-        }
-    } elseif ($isThisWeek) {
-        $out .= '<p class="tt-quiet">No blocks today — <b>Monday 09:00</b> next.</p>';
-    }
-
-    // The parent's whole-week view, compact. Each day expands in place; the
-    // full board is one tap away on /week/{iso}.
-    $out .= '<h3 class="tt-sub">This week</h3><div class="dotrow">';
-    foreach ($w['days'] as $day) {
-        $judged = array_values(array_filter(
-            $day['blocks'], static fn(array $b): bool => $b['status'] !== 'n/a'
-        ));
-        if (!$judged) {
-            continue;
-        }
-        $done  = count(array_filter($judged, static fn($b) => $b['status'] === 'done'));
-        $marks = '';
-        foreach ($judged as $b) {
-            $b['accent'] = tt_accent($b['subjects']);
-            $marks .= tt_mark($b);
-        }
-        $tag = '';
-        if ($day['day_off'] && $day['day_off']['status'] !== 'declined') {
-            $tag = '<span class="dcount">'
-                . ($day['day_off']['status'] === 'approved' ? 'day off' : 'off?') . '</span>';
-        }
-        $out .= '<details class="dotday' . ($day['is_today'] ? ' is-today' : '') . '"'
-            . ($day['is_today'] ? ' open' : '') . '><summary><span class="dname">'
-            . substr($day['day_name'], 0, 3) . ' <small class="mono">'
-            . h(tt_short_date($day['date'])) . '</small></span><span class="marks">' . $marks
-            . '</span>' . $tag . '<span class="dcount">' . $done . '/' . count($judged)
-            . '</span></summary><div class="inner">' . tt_ribbon($day['day_off']);
-        foreach ($judged as $b) {
-            $out .= tt_row($b, 'trow', 'tt-t', 'tt-l');
-        }
-        $out .= tt_extras_block($day['extras'], $names, 'extra') . '</div></details>';
-    }
-    return $out . '</div>';
-}
-
-/** One block as a checklist row, shared by B's today list and its day panels. */
-function tt_row(array $b, string $cls, string $timeCls, string $labelCls): string
-{
-    $b['accent'] = tt_accent($b['subjects']);
-    $href = null;
-    foreach ($b['evidence'] as $ev) {
-        $href = tt_evidence_href($ev, $b['subject']);
-    }
-    $tag   = $href ? 'a' : 'div';
-    $attrs = 'class="' . $cls . ' s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
-    if ($href) {
-        $attrs .= ' href="' . h($href) . '"';
-    }
-    if ($b['status'] === 'excused' && $b['reason']) {
-        $attrs .= ' title="' . h('Excused: ' . $b['reason']) . '"';
-    }
-    return "<$tag $attrs><span class=\"$timeCls mono\">" . h($b['start']) . '</span>'
-        . "<span class=\"$labelCls\">" . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
-}
-
-/** The extra work of a day — logged, real, and outside the timetable. */
-function tt_extras_block(array $extras, array $names, string $label): string
+function tt_extras_block(array $extras, array $names): string
 {
     if (!$extras) {
         return '';
     }
-    $out = '<div class="tt-extras"><b>' . h($label) . '</b>';
+    $n   = count($extras);
+    $out = '<details class="tt-extras"><summary>' . tt_extra_mark()
+        . '<span>' . $n . ' extra</span></summary><div class="tt-extras-list">';
     foreach ($extras as $e) {
         $href = tt_evidence_href($e, $e['subject']);
         $text = h(($names[$e['subject']] ?? $e['subject']) . ' — ' . $e['label']);
-        $out .= '<div>' . tt_extra_mark()
-            . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
+        $out .= '<div>' . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
     }
-    return $out . '</div>';
-}
-
-/**
- * Design C — the register.
- *
- * Rows are time slots, columns are days, which is the one layout where a
- * habit shows: a column of crosses at 13:00 says the timed handwritten block
- * is being avoided, and no other design here can show that. It prints on one
- * sheet, and on a phone it collapses to today's column behind a link rather
- * than a script.
- */
-function tt_design_c(array $w, array $names, bool $showWholeWeek): string
-{
-    $days = array_values(array_filter(
-        $w['days'],
-        static fn(array $d): bool => array_filter(
-            $d['blocks'], static fn($b) => $b['status'] !== 'n/a'
-        ) !== []
-    ));
-    if (!$days) {
-        return '';
-    }
-
-    // The union of every block start in the week, in order. Wednesday stops
-    // at 10:00 and Thursday at 12:00, so much of the lower half is blank
-    // paper — that is the week's real shape, not a rendering fault.
-    $slots = [];
-    foreach ($days as $d) {
-        foreach ($d['blocks'] as $b) {
-            $slots[$b['start']] = true;
-        }
-    }
-    $slots = array_keys($slots);
-    usort($slots, static fn($x, $y) => tt_mins($x) <=> tt_mins($y));
-
-    $hasToday = false;
-    foreach ($days as $d) {
-        $hasToday = $hasToday || $d['is_today'];
-    }
-    $oneDay = !$showWholeWeek && $hasToday;
-
-    $head = '<tr><th class="t"><span class="sr-only">Time</span></th>';
-    foreach ($days as $d) {
-        $head .= '<th scope="col"' . ($d['is_today'] ? ' class="is-today"' : '') . '>'
-            . substr($d['day_name'], 0, 3) . ' <small class="mono">'
-            . h(tt_short_date($d['date'])) . '</small></th>';
-    }
-    $head .= '</tr>';
-
-    $ribRow = '';
-    foreach ($days as $d) {
-        if ($d['day_off'] && $d['day_off']['status'] !== 'declined') {
-            $ribRow = 'yes';
-        }
-    }
-    if ($ribRow) {
-        $ribRow = '<tr><td class="t"></td>';
-        foreach ($days as $d) {
-            $ribRow .= '<td class="ribcell' . ($d['is_today'] ? ' is-today' : '') . '">'
-                . tt_ribbon($d['day_off']) . '</td>';
-        }
-        $ribRow .= '</tr>';
-    }
-
-    $body = '';
-    foreach ($slots as $slot) {
-        $cells = '';
-        $any   = false;
-        foreach ($days as $d) {
-            $block = null;
-            foreach ($d['blocks'] as $b) {
-                if ($b['start'] === $slot) {
-                    $block = $b;
-                }
-            }
-            $cls = trim(($d['is_today'] ? 'is-today ' : '')
-                . ($block && $block['status'] === 'now' ? 'is-now' : ''));
-            $cells .= '<td' . ($cls ? ' class="' . $cls . '"' : '') . '>'
-                . ($block ? tt_reg_cell($block) : '') . '</td>';
-            $any = $any || $block !== null;
-        }
-        if ($any) {
-            $body .= '<tr><td class="t">' . h($slot) . '</td>' . $cells . '</tr>';
-        }
-    }
-
-    $foot = '<tr><td class="t">done</td>';
-    foreach ($days as $d) {
-        $judged = array_filter($d['blocks'], static fn($b) => $b['status'] !== 'n/a');
-        $done   = count(array_filter($judged, static fn($b) => $b['status'] === 'done'));
-        $foot  .= '<td' . ($d['is_today'] ? ' class="is-today"' : '') . '>' . $done . '/'
-            . count($judged) . '</td>';
-    }
-    $foot .= '</tr>';
-
-    $toggle = '';
-    if ($hasToday) {
-        $toggle = $showWholeWeek
-            ? '<p class="reg-toggle"><a href="?design=c">Show today only on a phone</a></p>'
-            : '<p class="reg-toggle"><a href="?design=c&amp;week=1">Show the whole week on a phone</a></p>';
-    }
-
-    return '<div class="regwrap"><table class="reg' . ($oneDay ? ' oneday' : '') . '">'
-        . '<thead>' . $head . '</thead><tbody>' . $ribRow . $body . '</tbody>'
-        . '<tfoot>' . $foot . '</tfoot></table></div>' . $toggle;
-}
-
-/** One register cell: the block, small, and its mark. */
-function tt_reg_cell(array $b): string
-{
-    if ($b['status'] === 'n/a') {
-        return '<span class="cell s-break"><span class="cl">' . h($b['label']) . '</span></span>';
-    }
-    $b['accent'] = tt_accent($b['subjects']);
-    $href = null;
-    foreach ($b['evidence'] as $ev) {
-        $href = tt_evidence_href($ev, $b['subject']);
-    }
-    $tag   = $href ? 'a' : 'span';
-    $attrs = 'class="cell s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
-    if ($href) {
-        $attrs .= ' href="' . h($href) . '"';
-    }
-    if ($b['status'] === 'excused' && $b['reason']) {
-        $attrs .= ' title="' . h('Excused: ' . $b['reason']) . '"';
-    }
-    return "<$tag $attrs><span class=\"cl\">" . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
+    return $out . '</div></details>';
 }
 
 /** '7 Sep', for a column head. */
@@ -851,9 +580,9 @@ function tt_short_date(string $date): string
 function render_timetable_section(
     Store $store,
     string $dateInWeek,
-    string $design,
     bool $isThisWeek,
-    array $query = []
+    bool $isParent = false,
+    string $selfPath = '/'
 ): string
 {
     $version = $store->timetableVersionOn($dateInWeek);
@@ -864,22 +593,18 @@ function render_timetable_section(
     $now = tt_now();
 
     $names = tt_subject_names($store);
+    $ctl   = $isParent
+        ? ['csrf' => parent_csrf($store), 'next' => $selfPath]
+        : null;
     $body  = '<section class="tt" aria-label="Weekly timetable">';
 
     // Saturday and Sunday have no blocks, so say what is next instead of
     // rendering an empty board.
-    if ($design !== 'b' && $isThisWeek
-        && $w['days'][(int) $now->format('N') - 1]['blocks'] === []) {
+    if ($isThisWeek && $w['days'][(int) $now->format('N') - 1]['blocks'] === []) {
         $body .= '<p class="tt-quiet">No blocks today — <b>Monday 09:00</b> next.</p>';
     }
 
-    // Designs B and C land next; until then the switch resolves to A, so
-    // ?design= is already live and the stored setting already means something.
-    $body .= match ($design) {
-        'b'     => tt_design_b($w, $names, $isThisWeek),
-        'c'     => tt_design_c($w, $names, !empty($query['week'])),
-        default => tt_design_a($w, $names),
-    };
+    $body .= tt_design_a($w, $names, $ctl);
 
     $body .= tt_total_line($w, $names) . tt_legend();
     if ($isThisWeek) {
@@ -889,7 +614,7 @@ function render_timetable_section(
     }
     // Enhancement only: without it the strip simply starts on Monday, which
     // is correct, just not where she is.
-    if ($isThisWeek && $design === 'a') {
+    if ($isThisWeek) {
         $body .= '<script>(function(){var s=document.currentScript.previousElementSibling;'
             . 'while(s&&!s.classList.contains("wk"))s=s.previousElementSibling;'
             . 'if(!s)return;var t=s.querySelector(".wkcol.is-today");'
@@ -913,7 +638,7 @@ function tt_stamp(?string $monday, bool $isThisWeek): string
 }
 
 /** /week/{iso} — the same component, for a week that is not this one. */
-function render_week_page(Store $store, string $iso, array $query): string
+function render_week_page(Store $store, string $iso, bool $isParent = false): string
 {
     $monday = tt_week_monday($iso);
     if ($monday === null) {
@@ -923,7 +648,7 @@ function render_week_page(Store $store, string $iso, array $query): string
     }
     $isThisWeek = $monday === tt_monday(tt_today());
     $section    = render_timetable_section(
-        $store, $monday, tt_design($store, $query), $isThisWeek, $query
+        $store, $monday, $isThisWeek, $isParent, '/week/' . rawurlencode($iso)
     );
     if ($section === '') {
         $section = '<p><small>No timetable was in force that week.</small></p>';
@@ -939,14 +664,100 @@ function render_week_page(Store $store, string $iso, array $query): string
     );
 }
 
-function render_index(Store $store, array $query = []): string
+/**
+ * The one line that says whether the controls are on. Signed out it is a quiet
+ * link; nobody but the parent has any use for it.
+ */
+function tt_parent_line(Store $store, bool $isParent, string $selfPath): string
+{
+    if (!$isParent) {
+        return '<p class="tt-signin"><small><a href="/login?next=' . h(rawurlencode($selfPath))
+            . '">Sign in to edit</a></small></p>';
+    }
+    return '<form class="tt-signin" method="post" action="/logout">'
+        . '<small>Signed in as Dad · <button type="submit">sign out</button></small></form>';
+}
+
+/** The sign-in page. Deliberately plain: it is a door, not a feature. */
+function render_login(Store $store, string $password, mixed $next, bool $failed): string
+{
+    $n    = h(parent_safe_next($next));
+    $note = $failed
+        ? '<p class="flag">That is not the password. Try again.</p>'
+        : '<p><small>The board is readable by anyone with the link. Signing in adds the '
+          . 'controls that write to the record — marking a day off, or saying a block '
+          . 'happened when the work was never logged.</small></p>';
+    return dash_shell('Sign in',
+        '<header><div><p class="kicker">Study tracker</p><h1>Sign in</h1></div></header>'
+        . $note
+        . '<form method="post" action="/login" class="filters" style="margin-top:1rem">'
+        . '<input type="hidden" name="next" value="' . $n . '">'
+        . '<label>Password<input type="password" name="password" autocomplete="current-password" '
+        . 'autofocus style="min-width:18rem"></label>'
+        . '<button type="submit">Sign in</button></form>'
+        . '<p style="margin-top:1.5rem"><a href="/">Back to the board</a></p>');
+}
+
+/**
+ * The controls the parent sees on the board, and nobody else does.
+ *
+ * They are plain forms. No JavaScript is involved in changing the record —
+ * a POST, a write, a redirect — so nothing here can half-happen.
+ */
+function tt_day_control(array $day, string $csrf, string $next): string
+{
+    $off = $day['day_off'] ?? null;
+    if ($off && $off['status'] !== 'declined') {
+        return '<form class="tt-ctl" method="post" action="/tt/day">'
+            . '<input type="hidden" name="csrf" value="' . h($csrf) . '">'
+            . '<input type="hidden" name="date" value="' . h($day['date']) . '">'
+            . '<input type="hidden" name="next" value="' . h($next) . '">'
+            . '<input type="hidden" name="action" value="clear">'
+            . '<button type="submit" title="Undo the day off">not off</button></form>';
+    }
+    return '<details class="tt-ctl-menu"><summary title="Mark this day off">off</summary>'
+        . '<form method="post" action="/tt/day">'
+        . '<input type="hidden" name="csrf" value="' . h($csrf) . '">'
+        . '<input type="hidden" name="date" value="' . h($day['date']) . '">'
+        . '<input type="hidden" name="next" value="' . h($next) . '">'
+        . '<input type="text" name="reason" maxlength="120" placeholder="reason, optional">'
+        . '<button type="submit">Mark the day off</button></form></details>';
+}
+
+/**
+ * The per-block menu, hung off the status mark. Only on blocks the parent can
+ * actually say something about — a break has nothing to say, and a block with
+ * real evidence behind it is already answered.
+ */
+function tt_block_control(array $b, string $date, string $csrf, string $next, string $mark): string
+{
+    $hidden = '<input type="hidden" name="csrf" value="' . h($csrf) . '">'
+        . '<input type="hidden" name="date" value="' . h($date) . '">'
+        . '<input type="hidden" name="block_key" value="' . (int) $b['block_key'] . '">'
+        . '<input type="hidden" name="next" value="' . h($next) . '">';
+
+    $buttons = '<button type="submit" name="action" value="done">Done anyway</button>'
+        . '<button type="submit" name="action" value="skip">Skipped</button>';
+    if (in_array($b['status'], ['declared', 'excused'], true)) {
+        $buttons .= '<button type="submit" name="action" value="clear">Clear</button>';
+    }
+
+    return '<details class="blockctl"><summary title="' . h($b['label'] . ' — mark this block')
+        . '">' . $mark . '<span class="sr-only">Mark ' . h($b['label'] . ' on ' . $date)
+        . '</span></summary><div class="blockctl-body">'
+        . '<form method="post" action="/tt/block">' . $hidden
+        . '<input type="text" name="note" maxlength="120" placeholder="note, optional">'
+        . $buttons . '</form></div></details>';
+}
+
+function render_index(Store $store, bool $isParent = false): string
 {
     $subjects = $store->listSubjects();
     // The timetable goes above the subjects list: what she is in now is a more
     // urgent question than how far through a syllabus she is. It also takes
     // over the page heading, because that is what the page now leads with.
     $timetable = render_timetable_section(
-        $store, tt_today(), tt_design($store, $query), true, $query
+        $store, tt_today(), true, $isParent, '/'
     );
     $title = $timetable === '' ? 'Subjects' : 'This week';
     $stamp = '';
@@ -973,7 +784,7 @@ function render_index(Store $store, array $query = []): string
     return dash_shell(
         'Study trackers',
         '<header><div><p class="kicker">Study tracker</p><h1>' . h($title) . '</h1></div>'
-        . '<div>' . $stamp . '</div></header>' . $body
+        . '<div>' . $stamp . tt_parent_line($store, $isParent, '/') . '</div></header>' . $body
     );
 }
 
