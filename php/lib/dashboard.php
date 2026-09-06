@@ -25,7 +25,7 @@ body{margin:0;color:var(--ink);background-color:#fcfcf9;
                    linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px);
   background-size:24px 24px;
   font-family:Georgia,"Times New Roman",serif;line-height:1.5}
-.wrap{max-width:56rem;margin:0 auto;padding:2rem 1rem 4rem}
+.wrap{max-width:66rem;margin:0 auto;padding:2rem 1rem 4rem}
 .mono{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 header{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;justify-content:space-between;
   border-bottom:2px solid #292524;padding-bottom:1rem}
@@ -124,27 +124,27 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .tt{margin:1.5rem 0 0}
 .tt-head{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:baseline;justify-content:space-between}
 .tt-head h2{margin:0;font-size:1.15rem}
-.tt-stamp{font-size:.78rem;color:var(--muted);margin:0}
+.tt-stamp{font-size:.9rem;color:var(--muted);margin:0}
 .tt .mk{flex:none;display:block}
 .tt .markwrap{display:flex;flex-direction:column;align-items:center;gap:0;flex:none;line-height:1}
-.tt .shortcap{font-size:.56rem;font-weight:700;letter-spacing:.04em;color:#b45309;
+.tt .shortcap{font-size:.66rem;font-weight:700;letter-spacing:.04em;color:#b45309;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 .mk.pulse{animation:ttpulse 2.2s ease-in-out infinite;transform-origin:center}
 @keyframes ttpulse{0%,100%{opacity:1}50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){.mk.pulse{animation:none}}
-.tt-ribbon{display:block;font-size:.7rem;line-height:1.35;padding:.25rem .45rem;border-radius:5px;
+.tt-ribbon{display:block;font-size:.82rem;line-height:1.35;padding:.25rem .45rem;border-radius:5px;
   background:#f5f5f4;border:1px solid var(--line);color:#57534e;margin:0 0 .35rem}
 .tt-ribbon.req{background:transparent;border-style:dashed}
-.tt-ribbon b{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
+.tt-ribbon b{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
 .tt-quiet{background:var(--card);border:1px dashed var(--line);border-radius:10px;
   padding:.8rem 1rem;font-size:.9rem;color:#57534e;margin:.5rem 0 0}
 .tt-total{margin:.9rem 0 0;padding-top:.6rem;border-top:1px solid var(--line);
   font-size:.78rem;color:#57534e}
 .tt-total .sep{color:#a8a29e;padding:0 .25rem}
 .tt-total b{color:var(--ink)}
-.tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.7rem;color:var(--muted)}
+.tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.82rem;color:var(--muted)}
 .tt-legend span{display:flex;align-items:center;gap:.25rem}
-.tt-sub{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#374151;
+.tt-sub{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#374151;
   font-weight:700;margin:1.1rem 0 0}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -157,20 +157,20 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
   padding:.45rem .45rem .5rem;position:relative}
 .wkcol.is-today{border-color:#292524;box-shadow:0 1px 0 #292524,3px 4px 10px -6px rgba(28,25,23,.55)}
 .wkcol.is-past{background:#fdfdfc}
-.daytab{position:absolute;top:-.62rem;left:.5rem;font-size:.58rem;font-weight:700;letter-spacing:.14em;
+.daytab{position:absolute;top:-.66rem;left:.5rem;font-size:.68rem;font-weight:700;letter-spacing:.14em;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;color:#b91c1c;background:#fcfcf9;
   border:1.5px solid #dc2626;border-radius:4px;padding:0 .3rem;transform:rotate(-1.6deg)}
 .dhead{display:flex;align-items:baseline;justify-content:space-between;gap:.3rem;
   padding:.15rem .15rem .35rem;border-bottom:1px solid #ededea;margin-bottom:.15rem}
-.dhead .dn{font-weight:700;font-size:.82rem}
-.dhead .dd{font-size:.66rem;color:var(--muted)}
+.dhead .dn{font-weight:700;font-size:.98rem}
+.dhead .dd{font-size:.78rem;color:var(--muted)}
 .blk{display:flex;align-items:center;gap:.4rem;padding:.28rem .3rem .28rem .45rem;
   border-left:3px solid var(--acc,#d6d3d1);border-radius:0 4px 4px 0;margin:.14rem 0;
   text-decoration:none;color:inherit}
-.blk .bt{font-size:.62rem;color:var(--muted);flex:none;width:2.15rem;
+.blk .bt{font-size:.76rem;color:var(--muted);flex:none;width:2.6rem;
   font-variant-numeric:tabular-nums}
-.blk .bl{flex:1;min-width:0;font-size:.72rem;line-height:1.22;overflow:hidden;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.blk .bl{flex:1;min-width:0;font-size:.88rem;line-height:1.25;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
 .blk.s-missed{background:rgba(220,38,38,.055)}
 .blk.s-now{background:rgba(124,58,237,.07);box-shadow:inset 0 0 0 1px rgba(124,58,237,.28);
   border-radius:4px}
@@ -179,11 +179,16 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .blk.s-upcoming,.blk.s-pending{opacity:.66}
 a.blk:hover{background:#faf9f5}
 .brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
-.tt-extras{margin:.3rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
-  font-size:.66rem;color:#57534e}
-.tt-extras b{display:block;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
+.tt-extras{margin:.35rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
+  font-size:.78rem;color:#57534e}
+.tt-extras>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.3rem;
   color:var(--muted)}
-.tt-extras div{display:flex;gap:.3rem;align-items:center;margin-top:.15rem}
+.tt-extras>summary::-webkit-details-marker{display:none}
+.tt-extras>summary:hover{color:var(--ink)}
+.tt-extras>summary:focus-visible{outline:2px solid #7c3aed;outline-offset:2px;border-radius:4px}
+.tt-extras>summary::after{content:"▸";margin-left:auto;font-size:.7em;color:var(--muted)}
+.tt-extras[open]>summary::after{content:"▾"}
+.tt-extras-list div{margin-top:.25rem;line-height:1.25}
 .tt-extras a{color:inherit}
 /* Phone first in behaviour, if not in source order: below 40rem the five
    columns become one strip, and the page scrolls it to today. */
@@ -197,17 +202,17 @@ a.blk:hover{background:#faf9f5}
    time is visible without a line of JavaScript. */
 .nowcard{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:1rem 1.1rem .8rem;border-left:5px solid var(--acc,#78716c);margin-top:.5rem}
-.nowcard .eye{font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;
+.nowcard .eye{font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;
   color:var(--acc,#78716c);margin:0 0 .3rem;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 .nowcard h3{margin:0;font-size:1.75rem;line-height:1.12}
-.nowcard .nnote{margin:.35rem 0 0;font-size:.85rem;color:#57534e}
-.nowcard .ends{margin:.55rem 0 .5rem;font-size:.8rem;color:#44403c}
+.nowcard .nnote{margin:.35rem 0 0;font-size:.95rem;color:#57534e}
+.nowcard .ends{margin:.55rem 0 .5rem;font-size:.92rem;color:#44403c}
 .tbar{height:9px;border-radius:999px;background:#eceae5;overflow:hidden}
 .tbar>i{display:block;height:100%;border-radius:999px;background:var(--acc,#78716c);
   animation:ttdrain linear forwards}
 @keyframes ttdrain{from{width:100%}to{width:0}}
 @media (prefers-reduced-motion:reduce){.tbar>i{animation:none;width:var(--left,50%)}}
-.nextline{margin:.5rem 0 0;font-size:.85rem;color:#57534e}
+.nextline{margin:.5rem 0 0;font-size:.95rem;color:#57534e}
 .nextline .mono{color:var(--ink)}
 .todaylist{background:var(--card);border:1px solid var(--line);border-radius:10px;
   overflow:hidden;margin-top:.4rem}
@@ -215,8 +220,8 @@ a.blk:hover{background:#faf9f5}
   border-bottom:1px solid #f0efec;border-left:3px solid var(--acc,#e7e5e4);
   text-decoration:none;color:inherit}
 .trow:last-child{border-bottom:0}
-.trow .tt-t{flex:none;width:2.7rem;font-size:.7rem;color:var(--muted)}
-.trow .tt-l{flex:1;min-width:0;font-size:.85rem}
+.trow .tt-t{flex:none;width:3.1rem;font-size:.82rem;color:var(--muted)}
+.trow .tt-l{flex:1;min-width:0;font-size:.97rem}
 .trow.s-done,.trow.s-excused{opacity:.62}
 .trow.s-excused .tt-l{text-decoration:line-through;text-decoration-color:#a8a29e}
 .trow.s-now{background:#fdfcf7;box-shadow:inset 0 0 0 1px rgba(124,58,237,.2)}
@@ -230,9 +235,9 @@ a.trow:hover{background:#faf9f5}
 .dotday>summary::-webkit-details-marker{display:none}
 .dotday>summary:focus-visible{outline:2px solid #7c3aed;outline-offset:-2px;border-radius:8px}
 .dotday.is-today{border-color:#292524}
-.dotday .dname{font-size:.78rem;width:5.4rem;flex:none}
+.dotday .dname{font-size:.88rem;width:6rem;flex:none}
 .dotday .marks{display:flex;flex-wrap:wrap;gap:.2rem;flex:1}
-.dotday .dcount{font-size:.68rem;color:var(--muted);flex:none}
+.dotday .dcount{font-size:.8rem;color:var(--muted);flex:none}
 .dotday .inner{padding:.1rem .6rem .5rem;border-top:1px solid #f0efec}
 
 /* Design C — the register. Rows are time slots, columns are days. Densest of
@@ -240,12 +245,12 @@ a.trow:hover{background:#faf9f5}
    column of crosses at one slot says that slot is being avoided. */
 .regwrap{overflow-x:auto;margin-top:.5rem}
 .reg{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
-  border-radius:10px;overflow:hidden;font-size:.75rem;table-layout:fixed;margin-top:0}
+  border-radius:10px;overflow:hidden;font-size:.86rem;table-layout:fixed;margin-top:0}
 .reg th,.reg td{border-bottom:1px solid #f0efec;border-right:1px solid #f0efec;
   padding:.22rem .3rem;vertical-align:top;text-align:left}
-.reg th.t,.reg td.t{width:3.4rem;font-size:.66rem;color:var(--muted);text-align:right;
+.reg th.t,.reg td.t{width:3.9rem;font-size:.78rem;color:var(--muted);text-align:right;
   background:#fbfbf8;font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
-.reg thead th{font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+.reg thead th{font-size:.76rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
   color:#44403c;border-bottom:1.5px solid var(--line);padding:.35rem .3rem}
 .reg thead th.is-today{color:#b91c1c;border-bottom:2px solid #dc2626;background:#fefce8}
 .reg td.is-today{background:#fefce8}
@@ -253,13 +258,13 @@ a.trow:hover{background:#faf9f5}
 .reg .cell{display:flex;gap:.28rem;align-items:flex-start;
   border-left:2.5px solid var(--acc,transparent);padding-left:.28rem;
   text-decoration:none;color:inherit}
-.reg .cell .cl{flex:1;min-width:0;line-height:1.2;font-size:.68rem}
+.reg .cell .cl{flex:1;min-width:0;line-height:1.25;font-size:.8rem}
 .reg .cell.s-missed{background:rgba(220,38,38,.06)}
 .reg .cell.s-excused .cl{text-decoration:line-through;text-decoration-color:#a8a29e;
   color:var(--muted)}
 .reg .cell.s-upcoming,.reg .cell.s-pending{opacity:.6}
 .reg .cell.s-break{border-left-color:#e7e5e4;color:#a8a29e;font-style:italic}
-.reg tfoot td{font-size:.68rem;font-weight:700;border-top:1.5px solid var(--line);
+.reg tfoot td{font-size:.8rem;font-weight:700;border-top:1.5px solid var(--line);
   border-bottom:0;color:#44403c;padding:.35rem .3rem;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 .reg tfoot td.is-today{background:#fefce8}
@@ -267,7 +272,7 @@ a.trow:hover{background:#faf9f5}
 .reg .ribcell .tt-ribbon{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
 /* The collapse is a media query, so the link that undoes it only means
    anything at the width where it applies. */
-.reg-toggle{display:none;font-size:.78rem;margin:.5rem 0 0}
+.reg-toggle{display:none;font-size:.88rem;margin:.5rem 0 0}
 @media (max-width:40rem){.reg-toggle{display:block}}
 /* On a phone the register collapses to today's column; the toggle is a link,
    not a script, so it works with JavaScript off. */
@@ -361,8 +366,10 @@ function tt_design(Store $store, array $query): string
 function tt_mark(array $b): string
 {
     $name = $b['label'] . ' ' . $b['start'];
+    // 19px, not 16: the mark carries the status, so it has to be as legible as
+    // the label beside it — including from across the room.
     $svg  = static function (string $inner, string $label, string $cls = ''): string {
-        return '<svg class="mk' . ($cls ? ' ' . $cls : '') . '" width="16" height="16" '
+        return '<svg class="mk' . ($cls ? ' ' . $cls : '') . '" width="19" height="19" '
             . 'viewBox="0 0 18 18" role="img" aria-label="' . h($label) . '">' . $inner . '</svg>';
     };
     $wrap = static fn(string $inner): string => '<span class="markwrap">' . $inner . '</span>';
@@ -421,7 +428,7 @@ function tt_mark(array $b): string
 
 function tt_extra_mark(): string
 {
-    return '<svg class="mk" width="16" height="16" viewBox="0 0 18 18" role="img" '
+    return '<svg class="mk" width="19" height="19" viewBox="0 0 18 18" role="img" '
         . 'aria-label="extra work, outside the timetable">'
         . '<circle cx="9" cy="9" r="6.3" fill="none" stroke="#059669" stroke-width="1.4"/>'
         . '<path d="M9 5.6 9 12.4M5.6 9 12.4 9" stroke="#059669" stroke-width="1.6" '
@@ -542,17 +549,7 @@ function tt_design_a(array $w, array $names): string
                 . '<span class="bl">' . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
         }
 
-        if ($day['extras']) {
-            $out .= '<div class="tt-extras"><b>extra</b>';
-            foreach ($day['extras'] as $e) {
-                $href = tt_evidence_href($e, $e['subject']);
-                $text = h(($names[$e['subject']] ?? $e['subject']) . ' — ' . $e['label']);
-                $out .= '<div>' . tt_extra_mark()
-                    . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
-            }
-            $out .= '</div>';
-        }
-        $out .= '</div>';
+        $out .= tt_extras_block($day['extras'], $names) . '</div>';
     }
     return $out . '</div>';
 }
@@ -634,7 +631,7 @@ function tt_design_b(array $w, array $names, bool $isThisWeek): string
                 $out .= tt_row($b, 'trow', 'tt-t', 'tt-l');
             }
             $out .= '</div>';
-            $out .= tt_extras_block($today['extras'], $names, 'extra today');
+            $out .= tt_extras_block($today['extras'], $names);
         }
     } elseif ($isThisWeek) {
         $out .= '<p class="tt-quiet">No blocks today — <b>Monday 09:00</b> next.</p>';
@@ -670,7 +667,7 @@ function tt_design_b(array $w, array $names, bool $isThisWeek): string
         foreach ($judged as $b) {
             $out .= tt_row($b, 'trow', 'tt-t', 'tt-l');
         }
-        $out .= tt_extras_block($day['extras'], $names, 'extra') . '</div></details>';
+        $out .= tt_extras_block($day['extras'], $names) . '</div></details>';
     }
     return $out . '</div>';
 }
@@ -695,20 +692,28 @@ function tt_row(array $b, string $cls, string $timeCls, string $labelCls): strin
         . "<span class=\"$labelCls\">" . h($b['label']) . '</span>' . tt_mark($b) . "</$tag>";
 }
 
-/** The extra work of a day — logged, real, and outside the timetable. */
-function tt_extras_block(array $extras, array $names, string $label): string
+/**
+ * The extra work of a day — logged, real, and outside the timetable.
+ *
+ * Collapsed by default. A busy day can carry several of these, and expanded
+ * they made one column two or three times the height of its neighbours, which
+ * wrecks the comparison across the week that the board exists for. The count
+ * stays visible, so nothing is hidden — only folded.
+ */
+function tt_extras_block(array $extras, array $names): string
 {
     if (!$extras) {
         return '';
     }
-    $out = '<div class="tt-extras"><b>' . h($label) . '</b>';
+    $n   = count($extras);
+    $out = '<details class="tt-extras"><summary>' . tt_extra_mark()
+        . '<span>' . $n . ' extra</span></summary><div class="tt-extras-list">';
     foreach ($extras as $e) {
         $href = tt_evidence_href($e, $e['subject']);
         $text = h(($names[$e['subject']] ?? $e['subject']) . ' — ' . $e['label']);
-        $out .= '<div>' . tt_extra_mark()
-            . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
+        $out .= '<div>' . ($href ? '<a href="' . h($href) . '">' . $text . '</a>' : $text) . '</div>';
     }
-    return $out . '</div>';
+    return $out . '</div></details>';
 }
 
 /**

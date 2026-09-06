@@ -634,8 +634,12 @@ contains "block 2 stays missed: a teaching session is not retrieval practice" \
   "$body" "#2 Retrieval warm-up (mixed)"
 contains "block 5 is missed — nothing was logged for it" "$body" "#5 English Literature"
 
-# A retrieval_ practice run is the one thing that does satisfy block 2.
-body="$(call tracker_log_practice '{"subject":"maths","runs":[{"source":"maths_session","label":"Retrieval warm-up","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+# A practice run on the same day that is NOT retrieval. It must not satisfy the
+# retrieval block, and having nowhere to bind it becomes the day's extra work.
+# The result of the write is checked: an unasserted write that quietly failed
+# would make both of the checks below pass for the wrong reason.
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-tt-1","source":"maths_session","label":"Ad-hoc maths drill","played_at":"2024-09-09T09:35:00Z","attempted":10,"correct":8,"incorrect":2,"duration_seconds":840}]}')"
+contains "a practice run outside any block is stored" "$body" "1 stored"
 body="$(call tracker_today '{"date":"2024-09-09"}')"
 contains "a non-retrieval practice source still does not satisfy the retrieval block" \
   "$body" "#2 Retrieval warm-up (mixed)"
@@ -756,6 +760,13 @@ if [ "$REMOTE" = 0 ]; then
   contains "a break is a rule, not a chip" "$week" 'class="brk"'
   contains "the done block links to the work that made it done" "$week" '/session/'
   contains "and the week totals are spelled out" "$week" "blocks so far"
+
+  # Extra work is folded away, not dropped: a day with several extras used to
+  # make its column two or three times the height of its neighbours, which
+  # wrecks the across-the-week comparison the board exists for.
+  contains "extra work is a disclosure, not a list" "$week" '<details class="tt-extras">'
+  contains "and it says how much there was" "$week" "1 extra</span></summary>"
+  lacks "and it starts closed" "$week" '<details class="tt-extras" open>'
 
   # A missed block must not offer a way to log work: the page is public and
   # unauthenticated, so there is nothing safe for it to link to.
