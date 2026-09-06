@@ -27,22 +27,22 @@ A practical consequence, worth stating once: a note is never edited. Versions ar
 latest is shown, the earlier ones stay readable. A record that can lose entries is not one — the
 same rule that governs sessions and practice runs.
 
-## 2. Schema step 5
+## 2. Schema step 6
 
 The ladder is in `php/lib/store.php`: `SCHEMA_VERSION`, `migrate()`, `migrateStep()`, each step in
-its own `BEGIN IMMEDIATE` so two requests arriving together cannot both apply it. Step 5 adds one
+its own `BEGIN IMMEDIATE` so two requests arriving together cannot both apply it. Step 6 adds one
 table and nothing else — the week is judged live, so no existing row gains a column.
 
 Bump the constant:
 
 ```php
-private const SCHEMA_VERSION = 5;
+private const SCHEMA_VERSION = 6;
 ```
 
 Add the step, in the ladder's style:
 
 ```php
-if ($v === 5) {
+if ($v === 6) {
     // The weekly review: the one thing on these pages that a person or the
     // Friday routine writes rather than the tracker computing it. Versions are
     // appended and never edited, so "what did we think on the Friday" survives
@@ -686,7 +686,7 @@ against a second server started with it set) rather than expecting a mid-run cha
 - `/weeks` marks weeks before the first timetable version "no timetable yet" but still shows their sessions.
 - `/week/2026-W99` falls back to `/weeks` with a 404.
 - all 33 tool descriptions carry a `USE WHEN` trigger (the count check, 30 → 33).
-- re-opening a populated database is idempotent at `schema_version` 5.
+- re-opening a populated database is idempotent at `schema_version` 6.
 - the migration applies to an empty database (`5`).
 
 **The golden snapshot of the register.** `deploy/practice-test.php` already owns the golden

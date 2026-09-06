@@ -121,10 +121,15 @@ register_shutdown_function(static function () use ($dbPath) {
 echo "== schema ==\n";
 $counts = $store->counts();
 check('the practice tables exist and are counted by /healthz', isset($counts['practice_run']), true);
-check('a fresh database reaches the current schema version', $store->meta('schema_version'), '5');
+check('a fresh database reaches the current schema version', $store->meta('schema_version'), '6');
 $sources = array_column($store->listPracticeSources(), 'key');
-check('the source registry is seeded', $sources,
-    ['maths_session', 'spanish_chat', 'spanish_flashcards', 'spanish_gallery']);
+// Derived from the seed rather than restated here, so adding a source is one
+// edit rather than two that can disagree.
+$expected = array_column(PRACTICE_SOURCE_SEED, 'key');
+sort($expected);
+check('the source registry is seeded', $sources, $expected);
+check('including the retrieval sources the retrieval blocks are judged on',
+    in_array('retrieval_mixed', $sources, true) && in_array('retrieval_quotes', $sources, true), true);
 
 // Two subjects, seeded exactly as tracker_create_subject would.
 call($store, 'tracker_create_subject', [

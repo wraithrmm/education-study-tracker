@@ -644,6 +644,17 @@ body="$(call tracker_today '{"date":"2024-09-09"}')"
 contains "a non-retrieval practice source still does not satisfy the retrieval block" \
   "$body" "#2 Retrieval warm-up (mixed)"
 
+# ...and the source that does. A `retrieval` block is judged on the source
+# name so that an hour of new teaching can never be counted as spaced
+# retrieval; until retrieval_mixed was registered there was no source that
+# could satisfy one, and every retrieval block in the week was unreachable.
+body="$(call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-retr-1","source":"retrieval_mixed","label":"Retrieval warm-up — mixed","played_at":"2024-09-09T09:05:00Z","attempted":10,"correct":7,"incorrect":3,"duration_seconds":840,"block_key":2}]}')"
+contains "a retrieval warm-up can be logged as retrieval" "$body" "1 stored"
+body="$(call tracker_today '{"date":"2024-09-09"}')"
+lacks "and it satisfies the retrieval block" "$body" "#2 Retrieval warm-up (mixed)"
+contains "the retrieval source is registered against no single subject" \
+  "$(call tracker_practice_stats '{"subject":"english-literature","days":3650}')" "english-literature"
+
 # The mismatch that the explicit link exists to prevent.
 body="$(call tracker_log_session '{"subject":"spanish","date":"2024-09-09","summary":"Spanish vocabulary revision, spaced repetition set","block_key":3}')"
 contains "a block_key whose block does not run that subject is refused" "$body" "cannot fulfil it"
@@ -723,7 +734,7 @@ call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-we
 body="$(call tracker_week_report '{"week":"2024-W37"}')"
 contains "tracker_week_report opens on the week and its dates" "$body" \
   "Week 2024-W37 — 9 September 2024 to 13 September 2024"
-contains "the headline counts study blocks only" "$body" "Study blocks 1 of 21 done"
+contains "the headline counts study blocks only" "$body" "Study blocks 2 of 21 done"
 contains "with movement counted separately" "$body" "movement ticked 1 of 5"
 contains "and the review block separately again" "$body" "review block not ticked"
 contains "the register speaks the one block format" "$body" "#3   09:45-11:00  Maths — new topic"
@@ -732,11 +743,11 @@ contains "every missed block is named with day, time, label and what was absent"
 contains "and a timed block says it was an attempt that was missing" "$body" \
   "Tue 13:00 Timed handwritten practice — no attempt logged"
 contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
-contains "hours are read against the timetable's planned hours" "$body" "maths 1.68/4.83"
+contains "hours are read against the timetable's planned hours" "$body" "maths 1.93/4.83"
 contains "and totalled against the same figure" "$body" "of 13.33 planned hours"
 lacks "never against the skills' split" "$body" "/5.00"
 contains "the pending day off is put to the parent, not decided" "$body" "do not decide it"
-contains "each subject reports its practice" "$body" "practice: 2 runs, 30 attempted"
+contains "each subject reports its practice" "$body" "practice: 3 runs, 40 attempted"
 contains "its coverage" "$body" "coverage 0% at the end of the week"
 contains "and the top of its review queue" "$body" "next in the queue:"
 contains "movement is reported per subject" "$body" "no topic movement this week"
@@ -749,7 +760,7 @@ sections='{"held":"Eighteen of twenty-one study blocks held, or so this note cla
 body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
 contains "tracker_save_weekly_review writes version 1" "$body" "Saved version 1 (draft) for 2024-W37"
 contains "the snapshot is the server's, whatever the note says" "$body" \
-  "Snapshot: study blocks 1 of 21 done"
+  "Snapshot: study blocks 2 of 21 done"
 contains "and it points at the page" "$body" "Read it at /week/2024-W37"
 
 body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
@@ -806,7 +817,7 @@ contains "the latest version is the one returned" "$body" "version 2 of 2 · rev
 contains "excusing a block after the save makes the drift line appear" "$body" \
   "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
 contains "and the drift line quotes the counts the snapshot was written against" "$body" \
-  "(20 missed · 0 excused)"
+  "(19 missed · 0 excused)"
 contains "and the decisions it recorded are read back" "$body" "excusal 2024-09-11#20: excused"
 
 body="$(call tracker_get_weekly_review '{"week":"2024-W37","version":1}')"
@@ -827,21 +838,28 @@ if [ "$REMOTE" = 0 ]; then
   # The ladder has now run against a database in production's shape — subjects,
   # sessions, attempts, practice runs and a timetable. Re-opening it must not
   # run any step a second time.
-  after="$(SMOKE_DB="$WORK/tracker-shared/data/tracker.db" php -r '
-    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
-    $a = new Store(getenv("SMOKE_DB")); $b = new Store(getenv("SMOKE_DB"));
-    $n = $b->db->query("SELECT count(*) c FROM timetable_versions")->fetch()["c"];
-    echo $b->meta("schema_version") . ":" . $n;' 2>/dev/null)"
-  check "re-opening a populated database is idempotent" "$after" "5:1"
-
-  # And against an empty one.
+  # The expected version comes from the code, not from a number written here:
+  # this check has gone stale twice already on a migration it was meant to
+  # be watching.
   fresh="$(php -r '
     define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
     $p = tempnam(sys_get_temp_dir(), "sm") . ".db";
     $a = new Store($p); $b = new Store($p);
     echo $b->meta("schema_version");
     @unlink($p);' 2>/dev/null)"
-  check "the migration applies to an empty database" "$fresh" "5"
+  if [ -n "$fresh" ] && [ "$fresh" -gt 0 ] 2>/dev/null; then
+    pass "the migration applies to an empty database, twice over (version $fresh)"
+  else
+    fail "an empty database did not reach a schema version (got '$fresh')"
+  fi
+
+  after="$(SMOKE_DB="$WORK/tracker-shared/data/tracker.db" php -r '
+    define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    $a = new Store(getenv("SMOKE_DB")); $b = new Store(getenv("SMOKE_DB"));
+    $n = $b->db->query("SELECT count(*) c FROM timetable_versions")->fetch()["c"];
+    echo $b->meta("schema_version") . ":" . $n;' 2>/dev/null)"
+  check "re-opening a populated database is idempotent, and reaches the same version" \
+    "$after" "$fresh:1"
 fi
 
 if [ "$REMOTE" = 0 ]; then
@@ -909,8 +927,8 @@ if [ "$REMOTE" = 0 ]; then
   contains "with movement counted separately" "$week" "movement ticked 1 of 5"
   contains "and the review block separately again" "$week" "review block not ticked"
   contains "the segmented bar says the counts in words, not in colour" "$week" \
-    'aria-label="21 study blocks: 1 done, 19 missed, 1 excused"'
-  contains "hours are read against the timetable's planned hours" "$week" "1.68 / 4.83"
+    'aria-label="21 study blocks: 2 done, 18 missed, 1 excused"'
+  contains "hours are read against the timetable's planned hours" "$week" "1.93 / 4.83"
   contains "and the bar says which side of the plan it is on, in words" "$week" \
     "under the timetable"
 
@@ -939,7 +957,7 @@ if [ "$REMOTE" = 0 ]; then
   contains "excusing a block after the save puts the drift line on the page" "$week" \
     "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
   contains "and the drift line quotes the counts the note was written against" "$week" \
-    "(20 missed · 0 excused)"
+    "(19 missed · 0 excused)"
 
   v1="$("${CURL[@]}" "$BASE/week/2024-W37?v=1")"
   contains "?v=1 shows the first version" "$v1" "Eighteen of twenty-one study blocks held"
@@ -1083,7 +1101,7 @@ if [ "$REMOTE" = 0 ]; then
   lacks "and it is not in the MISSED list" "$report" \
     '<b>English Literature — set text</b> — no session logged that day'
   contains "and the bar counts it apart from both done and missed, in words" "$report" \
-    'aria-label="21 study blocks: 1 done, 1 marked by hand, 18 missed, 1 excused"'
+    'aria-label="21 study blocks: 2 done, 1 marked by hand, 17 missed, 1 excused"'
 fi
 
 echo

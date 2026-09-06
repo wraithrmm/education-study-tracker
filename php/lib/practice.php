@@ -36,6 +36,19 @@ const PRACTICE_SOURCE_SEED = [
      'metrics_schema' => []],
     ['key' => 'maths_session',      'display_name' => 'Tutoring session',  'subject_slug' => 'maths',
      'metrics_schema' => ['hints_used' => 'number', 'topics_covered' => 'number']],
+    // The retrieval blocks are judged on the source name: judgeWeek accepts a
+    // practice run for a `retrieval` block only when its source starts
+    // `retrieval_`, so that an hour of new teaching can never be mistaken for
+    // spaced retrieval. Until these existed there was no registered source
+    // that could satisfy one, and the five retrieval blocks in the week were
+    // unreachable — red however well she did them.
+    //
+    // Null subject: the mixed warm-up runs across four subjects, so it must
+    // not be tied to any one of them.
+    ['key' => 'retrieval_mixed',    'display_name' => 'Retrieval warm-up',  'subject_slug' => null,
+     'metrics_schema' => []],
+    ['key' => 'retrieval_quotes',   'display_name' => 'Quotation retrieval', 'subject_slug' => 'english-literature',
+     'metrics_schema' => []],
 ];
 
 /**

@@ -449,7 +449,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 5;
+    private const SCHEMA_VERSION = 6;
 
     private function migrate(): void
     {
@@ -599,6 +599,18 @@ final class Store
         }
 
         if ($v === 5) {
+            // Step 3 seeded the source registry and has already run, so a
+            // source added to the seed afterwards reaches an existing database
+            // only if something re-runs the seed. upsertPracticeSource is an
+            // upsert, so re-running it over the whole list is idempotent and
+            // also repairs a row someone has edited by hand.
+            foreach (PRACTICE_SOURCE_SEED as $source) {
+                $this->upsertPracticeSource($source);
+            }
+            return;
+        }
+
+        if ($v === 6) {
             // The weekly review: the one thing on these pages that a person or
             // the Friday routine writes rather than the tracker computing it.
             // Versions are appended and never edited, so "what did we think on
