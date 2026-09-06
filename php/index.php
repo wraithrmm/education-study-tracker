@@ -294,7 +294,14 @@ if (preg_match('#^/api/subjects/([^/]+)$#', $path, $m)) {
 
 if ($path === '/') {
     $dashboardGuard();
-    send_html(render_index($store));
+    send_html(render_index($store, $_GET));
+}
+
+// Any week, past or present, on the same component as the index page. The
+// ISO week is the identifier because that is what the review talks in.
+if (preg_match('#^/week/(\d{4}-W\d{2})$#', $path, $m)) {
+    $dashboardGuard();
+    send_html(render_week_page($store, $m[1], $_GET));
 }
 
 if (preg_match('#^/s/([^/]+)$#', $path, $m)) {

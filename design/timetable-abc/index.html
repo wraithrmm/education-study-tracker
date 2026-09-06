@@ -1,0 +1,957 @@
+<title>Weekly Timetable, Three Ways</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* ---- deck chrome tokens (match design/practice-ab) --------------------- */
+:root{
+  --ground:#f2f1ec; --panel:#fbfaf6; --edge:#dcd8cd; --edge-soft:#e8e5db;
+  --ink:#221f1a; --ink-2:#514c42; --muted:#7d7768;
+  --violet:#7c3aed; --gold:#f5a623; --gold-lit:#ffd257; --red:#c0392b;
+  --shadow:0 1px 2px rgba(34,31,26,.06), 0 10px 26px -14px rgba(34,31,26,.35);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+    --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+    --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+  --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+  --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:16px/1.6 Fraunces,Georgia,"Times New Roman",serif;-webkit-font-smoothing:antialiased}
+.page{max-width:78rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3{text-wrap:balance;margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:4px}
+
+.mast{display:grid;gap:.9rem;padding-bottom:1.6rem;border-bottom:1px solid var(--edge)}
+.eyebrow{font:600 .68rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin:0}
+.mast h1{font-size:clamp(2rem,4.4vw,3rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.mast p.lede{margin:0;max-width:64ch;color:var(--ink-2);font-size:1.02rem}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-top:.4rem}
+.brief div{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .85rem}
+.brief b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.brief span{font-size:.9rem;color:var(--ink-2)}
+
+/* ---- sticky controls --------------------------------------------------- */
+.jump{position:sticky;top:0;z-index:30;display:grid;gap:.5rem;
+  padding:.65rem 0 .7rem;margin:0 0 .5rem;background:var(--ground);border-bottom:1px solid var(--edge-soft)}
+.jrow{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.jrow>span.lab{font:600 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-right:.3rem;min-width:5.4rem}
+.jump a,.jump button{text-decoration:none;font:inherit;font-size:.82rem;padding:.3rem .7rem;
+  border:1px solid var(--edge);border-radius:999px;background:var(--panel);color:inherit;cursor:pointer;
+  transition:background .15s,border-color .15s}
+.jump a:hover,.jump button:hover{background:var(--gold-lit);border-color:var(--gold);color:#221f1a}
+.jump button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+
+/* ---- variant block ----------------------------------------------------- */
+.variant{margin-top:3.2rem;scroll-margin-top:6.5rem}
+.vhead{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:baseline;margin-bottom:.2rem}
+.vtag{font:700 .8rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;
+  background:var(--ink);color:var(--ground);padding:.3rem .5rem;border-radius:5px}
+.vhead h2{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.vthesis{margin:.35rem 0 1.1rem;max-width:68ch;color:var(--ink-2)}
+.frames{display:grid;grid-template-columns:minmax(0,1fr) 25rem;gap:1rem;align-items:start}
+@media (max-width:64rem){.frames{grid-template-columns:1fr}}
+.frame{border:1px solid var(--edge);border-radius:14px;background:var(--panel);
+  box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;
+  border-bottom:1px solid var(--edge-soft);background:var(--panel)}
+.chrome i{width:9px;height:9px;border-radius:999px;background:var(--edge);display:block}
+.chrome code{margin-left:.4rem;font:400 .72rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.75rem;margin-top:1rem}
+.note{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .9rem}
+.note b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+.note p{margin:0;font-size:.88rem;color:var(--ink-2)}
+.note.why{border-left:3px solid #059669}
+.note.weak{border-left:3px solid var(--gold)}
+.note.cost{border-left:3px solid var(--violet)}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.86em}
+
+/* ---- verdict ----------------------------------------------------------- */
+.verdict{margin-top:3.4rem;scroll-margin-top:6.5rem}
+.cmp{width:100%;border-collapse:collapse;margin-top:.9rem;font-size:.9rem;background:var(--panel);
+  border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+.cmp th{text-align:left;font:600 .66rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);padding:.6rem .7rem;border-bottom:1px solid var(--edge)}
+.cmp td{padding:.6rem .7rem;border-bottom:1px solid var(--edge-soft);vertical-align:top;color:var(--ink-2)}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+.rec{margin-top:1rem;background:var(--panel);border:1px solid var(--edge);border-left:4px solid var(--violet);
+  border-radius:10px;padding:1rem 1.1rem}
+.rec p{margin:0 0 .6rem;color:var(--ink-2)}.rec p:last-child{margin:0}
+.rec b{color:var(--ink)}
+footer.deck{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--edge);
+  font-size:.8rem;color:var(--muted)}
+
+/* ======================================================================== *
+ *  THE MOCK — a faithful copy of the live exercise-book page               *
+ * ======================================================================== */
+.mock{color:#1c1917;background-color:#fcfcf9;
+  background-image:linear-gradient(rgba(96,140,200,.12) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px);
+  background-size:24px 24px;
+  font:16px/1.5 Georgia,"Times New Roman",serif;padding:1.5rem 1.3rem 1.8rem;
+  --em:#059669; --am:#b45309; --rd:#dc2626; --st:#78716c; --ln:#d6d3d1;}
+.mock.phone{padding:1rem .8rem 1.4rem;font-size:15px}
+.mock .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.mock header{display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;justify-content:space-between;
+  border-bottom:2px solid #292524;padding-bottom:.8rem}
+.mock header h1{font-size:1.6rem;margin:.1rem 0;font-family:Georgia,serif;font-weight:700}
+.mock.phone header h1{font-size:1.25rem}
+.mock .kicker{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:#78716c;margin:0}
+.mock .today-stamp{font-size:.78rem;color:#57534e}
+.mock small{color:#78716c}
+.mock .panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:#374151;
+  font-weight:700;margin:1.4rem 0 .5rem;font-family:Georgia,serif}
+.mock .subjects-below{margin-top:1.6rem;padding-top:.9rem;border-top:1px dashed var(--ln)}
+.mock .subjects-below .item{background:#fff;border:1px solid var(--ln);border-radius:10px;
+  padding:.55rem .8rem;margin-top:.4rem;display:flex;gap:.75rem;align-items:center;font-size:.88rem}
+.mock .subjects-below .item .grow{flex:1}
+.mk{flex:none;display:block}
+.mock .ribbon{display:block;font-size:.7rem;line-height:1.35;padding:.25rem .45rem;
+  border-radius:5px;background:#f5f5f4;border:1px solid var(--ln);color:#57534e;margin-bottom:.35rem}
+.mock .ribbon.req{background:transparent;border-style:dashed}
+.mock .ribbon b{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;margin-right:.3rem}
+.reg .ribcell .ribbon{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.mock .weekline{margin-top:.9rem;padding-top:.6rem;border-top:1px solid var(--ln);
+  font-size:.78rem;color:#57534e}
+.mock .weekline .sep{color:#a8a29e;padding:0 .25rem}
+.mock .weekline b{color:#1c1917}
+
+/* ---- A: week strip ----------------------------------------------------- */
+.wk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-top:.3rem;
+  align-items:start}
+.mock.phone .wk{display:flex;align-items:flex-start;overflow-x:auto;gap:.5rem;
+  padding:.7rem 0 .5rem;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch}
+.mock.phone .wkcol{flex:0 0 78%;scroll-snap-align:center}
+.wkcol{background:#fff;border:1px solid var(--ln);border-radius:9px;padding:.45rem .45rem .5rem;position:relative}
+.wkcol.is-today{border-color:#292524;box-shadow:0 1px 0 #292524, 3px 4px 10px -6px rgba(28,25,23,.55)}
+.wkcol.is-past{background:#fdfdfc}
+.daytab{position:absolute;top:-.62rem;left:.5rem;font:700 .58rem/1.5 "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.14em;color:#b91c1c;background:#fcfcf9;border:1.5px solid #dc2626;border-radius:4px;
+  padding:0 .3rem;transform:rotate(-1.6deg)}
+.dhead{display:flex;align-items:baseline;justify-content:space-between;gap:.3rem;
+  padding:.15rem .15rem .35rem;border-bottom:1px solid #ededea;margin-bottom:.15rem}
+.dhead .dn{font-weight:700;font-size:.82rem}
+.dhead .dd{font-size:.66rem;color:#78716c;font-family:"IBM Plex Mono",ui-monospace,monospace}
+.blk{display:flex;align-items:center;gap:.4rem;padding:.28rem .3rem .28rem .45rem;
+  border-left:3px solid var(--acc,#d6d3d1);border-radius:0 4px 4px 0;margin:.14rem 0;
+  text-decoration:none;color:inherit}
+.blk .bt{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.62rem;color:#78716c;
+  flex:none;width:2.15rem;font-variant-numeric:tabular-nums}
+.blk .bl{flex:1;min-width:0;font-size:.72rem;line-height:1.22;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.blk.s-missed{background:rgba(220,38,38,.055)}
+.blk.s-now{background:rgba(124,58,237,.07);box-shadow:inset 0 0 0 1px rgba(124,58,237,.28);border-radius:4px}
+.blk.s-done .bl,.blk.s-excused .bl{color:#57534e}
+.blk.s-excused .bl{text-decoration:line-through;text-decoration-color:#a8a29e}
+.blk.s-upcoming,.blk.s-pending{opacity:.66}
+.brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
+.extras{margin:.3rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;font-size:.66rem;color:#57534e}
+.extras div{display:flex;gap:.3rem;align-items:center;margin-top:.15rem}
+
+/* ---- B: now / next ----------------------------------------------------- */
+.nowcard{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:1rem 1.1rem .75rem;
+  position:relative;overflow:hidden;border-left:5px solid var(--acc,#78716c)}
+.nowcard .eye{font:600 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--acc,#78716c);margin:0 0 .3rem}
+.nowcard h3{font-family:Georgia,serif;font-size:1.75rem;font-weight:700;line-height:1.12;margin:0}
+.mock.phone .nowcard h3{font-size:1.4rem}
+.nowcard .nnote{margin:.35rem 0 0;font-size:.85rem;color:#57534e}
+.nowcard .ends{margin:.55rem 0 .5rem;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.8rem;color:#44403c}
+.tbar{height:9px;border-radius:999px;background:#eceae5;overflow:hidden}
+.tbar>i{display:block;height:100%;border-radius:999px;background:var(--acc,#78716c);
+  animation:drain linear forwards;animation-play-state:running}
+@keyframes drain{from{width:100%}to{width:0%}}
+@media (prefers-reduced-motion:reduce){.tbar>i{animation:none!important}}
+.nextline{margin:.5rem 0 0;font-size:.85rem;color:#57534e;display:flex;gap:.4rem;align-items:center}
+.nextline .mono{color:#1c1917}
+.todaylist{background:#fff;border:1px solid var(--ln);border-radius:10px;overflow:hidden;margin-top:.4rem}
+.trow{display:flex;align-items:center;gap:.55rem;padding:.4rem .65rem;border-bottom:1px solid #f0efec;
+  border-left:3px solid var(--acc,#e7e5e4);text-decoration:none;color:inherit}
+.trow:last-child{border-bottom:0}
+.trow .tt{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.7rem;color:#78716c;
+  flex:none;width:2.7rem}
+.trow .tl{flex:1;min-width:0;font-size:.85rem}
+.trow.s-done,.trow.s-excused{opacity:.62}
+.trow.s-excused .tl{text-decoration:line-through;text-decoration-color:#a8a29e}
+.trow.s-now{background:#fdfcf7;box-shadow:inset 0 0 0 1px rgba(124,58,237,.2)}
+.trow.s-missed{background:rgba(220,38,38,.05)}
+.trow.brkrow{padding:0;border-left:0;height:0;border-bottom:1px dashed #ededea}
+.dotrow{margin-top:.4rem;display:grid;gap:.3rem}
+.dotday{background:#fff;border:1px solid var(--ln);border-radius:8px}
+.dotday>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem}
+.dotday>summary::-webkit-details-marker{display:none}
+.dotday.is-today{border-color:#292524}
+.dotday .dname{font-size:.78rem;width:5.2rem;flex:none}
+.dotday .marks{display:flex;flex-wrap:wrap;gap:.2rem;flex:1}
+.dotday .dcount{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.68rem;color:#78716c;flex:none}
+.dotday .inner{padding:.1rem .6rem .5rem;border-top:1px solid #f0efec}
+
+/* ---- C: register ------------------------------------------------------- */
+.regwrap{overflow-x:auto}
+.reg{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--ln);
+  border-radius:10px;overflow:hidden;font-size:.75rem;table-layout:fixed}
+.reg th,.reg td{border-bottom:1px solid #f0efec;border-right:1px solid #f0efec;padding:.22rem .3rem;
+  vertical-align:top}
+.reg th:first-child,.reg td:first-child{width:3.4rem;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.66rem;color:#78716c;text-align:right;background:#fbfbf8}
+.reg thead th{font:700 .64rem/1.5 Georgia,serif;letter-spacing:.06em;text-transform:uppercase;
+  color:#44403c;text-align:left;border-bottom:1.5px solid #d6d3d1;padding:.35rem .3rem}
+.reg thead th.is-today{color:#b91c1c;border-bottom:2px solid #dc2626;background:#fefce8}
+.reg td.is-today{background:#fefce8}
+.reg td.is-now{box-shadow:inset 0 0 0 1.5px #7c3aed;border-radius:3px}
+.reg .cell{display:flex;gap:.28rem;align-items:flex-start;border-left:2.5px solid var(--acc,transparent);
+  padding-left:.28rem;text-decoration:none;color:inherit}
+.reg .cell .cl{flex:1;min-width:0;line-height:1.2;font-size:.68rem;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.reg .cell.s-missed{background:rgba(220,38,38,.06)}
+.reg .cell.s-excused .cl{text-decoration:line-through;text-decoration-color:#a8a29e;color:#78716c}
+.reg .cell.s-upcoming,.reg .cell.s-pending{opacity:.6}
+.reg .cell.s-break{border-left-color:#e7e5e4;color:#a8a29e;font-style:italic}
+.reg tfoot td{font:600 .68rem/1.5 "IBM Plex Mono",ui-monospace,monospace;border-top:1.5px solid #d6d3d1;
+  border-bottom:0;color:#44403c;padding:.35rem .3rem}
+.reg tfoot td.is-today{background:#fefce8}
+.reg .ribcell{padding:.25rem .3rem}
+@media print{
+  .reg td.is-today,.reg thead th.is-today{background:transparent}
+  .reg{font-size:9pt}
+}
+</style>
+
+<div class="page">
+
+<header class="mast">
+  <p class="eyebrow">Education tracker · index page · design study</p>
+  <h1>The weekly timetable, three ways</h1>
+  <p class="lede">Same data, same status vocabulary, same single <code>judge_week()</code> call — three
+    layouts for the section that sits above the subjects list on <code>/</code>. Pick one to run first;
+    all three ship behind <code>meta.timetable_design</code> so a week with the student decides it, not
+    this page.</p>
+  <div class="brief">
+    <div><b>Her question</b><span>What am I in now, what is next, what have I done today.</span></div>
+    <div><b>His question</b><span>On Friday: which blocks this week have nothing logged against them.</span></div>
+    <div><b>The rule</b><span>Study blocks are never self-ticked. A block is done when a session, attempt
+      or practice run exists for that subject on that date. Derived, so honest.</span></div>
+    <div><b>Never</b><span>No streaks, no "days in a row". A missed block is a red cross, not a hidden
+      one — and only Dad can excuse it, with the reason shown.</span></div>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Deck controls">
+  <div class="jrow">
+    <span class="lab">Designs</span>
+    <a href="#a">A · Week strip</a>
+    <a href="#b">B · Now / next</a>
+    <a href="#c">C · Register</a>
+    <a href="#verdict">Verdict</a>
+  </div>
+  <div class="jrow" data-moments>
+    <span class="lab">Moment</span>
+  </div>
+  <div class="jrow" data-dayoff>
+    <span class="lab">Friday</span>
+  </div>
+</nav>
+
+<!-- ============================== A ================================== -->
+<section class="variant" id="a" data-variant="A">
+  <div class="vhead"><span class="vtag">A</span><h2>Week strip</h2></div>
+  <p class="vthesis">Five columns, Monday to Friday, each a stack of thin block chips. Today's column
+    carries a red-pencil <b>TODAY</b> tab and lifts off the paper; the rest lie flat. On a phone it
+    becomes a snap-scrolling strip that opens on today. One monospace line underneath carries the
+    week's totals.</p>
+  <div class="frames">
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/?design=a</code></div>
+      <div class="mock" data-mock="A" data-width="wide"></div>
+    </div>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>380 px</code></div>
+      <div class="mock phone" data-mock="A" data-width="phone"></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note why"><b>Why</b><p>The whole-week glance is the parent's actual need, and it is here
+      without a click. A vertical run of marks makes a bad day jump out as a shape before you read a
+      word. It also matches the "sessions by week" model the rest of the tracker already uses.</p></div>
+    <div class="note weak"><b>Weakness</b><p>The current block is only as loud as its chip — the
+      student's first question gets the same 12 px as everything else. Mitigated with the pulsing ring
+      and the phone strip opening on today, but B beats it outright on this.</p></div>
+    <div class="note cost"><b>Cost to build</b><p>Small. One grid, one chip partial, one totals line.
+      No new state, no JS required — the phone auto-scroll is a four-line enhancement.</p></div>
+  </div>
+</section>
+
+<!-- ============================== B ================================== -->
+<section class="variant" id="b" data-variant="B">
+  <div class="vhead"><span class="vtag">B</span><h2>Now / next, then the week</h2></div>
+  <p class="vthesis">One big card for the block she is in, with a time bar that visibly drains (pure
+    CSS, a negative <code>animation-delay</code> computed server-side — no JavaScript). Under it the
+    next block in one line, then today as a checklist that fills from the top, then a compact dot-row
+    for the week that expands a day inline.</p>
+  <div class="frames">
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/?design=b</code></div>
+      <div class="mock" data-mock="B" data-width="wide"></div>
+    </div>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>380 px</code></div>
+      <div class="mock phone" data-mock="B" data-width="phone"></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note why"><b>Why</b><p>Closest to the research the timetable came from: time made
+      visible rather than merely stated, one thing at a time, and endowed progress — the movement block
+      ticks first thing and the checklist is already started before the hard block begins.</p></div>
+    <div class="note weak"><b>Weakness</b><p>The parent's whole-week view shrinks to a dot-row. Fix by
+      making <code>/week/{iso}</code> the expanded board and linking it from the dot-row, so Friday's
+      review is one tap away rather than on the page.</p></div>
+    <div class="note cost"><b>Cost to build</b><p>Medium. Three components instead of one, plus the
+      drain animation's start/end arithmetic. All of it still server-rendered.</p></div>
+  </div>
+</section>
+
+<!-- ============================== C ================================== -->
+<section class="variant" id="c" data-variant="C">
+  <div class="vhead"><span class="vtag">C</span><h2>Register</h2></div>
+  <p class="vthesis">The school register. Rows are time slots, columns are days, today's column shaded
+    paper-yellow under a red-pencil header, the current cell in a pencil box. A footer row counts each
+    day. Prints on one sheet.</p>
+  <div class="frames">
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/?design=c</code></div>
+      <div class="mock" data-mock="C" data-width="wide"></div>
+    </div>
+    <div class="frame">
+      <div class="chrome"><i></i><i></i><i></i><code>380 px · collapsed to today</code></div>
+      <div class="mock phone" data-mock="C" data-width="phone"></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note why"><b>Why</b><p>Densest of the three and instantly familiar to a UK parent.
+      Misses read as <em>patterns</em> rather than incidents — a row of crosses at 13:00 says the timed
+      handwritten block is being avoided, which no other layout shows.</p></div>
+    <div class="note weak"><b>Weakness</b><p>Least mobile-friendly by some distance, and the week's
+      real shape fights it: Wednesday stops at 10:00 and Thursday at 12:00, so the bottom third of the
+      table is mostly blank paper. On a phone it has to collapse to one column.</p></div>
+    <div class="note cost"><b>Cost to build</b><p>Medium. The slot union and the mobile collapse are
+      the work; the print stylesheet is nearly free once the table exists.</p></div>
+  </div>
+</section>
+
+<!-- ============================ VERDICT ============================== -->
+<section class="verdict" id="verdict">
+  <h2>Picking one</h2>
+  <table class="cmp">
+    <thead><tr><th>Design</th><th>Best at</th><th>Weakest at</th><th>Build</th></tr></thead>
+    <tbody>
+      <tr><td>A · Week strip</td><td>Friday, on a laptop. Both questions answered in one screen with no interaction.</td><td>"What am I in now" — the answer is a chip the same size as every other chip.</td><td>Small</td></tr>
+      <tr><td>B · Now / next</td><td>Tuesday at 10 a.m., on her phone. The only design that externalises time rather than reporting it.</td><td>The parent's week is a dot-row; the real board moves to <code>/week/{iso}</code>.</td><td>Medium</td></tr>
+      <tr><td>C · Register</td><td>Seeing a habit. A column of crosses at one time slot is a finding, not a bad day.</td><td>Phones, and an uneven week — Wednesday and Thursday leave the lower half empty.</td><td>Medium</td></tr>
+    </tbody>
+  </table>
+  <div class="rec">
+    <p><b>Recommendation: run B for her, and make <code>/week/{iso}</code> design A for him.</b> The two
+      readers want genuinely different things and the split is cheap, because all three already share
+      one <code>judge_week()</code> and one status vocabulary — the difference is markup.</p>
+    <p>B wins the daily case on the research alone: the draining time bar is the one element here that
+      addresses time blindness instead of assuming it away, and the checklist that fills from the top is
+      endowed progress working as intended. A wins Friday: the parent's question is comparative across
+      five days, and a grid of marks answers it without a tap.</p>
+    <p>C is worth keeping behind the switch for a term. If the same slot keeps coming up crossed, it
+      will be C that shows it — but that is a monthly question, not a daily one, so it belongs on a
+      printed sheet in the kitchen rather than on <code>/</code>.</p>
+    <p>Nothing is decided here. All three go in behind <code>meta.timetable_design</code>, and the
+      switch stays until you have run each for a week or two with her.</p>
+  </div>
+</section>
+
+<footer class="deck">
+  Mocks run on the real seed — all 35 blocks of <code>timetable-seed.json</code>, <code>valid_from
+  2026-09-07</code>, judged for ISO week 2026-W37 against a plausible set of sessions, attempts and
+  practice runs. Thursday's alternating deep block resolves to <b>maths</b> because W37 is odd. The
+  moment and Friday controls at the top are live and drive all three designs from the same judge.
+</footer>
+
+</div>
+
+<style>
+.mk.pulse{animation:pulsering 2.2s ease-in-out infinite;transform-origin:center}
+@keyframes pulsering{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.mk.pulse{animation:none}}
+.markwrap{display:flex;flex-direction:column;align-items:center;gap:0;flex:none;line-height:1}
+.shortcap{font:600 .56rem/1 "IBM Plex Mono",ui-monospace,monospace;color:#b45309;letter-spacing:.04em}
+.quietday{background:#fff;border:1px dashed var(--ln);border-radius:10px;padding:.9rem 1rem;
+  font-size:.92rem;color:#57534e}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.7rem;font-size:.7rem;color:#78716c}
+.legend span{display:flex;align-items:center;gap:.25rem}
+</style>
+
+<script>
+/* ====================================================================== *
+ *  The seed — all 35 blocks of timetable-seed.json, valid_from 2026-09-07 *
+ * ====================================================================== */
+var BLOCKS = [
+ {k:1, d:1,s:'09:00',e:'09:30',kind:'movement', l:'Move — walk, bike or dance', subj:[], tr:'self_report', note:'20–30 min, moderate. Brain online before the hard thing.'},
+ {k:2, d:1,s:'09:30',e:'09:45',kind:'retrieval', l:'Retrieval warm-up (mixed)', subj:['maths','english-literature','english-language','computer-science'], tr:'evidence', note:'10 quick questions across subjects, marked together.'},
+ {k:3, d:1,s:'09:45',e:'11:00',kind:'teach', l:'Maths — new topic', subj:['maths'], tr:'evidence', note:'Teach → interleaved practice → exit ticket. 3 chunks, breaks between.'},
+ {k:4, d:1,s:'11:00',e:'11:15',kind:'break', l:'Movement break', subj:[], tr:'none'},
+ {k:5, d:1,s:'11:15',e:'12:15',kind:'teach', l:'English Literature — set text', subj:['english-literature'], tr:'evidence', note:'One text: read, annotate, whole-text recall.'},
+ {k:6, d:1,s:'12:15',e:'13:00',kind:'break', l:'Lunch + outside', subj:[], tr:'none'},
+ {k:7, d:1,s:'13:00',e:'14:00',kind:'coding', l:'Computer Science — Python', subj:['computer-science'], tr:'evidence', note:'Hands-on: build or extend a program.'},
+ {k:8, d:1,s:'14:00',e:'14:15',kind:'break', l:'Movement break', subj:[], tr:'none'},
+ {k:9, d:1,s:'14:15',e:'15:00',kind:'writing', l:'English Language — creative writing', subj:['english-language'], tr:'evidence', note:'Typed drafting. Her strength — let it run.'},
+ {k:10,d:2,s:'09:00',e:'09:30',kind:'movement', l:'Move', subj:[], tr:'self_report'},
+ {k:11,d:2,s:'09:30',e:'09:45',kind:'retrieval', l:"Retrieval warm-up (Mon's work)", subj:['maths','english-literature'], tr:'evidence'},
+ {k:12,d:2,s:'09:45',e:'11:00',kind:'practise', l:'Maths — interleaved practice', subj:['maths'], tr:'evidence', note:'Mixed set + one hard problem. Never blank — write one line.'},
+ {k:13,d:2,s:'11:00',e:'11:15',kind:'break', l:'Movement break', subj:[], tr:'none'},
+ {k:14,d:2,s:'11:15',e:'12:15',kind:'teach', l:'English Literature — second text', subj:['english-literature'], tr:'evidence', note:'Rotate: A Christmas Carol / An Inspector Calls / a Power & Conflict poem.'},
+ {k:15,d:2,s:'12:15',e:'13:00',kind:'break', l:'Lunch + outside', subj:[], tr:'none'},
+ {k:16,d:2,s:'13:00',e:'14:00',kind:'timed_handwritten', l:'Timed handwritten practice', subj:['english-language','english-literature','maths','computer-science'], tr:'evidence', note:'Rotate weekly. Photograph, mark same day. Includes 15 min feedback.'},
+ {k:17,d:2,s:'14:00',e:'15:00',kind:'teach', l:'Computer Science — theory or code', subj:['computer-science'], tr:'evidence'},
+ {k:18,d:3,s:'09:00',e:'09:10',kind:'movement', l:'Quick move', subj:[], tr:'self_report'},
+ {k:19,d:3,s:'09:10',e:'09:45',kind:'retrieval', l:'Retrieval quiz — Maths, Lit, CS', subj:['maths','english-literature','computer-science'], tr:'evidence', note:"The whole hour's job is spaced retrieval, not new content."},
+ {k:20,d:3,s:'09:45',e:'10:00',kind:'spanish', l:'Spanish — vocab + listening', subj:['spanish'], tr:'evidence', note:'Spaced-repetition set + one short clip.'},
+ {k:21,d:4,s:'09:00',e:'09:25',kind:'movement', l:'Move + retrieval warm-up', subj:[], tr:'self_report'},
+ {k:22,d:4,s:'09:25',e:'10:30',kind:'teach', l:'Deep block — Maths / CS alternating', subj:['maths','computer-science'], alt:{odd:['maths'],even:['computer-science']}, tr:'evidence', note:'Odd ISO weeks maths, even weeks CS. One subject, whole block.'},
+ {k:23,d:4,s:'10:30',e:'10:45',kind:'break', l:'Movement break', subj:[], tr:'none'},
+ {k:24,d:4,s:'10:45',e:'11:45',kind:'teach', l:'English Literature — poetry / essay planning', subj:['english-literature'], tr:'evidence'},
+ {k:25,d:4,s:'11:45',e:'12:00',kind:'spanish', l:'Spanish — vocab review', subj:['spanish'], tr:'evidence'},
+ {k:26,d:5,s:'09:00',e:'09:30',kind:'movement', l:'Move', subj:[], tr:'self_report'},
+ {k:27,d:5,s:'09:30',e:'09:45',kind:'retrieval', l:'Retrieval warm-up (whole week)', subj:['maths','english-literature','english-language','computer-science'], tr:'evidence'},
+ {k:28,d:5,s:'09:45',e:'11:00',kind:'consolidate', l:'Maths — consolidate + fix errors', subj:['maths'], tr:'evidence', note:"Mixed-topic set; correct the week's errors."},
+ {k:29,d:5,s:'11:00',e:'11:15',kind:'break', l:'Movement break', subj:[], tr:'none'},
+ {k:30,d:5,s:'11:15',e:'11:55',kind:'practise', l:'English Language — exam technique', subj:['english-language'], tr:'evidence', note:'Question by question, scaffolded, some on paper.'},
+ {k:31,d:5,s:'11:55',e:'12:15',kind:'retrieval', l:'Lit quotation retrieval', subj:['english-literature'], tr:'evidence'},
+ {k:32,d:5,s:'12:15',e:'13:00',kind:'break', l:'Lunch + outside', subj:[], tr:'none'},
+ {k:33,d:5,s:'13:00',e:'13:45',kind:'consolidate', l:'Computer Science — quiz + fix code', subj:['computer-science'], tr:'evidence'},
+ {k:34,d:5,s:'13:45',e:'14:15',kind:'spanish', l:'Spanish — vocab + short reading', subj:['spanish'], tr:'evidence'},
+ {k:35,d:5,s:'14:15',e:'15:00',kind:'review', l:'Weekly review with Dad', subj:[], tr:'self_report', note:'Ticked by the parent from the review chat.'}
+];
+
+var SUBJ = {
+  'maths':              {n:'Maths',   a:'#7c3aed'},
+  'english-literature': {n:'Lit',     a:'#0f766e'},
+  'english-language':   {n:'Lang',    a:'#1d4ed8'},
+  'computer-science':   {n:'CS',      a:'#4d7c0f'},
+  'spanish':            {n:'Spanish', a:'#a21caf'}
+};
+var TARGETS = {'maths':5.0,'english-literature':4.5,'english-language':3.5,'computer-science':3.5,'spanish':1.75};
+
+/* Week 2026-W37 — Monday 7 to Friday 11 September 2026. Odd week, so block 22
+   resolves to maths. */
+var WEEK = {iso:'2026-W37', parity:'odd',
+  dates:['2026-09-07','2026-09-08','2026-09-09','2026-09-10','2026-09-11']};
+
+/* A plausible week of logged work. Sessions are stamped when they finish,
+   which is when they actually get logged. */
+var EVIDENCE = [
+ {d:'2026-09-07',t:'09:44',s:'maths',              type:'practice',id:'p101',l:'Retrieval mix — 10 questions', src:'retrieval_mixed', mins:14},
+ {d:'2026-09-07',t:'11:02',s:'maths',              type:'session', id:'s241',l:'Surds — intro + practice',                          mins:70},
+ {d:'2026-09-07',t:'11:45',s:'english-literature', type:'session', id:'s242',l:'Macbeth Act 1 — annotation',                        mins:25},
+ {d:'2026-09-07',t:'14:00',s:'computer-science',   type:'session', id:'s243',l:'Python — lists and loops',                          mins:55},
+ {d:'2026-09-07',t:'19:40',s:'spanish',            type:'practice',id:'p102',l:'Shooting Gallery — Set 1 Sports', src:'gallery',     mins:12},
+ {d:'2026-09-08',t:'11:00',s:'maths',              type:'session', id:'s244',l:'Interleaved set + one hard problem',                mins:75},
+ {d:'2026-09-08',t:'12:14',s:'english-literature', type:'session', id:'s245',l:'An Inspector Calls — Act 2',                        mins:58},
+ {d:'2026-09-08',t:'15:00',s:'computer-science',   type:'session', id:'s246',l:'Boolean logic — theory',                            mins:60},
+ {d:'2026-09-09',t:'10:00',s:'spanish',            type:'practice',id:'p103',l:'Vocab — la rutina diaria', src:'flashcards',        mins:15},
+ {d:'2026-09-10',t:'10:30',s:'maths',              type:'session', id:'s247',l:'Circle theorems — deep block',                      mins:62}
+];
+var TICKS = [
+ {d:'2026-09-07',k:1, t:'09:30',by:'student'},
+ {d:'2026-09-08',k:10,t:'09:30',by:'student'},
+ {d:'2026-09-09',k:18,t:'09:10',by:'student'},
+ {d:'2026-09-10',k:21,t:'09:25',by:'student'}
+];
+var EXCUSALS = [
+ {d:'2026-09-08',k:16,reason:'Dentist — moved to Friday'}
+];
+
+var MOMENTS = [
+ {key:'mon', name:'Mon 09:50', at:'2026-09-07T09:50', why:'mid-morning, maths running'},
+ {key:'thu', name:'Thu 11:08', at:'2026-09-10T11:08', why:'the default view'},
+ {key:'fri', name:'Fri 14:30', at:'2026-09-11T14:30', why:'end of the week'},
+ {key:'sat', name:'Sat 10:00', at:'2026-09-12T10:00', why:'a non-study day'}
+];
+var DAYOFFS = [
+ {key:'none',     name:'no day off'},
+ {key:'requested',name:'requested by her'},
+ {key:'approved', name:'approved by Dad'}
+];
+var FRIDAY_OFF = {date:'2026-09-11', kind:'day_off', reason:"Cousin's birthday — day out", requested_by:'student'};
+
+/* ====================================================================== *
+ *  judge_week() — the contract, in miniature                              *
+ * ====================================================================== */
+function mins(hhmm){ var p = hhmm.split(':'); return (+p[0])*60 + (+p[1]); }
+function stamp(date, hhmm){ return date + ' ' + hhmm; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function hhmm(m){ return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+
+function resolveSubjects(b, parity){
+  if(b.alt) return b.alt[parity];
+  return b.subj;
+}
+function accentFor(subs){
+  if(subs.length === 1 && SUBJ[subs[0]]) return SUBJ[subs[0]].a;
+  return '#a8a29e';
+}
+function kindAccepts(b, ev){
+  if(b.kind === 'timed_handwritten') return ev.type === 'attempt' || ev.bk === b.k;
+  if(b.kind === 'retrieval') return (ev.type === 'practice' && /^retrieval_/.test(ev.src||'')) || ev.bk === b.k;
+  return true;
+}
+
+function judge(nowAt, dayOffMode){
+  var nowDate = nowAt.slice(0,10), nowMin = mins(nowAt.slice(11));
+  var nowKey  = nowDate + ' ' + nowAt.slice(11);
+
+  var dayOff = null;
+  if(dayOffMode !== 'none'){
+    dayOff = Object.assign({}, FRIDAY_OFF,
+      {status: dayOffMode === 'approved' ? 'approved' : 'requested'});
+  }
+
+  var days = WEEK.dates.map(function(date, i){
+    var weekday = i + 1;
+    var isToday = date === nowDate;
+    var isPast  = date < nowDate;
+    var off     = (dayOff && dayOff.date === date) ? dayOff : null;
+
+    /* evidence for this date that already exists at `now` */
+    var pool = EVIDENCE
+      .filter(function(e){ return e.d === date && stamp(e.d,e.t) <= nowKey; })
+      .sort(function(a,b){ return a.t < b.t ? -1 : 1; })
+      .map(function(e){ return Object.assign({}, e, {claimed:false}); });
+
+    var blocks = BLOCKS.filter(function(b){ return b.d === weekday; });
+
+    /* pass 1 — records carrying block_key bind to that block only */
+    var bound = {};
+    pool.forEach(function(e){
+      if(e.bk == null) return;
+      var b = blocks.filter(function(x){ return x.k === e.bk; })[0];
+      if(b && !bound[b.k]){ bound[b.k] = e; e.claimed = true; }
+    });
+    /* pass 2 — greedy: earliest record to the earliest unclaimed matching block */
+    blocks.forEach(function(b){
+      if(b.tr !== 'evidence' || bound[b.k]) return;
+      var subs = resolveSubjects(b, WEEK.parity);
+      for(var i2=0;i2<pool.length;i2++){
+        var e = pool[i2];
+        if(e.claimed) continue;
+        if(subs.indexOf(e.s) === -1) continue;
+        if(!kindAccepts(b, e)) continue;
+        bound[b.k] = e; e.claimed = true; break;
+      }
+    });
+
+    var rows = blocks.map(function(b){
+      var subs = resolveSubjects(b, WEEK.parity);
+      var len  = mins(b.e) - mins(b.s);
+      var r = {b:b, subs:subs, len:len, acc:accentFor(subs), status:'upcoming', short:false, ev:null};
+
+      var ex = EXCUSALS.filter(function(x){ return x.d === date && x.k === b.k; })[0];
+      if(ex){ r.status = 'excused'; r.reason = ex.reason; return r; }
+      if(b.tr === 'none'){ r.status = 'na'; return r; }
+      if(off && off.status === 'approved'){ r.status = 'day_off'; return r; }
+
+      if(b.tr === 'self_report'){
+        var tk = TICKS.filter(function(x){ return x.d === date && x.k === b.k && stamp(x.d,x.t) <= nowKey; })[0];
+        if(tk){ r.status = 'done'; r.tick = tk; return r; }
+      } else {
+        var e = bound[b.k];
+        if(e){
+          r.status = 'done'; r.ev = e;
+          r.short  = e.mins != null && e.mins < len * 0.5;
+          return r;
+        }
+      }
+      /* nothing logged — the clock decides */
+      if(isPast)                       r.status = 'missed';
+      else if(!isToday)                r.status = 'upcoming';
+      else if(nowMin < mins(b.s))      r.status = 'pending';
+      else if(nowMin < mins(b.e))      r.status = 'now';
+      else                             r.status = 'missed';
+      return r;
+    });
+
+    var extras = pool.filter(function(e){ return !e.claimed; });
+    return {date:date, weekday:weekday, isToday:isToday, isPast:isPast,
+            dayOff:off, rows:rows, extras:extras};
+  });
+
+  /* counts + hours */
+  var counts = {done:0,short:0,missed:0,excused:0,extra:0,pending:0,now:0,upcoming:0,dayoff:0,judged:0};
+  var hours  = {};
+  days.forEach(function(day){
+    day.rows.forEach(function(r){
+      if(r.b.tr === 'none') return;
+      counts.judged++;
+      if(r.status === 'done'){ counts.done++; if(r.short) counts.short++; }
+      else if(r.status === 'missed')   counts.missed++;
+      else if(r.status === 'excused')  counts.excused++;
+      else if(r.status === 'day_off')  counts.dayoff++;
+      else if(r.status === 'now')      counts.now++;
+      else if(r.status === 'pending')  counts.pending++;
+      else                             counts.upcoming++;
+      if(r.status === 'done' && r.ev){
+        var m = r.short ? r.ev.mins : r.len;
+        hours[r.ev.s] = (hours[r.ev.s]||0) + m;
+      }
+    });
+    day.extras.forEach(function(e){
+      counts.extra++;
+      hours[e.s] = (hours[e.s]||0) + (e.mins||0);
+    });
+  });
+
+  var todayIdx = WEEK.dates.indexOf(nowDate);
+  var today = todayIdx > -1 ? days[todayIdx] : null;
+  var nowRow = null, nextRow = null;
+  if(today){
+    today.rows.forEach(function(r){
+      if(r.b.tr === 'none') return;
+      if(r.status === 'now' && !nowRow) nowRow = r;
+    });
+    today.rows.forEach(function(r){
+      if(r.b.tr === 'none' || nextRow) return;
+      if(mins(r.b.s) > (nowRow ? mins(nowRow.b.s) : -1) && mins(r.b.s) > nowMin) nextRow = r;
+    });
+  }
+  return {days:days, counts:counts, hours:hours, today:today, nowRow:nowRow,
+          nextRow:nextRow, nowDate:nowDate, nowMin:nowMin, dayOff:dayOff};
+}
+
+/* ====================================================================== *
+ *  Shared status marks — shape differs per status, colour never alone     *
+ * ====================================================================== */
+var DAYS_LONG  = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+var DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri'];
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function niceDate(d){ var p = d.split('-'); return (+p[2]) + ' ' + MONTHS[+p[1]-1]; }
+function longDate(d){
+  var dt = new Date(d + 'T12:00:00Z'), p = d.split('-');
+  return DAYS_LONG[(dt.getUTCDay()+6)%7] + ' ' + (+p[2]) + ' ' + MONTHS[+p[1]-1] + ' ' + p[0];
+}
+function svg(inner, label, cls){
+  return '<svg class="mk' + (cls?' '+cls:'') + '" width="16" height="16" viewBox="0 0 18 18" '
+       + 'role="img" aria-label="' + esc(label) + '">' + inner + '</svg>';
+}
+function mark(r, label){
+  var st = r.status, name = label || (r.b.l + ' ' + r.b.s);
+  switch(st){
+    case 'done':
+      if(r.short) return '<span class="markwrap">'
+        + svg('<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#d97706" stroke-width="2.4" '
+            + 'stroke-linecap="round" stroke-linejoin="round"/>', name + ' — done but short')
+        + '<span class="shortcap">short</span></span>';
+      return '<span class="markwrap">' + svg('<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" '
+        + 'stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+        name + ' — done') + '</span>';
+    case 'now':
+      return '<span class="markwrap">' + svg('<circle cx="9" cy="9" r="6.3" fill="none" stroke="'
+        + r.acc + '" stroke-width="2.2"/><circle cx="9" cy="9" r="2" fill="' + r.acc + '"/>',
+        name + ' — happening now', 'pulse') + '</span>';
+    case 'pending':
+      return '<span class="markwrap">' + svg('<circle cx="9" cy="9" r="6.3" fill="none" '
+        + 'stroke="#a8a29e" stroke-width="1.5"/>', name + ' — not logged yet') + '</span>';
+    case 'missed':
+      return '<span class="markwrap">' + svg('<g transform="rotate(-2 9 9)">'
+        + '<path d="M4.1 4.5 13.9 13.7" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/>'
+        + '<path d="M13.7 4.3 4.3 13.9" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/>'
+        + '</g>', name + ' — missed') + '</span>';
+    case 'excused':
+      return '<span class="markwrap" title="' + esc(r.reason||'') + '">'
+        + svg('<path d="M3.2 9.2 14.8 8.8" stroke="#a8a29e" stroke-width="2.2" stroke-linecap="round"/>',
+          name + ' — excused: ' + (r.reason||'no reason given')) + '</span>';
+    case 'day_off':
+      return '<span class="markwrap">' + svg('<path d="M4.4 9 13.6 9" stroke="#d6d3d1" '
+        + 'stroke-width="2" stroke-linecap="round"/>', name + ' — day off') + '</span>';
+    case 'upcoming':
+      return '<span class="markwrap">' + svg('<circle cx="9" cy="9" r="2.2" fill="#d6d3d1"/>',
+        name + ' — still to come') + '</span>';
+    default: return '<span class="markwrap"></span>';
+  }
+}
+function extraMark(){
+  return svg('<circle cx="9" cy="9" r="6.3" fill="none" stroke="#059669" stroke-width="1.4"/>'
+    + '<path d="M9 5.6 9 12.4M5.6 9 12.4 9" stroke="#059669" stroke-width="1.6" stroke-linecap="round"/>',
+    'extra work, outside the timetable');
+}
+function evHref(e){ return e.type === 'session' ? '/s/' + e.s + '#' + e.id
+                   : e.type === 'attempt' ? '/a/' + e.id : '/p/' + e.id; }
+
+function weekLine(J){
+  var c = J.counts;
+  var soFar = c.done + c.missed + c.excused + c.now + c.pending;
+  var hrs = Object.keys(TARGETS).map(function(k){
+    return SUBJ[k].n.toLowerCase() + ' ' + ((J.hours[k]||0)/60).toFixed(1) + 'h';
+  }).join(' <span class="sep">·</span> ');
+  var ahead = c.upcoming + c.dayoff;
+  return '<p class="weekline mono"><b>this week</b> <span class="sep">·</span> ' + c.done + ' of '
+    + soFar + ' blocks so far' + (ahead ? ' <span class="sep">·</span> ' + ahead + ' still to come' : '')
+    + ' <span class="sep">·</span> ' + hrs + '</p>';
+}
+function legend(){
+  var demo = function(st, txt){
+    var r = {status:st, acc:'#7c3aed', b:{l:txt,s:''}, short:false};
+    if(st === 'short'){ r.status = 'done'; r.short = true; }
+    return '<span>' + mark(r, txt) + txt + '</span>';
+  };
+  return '<div class="legend">'
+    + [['done','done'],['short',''],['now','now'],['pending','pending'],['missed','missed'],
+       ['excused','excused'],['upcoming','to come']]
+      .map(function(s){ return demo(s[0], s[1]); }).join('')
+    + '<span>' + extraMark() + 'extra</span></div>';
+}
+function subjectsBelow(){
+  return '<div class="subjects-below"><p class="panel-title" style="margin-top:0">Subjects</p>'
+    + [['Mathematics','AQA 8300 Higher · 64 topics','23%'],
+       ['English Literature','AQA 8702 · 205 topics','0%'],
+       ['Computer Science','AQA 8525 · 100 topics','0%']]
+      .map(function(s){ return '<div class="item"><div class="grow"><strong>' + s[0]
+        + '</strong><div><small>' + s[1] + '</small></div></div><div class="mono"><strong>' + s[2]
+        + '</strong></div></div>'; }).join('')
+    + '<p style="margin:.5rem 0 0"><small>…the timetable sits above this, not instead of it.</small></p></div>';
+}
+function ribbon(off){
+  if(!off) return '';
+  var approved = off.status === 'approved';
+  var text = approved ? off.reason : off.reason + ' — awaiting Dad';
+  return '<div class="ribbon' + (approved ? '' : ' req') + '" title="'
+    + esc((approved ? 'Day off: ' : 'Day off requested: ') + text) + '"><b>'
+    + (approved ? 'Day off' : 'Requested') + '</b>' + esc(text) + '</div>';
+}
+function mockHeader(J, title){
+  var d = J.nowDate;
+  return '<header><div><p class="kicker">Study tracker</p><h1>' + title + '</h1></div>'
+    + '<div style="text-align:right"><p class="today-stamp mono">' + longDate(d) + '</p>'
+    + '<p class="today-stamp mono" style="margin:.1rem 0 0">' + hhmm(J.nowMin)
+    + ' · Europe/London</p></div></header>';
+}
+function quietDay(J){
+  if(J.today) return '';
+  return '<div class="quietday">No blocks today — <b>Monday 09:00</b> next.'
+    + ' <small>The week below is the one just finished.</small></div>';
+}
+
+/* ====================================================================== *
+ *  A — week strip                                                         *
+ * ====================================================================== */
+function renderA(J, phone){
+  var cols = J.days.map(function(day, i){
+    var inner = '';
+    if(day.isToday) inner += '<span class="daytab">TODAY</span>';
+    inner += '<div class="dhead"><span class="dn">' + DAYS_SHORT[i] + '</span>'
+          +  '<span class="dd">' + niceDate(day.date) + '</span></div>';
+    inner += ribbon(day.dayOff);
+    day.rows.forEach(function(r){
+      if(r.b.tr === 'none'){ inner += '<div class="brk" role="separator" aria-label="'
+        + esc(r.b.l + ' ' + r.b.s + '–' + r.b.e) + '"></div>'; return; }
+      inner += '<a class="blk s-' + r.status + '" style="--acc:' + r.acc + '"'
+        + (r.status === 'done' && r.ev ? ' href="' + evHref(r.ev) + '"' : '')
+        + (r.status === 'excused' ? ' title="' + esc(r.reason) + '"' : '')
+        + '><span class="bt">' + r.b.s + '</span><span class="bl">' + esc(r.b.l) + '</span>'
+        + mark(r) + '</a>';
+    });
+    if(day.extras.length){
+      inner += '<div class="extras"><b>extra</b>' + day.extras.map(function(e){
+        return '<div>' + extraMark() + '<a href="' + evHref(e) + '" style="color:inherit">'
+          + esc(SUBJ[e.s].n + ' — ' + e.l) + '</a></div>'; }).join('') + '</div>';
+    }
+    return '<div class="wkcol' + (day.isToday ? ' is-today' : '')
+      + (day.isPast ? ' is-past' : '') + '">' + inner + '</div>';
+  }).join('');
+
+  return mockHeader(J, 'This week')
+    + quietDay(J)
+    + '<p class="panel-title">Timetable · ' + WEEK.iso + '</p>'
+    + '<div class="wk" data-strip>' + cols + '</div>'
+    + weekLine(J) + legend() + (phone ? '' : subjectsBelow());
+}
+
+/* ====================================================================== *
+ *  B — now / next, then the week                                          *
+ * ====================================================================== */
+function renderB(J, phone){
+  var head = '', card = '';
+  if(J.nowRow){
+    var r = J.nowRow, st = mins(r.b.s), en = mins(r.b.e), len = (en - st) * 60,
+        gone = (J.nowMin - st) * 60;
+    card = '<div class="nowcard" style="--acc:' + r.acc + '">'
+      + '<p class="eye">Now · ' + r.b.s + '–' + r.b.e + '</p>'
+      + '<h3>' + esc(r.b.l) + '</h3>'
+      + (r.b.note ? '<p class="nnote">' + esc(r.b.note) + '</p>' : '')
+      + '<p class="ends">ends ' + r.b.e + ' · ' + (en - J.nowMin) + ' min left</p>'
+      + '<div class="tbar" role="img" aria-label="' + (en - J.nowMin) + ' minutes left of this block">'
+      + '<i style="animation-duration:' + len + 's;animation-delay:-' + gone + 's"></i></div></div>';
+  } else if(J.nextRow){
+    var n = J.nextRow;
+    card = '<div class="nowcard" style="--acc:' + n.acc + '">'
+      + '<p class="eye">Next · ' + n.b.s + '</p><h3>' + esc(n.b.l) + '</h3>'
+      + (n.b.note ? '<p class="nnote">' + esc(n.b.note) + '</p>' : '')
+      + '<p class="ends">starts ' + n.b.s + ' · in ' + (mins(n.b.s) - J.nowMin) + ' min</p></div>';
+  } else if(J.today){
+    card = '<div class="quietday">Nothing left on the timetable today. '
+      + '<b>Monday 09:00</b> next.</div>';
+  } else {
+    card = '<div class="quietday">No blocks today — <b>Monday 09:00</b> next.</div>';
+  }
+  if(J.nowRow && J.nextRow){
+    card += '<p class="nextline">then <span class="mono">' + J.nextRow.b.s + '</span> '
+      + esc(J.nextRow.b.l) + '</p>';
+  }
+  if(J.today && J.today.dayOff) card = ribbon(J.today.dayOff) + card;
+
+  var list = '';
+  if(J.today){
+    list = '<p class="panel-title">Today</p><div class="todaylist">'
+      + J.today.rows.map(function(r){
+          if(r.b.tr === 'none') return '<div class="trow brkrow" aria-hidden="true"></div>';
+          return '<a class="trow s-' + r.status + '" style="--acc:' + r.acc + '"'
+            + (r.status === 'done' && r.ev ? ' href="' + evHref(r.ev) + '"' : '')
+            + (r.status === 'excused' ? ' title="' + esc(r.reason) + '"' : '')
+            + '><span class="tt">' + r.b.s + '</span><span class="tl">' + esc(r.b.l) + '</span>'
+            + mark(r) + '</a>';
+        }).join('') + '</div>';
+    if(J.today.extras.length){
+      list += '<div class="extras" style="padding-left:.2rem"><b>extra today</b>'
+        + J.today.extras.map(function(e){ return '<div>' + extraMark()
+          + esc(SUBJ[e.s].n + ' — ' + e.l) + '</div>'; }).join('') + '</div>';
+    }
+  }
+
+  var dots = J.days.map(function(day, i){
+    var judged = day.rows.filter(function(r){ return r.b.tr !== 'none'; });
+    var doneN  = judged.filter(function(r){ return r.status === 'done'; }).length;
+    var marks  = judged.map(function(r){ return mark(r); }).join('');
+    return '<details class="dotday' + (day.isToday ? ' is-today' : '') + '"'
+      + (day.isToday ? ' open' : '') + '><summary><span class="dname">' + DAYS_SHORT[i]
+      + ' <small class="mono">' + niceDate(day.date) + '</small></span>'
+      + '<span class="marks">' + marks + '</span>'
+      + (day.dayOff ? '<span class="dcount" style="color:' + (day.dayOff.status === 'approved'
+          ? '#78716c' : '#a8a29e') + '">' + (day.dayOff.status === 'approved' ? 'day off'
+          : 'off?') + '</span>' : '')
+      + '<span class="dcount">' + doneN + '/' + judged.length + '</span></summary>'
+      + '<div class="inner">' + ribbon(day.dayOff) + judged.map(function(r){
+          return '<a class="trow s-' + r.status + '" style="--acc:' + r.acc + ';border-bottom:0">'
+            + '<span class="tt">' + r.b.s + '</span><span class="tl">' + esc(r.b.l) + '</span>'
+            + mark(r) + '</a>';
+        }).join('') + '</div></details>';
+  }).join('');
+
+  return mockHeader(J, 'Today') + card + list
+    + '<p class="panel-title">This week <small style="text-transform:none;letter-spacing:0">'
+    + '· <a href="/week/' + WEEK.iso + '">the full board</a></small></p>'
+    + '<div class="dotrow">' + dots + '</div>'
+    + weekLine(J) + legend() + (phone ? '' : subjectsBelow());
+}
+
+/* ====================================================================== *
+ *  C — register                                                           *
+ * ====================================================================== */
+function renderC(J, phone){
+  var slots = [];
+  BLOCKS.forEach(function(b){ if(slots.indexOf(b.s) === -1) slots.push(b.s); });
+  slots.sort(function(a,b){ return mins(a) - mins(b); });
+
+  var showDays = J.days;
+  if(phone){
+    var idx = J.days.map(function(d){ return d.isToday; }).indexOf(true);
+    showDays = [J.days[idx > -1 ? idx : 0]];
+  }
+  var cellFor = function(day, slot){
+    var r = day.rows.filter(function(x){ return x.b.s === slot; })[0];
+    if(!r) return '';
+    if(r.b.tr === 'none') return '<span class="cell s-break"><span class="cl">'
+      + esc(r.b.l) + '</span></span>';
+    return '<a class="cell s-' + r.status + '" style="--acc:' + r.acc + '"'
+      + (r.status === 'excused' ? ' title="' + esc(r.reason) + '"' : '')
+      + '><span class="cl">' + esc(r.b.l) + '</span>' + mark(r) + '</a>';
+  };
+  var head = '<tr><th scope="col"><span class="sr">Time</span></th>' + showDays.map(function(day, i){
+      var n = phone ? DAYS_LONG[day.weekday-1] : DAYS_SHORT[day.weekday-1];
+      return '<th scope="col" class="' + (day.isToday ? 'is-today' : '') + '">' + n
+        + ' <small class="mono" style="font-weight:400">' + niceDate(day.date) + '</small></th>';
+    }).join('') + '</tr>';
+  var ribRow = showDays.some(function(d){ return d.dayOff; })
+    ? '<tr><td></td>' + showDays.map(function(d){ return '<td class="ribcell'
+        + (d.isToday ? ' is-today' : '') + '">' + ribbon(d.dayOff) + '</td>'; }).join('') + '</tr>'
+    : '';
+  var body = slots.map(function(slot){
+    var cells = showDays.map(function(day){
+      var r = day.rows.filter(function(x){ return x.b.s === slot; })[0];
+      return '<td class="' + (day.isToday ? 'is-today' : '')
+        + (r && r.status === 'now' ? ' is-now' : '') + '">' + cellFor(day, slot) + '</td>';
+    }).join('');
+    if(!showDays.some(function(day){ return day.rows.some(function(x){ return x.b.s === slot; }); }))
+      return '';
+    return '<tr><td>' + slot + '</td>' + cells + '</tr>';
+  }).join('');
+  var foot = '<tr><td>done</td>' + showDays.map(function(day){
+      var judged = day.rows.filter(function(r){ return r.b.tr !== 'none'; });
+      var doneN  = judged.filter(function(r){ return r.status === 'done'; }).length;
+      return '<td class="' + (day.isToday ? 'is-today' : '') + '">' + doneN + '/'
+        + judged.length + '</td>';
+    }).join('') + '</tr>';
+
+  return mockHeader(J, phone ? 'Register' : 'Register · ' + WEEK.iso)
+    + quietDay(J)
+    + (phone ? '<p class="panel-title">Today <small style="text-transform:none;letter-spacing:0">'
+        + '· <a href="?week=1">show the whole week</a></small></p>'
+        : '<p class="panel-title">Timetable · ' + WEEK.iso + '</p>')
+    + '<div class="regwrap"><table class="reg"><thead>' + head + '</thead><tbody>'
+    + ribRow + body + '</tbody><tfoot>' + foot + '</tfoot></table></div>'
+    + weekLine(J) + legend() + (phone ? '' : subjectsBelow());
+}
+
+/* ====================================================================== *
+ *  Boot                                                                   *
+ * ====================================================================== */
+var STATE = {moment:'thu', dayoff:'requested'};
+var RENDER = {A:renderA, B:renderB, C:renderC};
+
+function chips(sel, list, key){
+  var row = document.querySelector(sel);
+  row.querySelectorAll('button').forEach(function(b){ b.remove(); });
+  list.forEach(function(m){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = m.name;
+    b.setAttribute('aria-pressed', STATE[key] === m.key);
+    b.onclick = function(){ STATE[key] = m.key; draw(); };
+    row.appendChild(b);
+  });
+}
+function draw(){
+  var moment = MOMENTS.filter(function(m){ return m.key === STATE.moment; })[0];
+  var J = judge(moment.at, STATE.dayoff);
+  document.querySelectorAll('[data-mock]').forEach(function(el){
+    var phone = el.dataset.width === 'phone';
+    el.innerHTML = RENDER[el.dataset.mock](J, phone);
+    if(phone && el.dataset.mock === 'A'){
+      var strip = el.querySelector('[data-strip]'), t = el.querySelector('.wkcol.is-today');
+      if(strip && t) strip.scrollLeft = t.offsetLeft - strip.offsetLeft - 12;
+    }
+  });
+  chips('[data-moments]', MOMENTS, 'moment');
+  chips('[data-dayoff]', DAYOFFS, 'dayoff');
+}
+draw();
+</script>

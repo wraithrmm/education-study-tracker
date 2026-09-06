@@ -78,6 +78,15 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_void_practice` | Mark one practice run as not counting, with a reason. Never hard-deletes. |
 | `tracker_get_scoreboard` | Read a subject's scoreboard panel configuration. |
 | `tracker_set_scoreboard` | Replace it. One invalid panel rejects the whole configuration. |
+| `tracker_today` | Which block she is in now, what is next, what has been missed today. |
+| `tracker_week_status` | A whole week block by block, with counts and hours against target. |
+| `tracker_get_timetable` | The timetable version in force on a date. Read before any re-cut. |
+| `tracker_set_timetable` | Replace the timetable from a date. Refuses overlaps and unknown slugs. |
+| `tracker_days_off` | Holidays and days off in a range, with who asked and what was decided. |
+| `tracker_request_day_off` | Ask for time off. A student's request stays a request until the parent approves it. |
+| `tracker_decide_day_off` | Parent-only: approve, decline or un-approve one. |
+| `tracker_excuse_block` | Excuse one block on one date, with the parent's reason. Null un-excuses. |
+| `tracker_tick_block` | Tick a self-reported block. Refused on study blocks — those are judged from logged work. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 

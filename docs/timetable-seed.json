@@ -1,0 +1,442 @@
+{
+  "valid_from": "2026-09-07",
+  "timezone": "Europe/London",
+  "blocks": [
+    {
+      "id": 1,
+      "weekday": 1,
+      "start": "09:00",
+      "end": "09:30",
+      "kind": "movement",
+      "label": "Move — walk, bike or dance",
+      "subjects": [],
+      "tracking": "self_report",
+      "note": "20–30 min, moderate. Brain online before the hard thing."
+    },
+    {
+      "id": 2,
+      "weekday": 1,
+      "start": "09:30",
+      "end": "09:45",
+      "kind": "retrieval",
+      "label": "Retrieval warm-up (mixed)",
+      "subjects": [
+        "maths",
+        "english-literature",
+        "english-language",
+        "computer-science"
+      ],
+      "tracking": "evidence",
+      "note": "10 quick questions across subjects, marked together."
+    },
+    {
+      "id": 3,
+      "weekday": 1,
+      "start": "09:45",
+      "end": "11:00",
+      "kind": "teach",
+      "label": "Maths — new topic",
+      "subjects": [
+        "maths"
+      ],
+      "tracking": "evidence",
+      "note": "Teach → interleaved practice → exit ticket. 3 chunks, breaks between."
+    },
+    {
+      "id": 4,
+      "weekday": 1,
+      "start": "11:00",
+      "end": "11:15",
+      "kind": "break",
+      "label": "Movement break",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 5,
+      "weekday": 1,
+      "start": "11:15",
+      "end": "12:15",
+      "kind": "teach",
+      "label": "English Literature — set text",
+      "subjects": [
+        "english-literature"
+      ],
+      "tracking": "evidence",
+      "note": "One text: read, annotate, whole-text recall."
+    },
+    {
+      "id": 6,
+      "weekday": 1,
+      "start": "12:15",
+      "end": "13:00",
+      "kind": "break",
+      "label": "Lunch + outside",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 7,
+      "weekday": 1,
+      "start": "13:00",
+      "end": "14:00",
+      "kind": "coding",
+      "label": "Computer Science — Python",
+      "subjects": [
+        "computer-science"
+      ],
+      "tracking": "evidence",
+      "note": "Hands-on: build or extend a program."
+    },
+    {
+      "id": 8,
+      "weekday": 1,
+      "start": "14:00",
+      "end": "14:15",
+      "kind": "break",
+      "label": "Movement break",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 9,
+      "weekday": 1,
+      "start": "14:15",
+      "end": "15:00",
+      "kind": "writing",
+      "label": "English Language — creative writing",
+      "subjects": [
+        "english-language"
+      ],
+      "tracking": "evidence",
+      "note": "Typed drafting. Her strength — let it run."
+    },
+    {
+      "id": 10,
+      "weekday": 2,
+      "start": "09:00",
+      "end": "09:30",
+      "kind": "movement",
+      "label": "Move",
+      "subjects": [],
+      "tracking": "self_report"
+    },
+    {
+      "id": 11,
+      "weekday": 2,
+      "start": "09:30",
+      "end": "09:45",
+      "kind": "retrieval",
+      "label": "Retrieval warm-up (Mon's work)",
+      "subjects": [
+        "maths",
+        "english-literature"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 12,
+      "weekday": 2,
+      "start": "09:45",
+      "end": "11:00",
+      "kind": "practise",
+      "label": "Maths — interleaved practice",
+      "subjects": [
+        "maths"
+      ],
+      "tracking": "evidence",
+      "note": "Mixed set + one hard problem. Never blank — write one line."
+    },
+    {
+      "id": 13,
+      "weekday": 2,
+      "start": "11:00",
+      "end": "11:15",
+      "kind": "break",
+      "label": "Movement break",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 14,
+      "weekday": 2,
+      "start": "11:15",
+      "end": "12:15",
+      "kind": "teach",
+      "label": "English Literature — second text",
+      "subjects": [
+        "english-literature"
+      ],
+      "tracking": "evidence",
+      "note": "Rotate: A Christmas Carol / An Inspector Calls / a Power & Conflict poem."
+    },
+    {
+      "id": 15,
+      "weekday": 2,
+      "start": "12:15",
+      "end": "13:00",
+      "kind": "break",
+      "label": "Lunch + outside",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 16,
+      "weekday": 2,
+      "start": "13:00",
+      "end": "14:00",
+      "kind": "timed_handwritten",
+      "label": "Timed handwritten practice",
+      "subjects": [
+        "english-language",
+        "english-literature",
+        "maths",
+        "computer-science"
+      ],
+      "tracking": "evidence",
+      "note": "Rotate weekly: Lang Q5 / Lit essay / Maths section / CS program on paper. Photograph, mark same day. Includes 15 min feedback."
+    },
+    {
+      "id": 17,
+      "weekday": 2,
+      "start": "14:00",
+      "end": "15:00",
+      "kind": "teach",
+      "label": "Computer Science — theory or code",
+      "subjects": [
+        "computer-science"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 18,
+      "weekday": 3,
+      "start": "09:00",
+      "end": "09:10",
+      "kind": "movement",
+      "label": "Quick move",
+      "subjects": [],
+      "tracking": "self_report"
+    },
+    {
+      "id": 19,
+      "weekday": 3,
+      "start": "09:10",
+      "end": "09:45",
+      "kind": "retrieval",
+      "label": "Retrieval quiz — Maths, Lit, CS",
+      "subjects": [
+        "maths",
+        "english-literature",
+        "computer-science"
+      ],
+      "tracking": "evidence",
+      "note": "The whole hour's job is spaced retrieval, not new content."
+    },
+    {
+      "id": 20,
+      "weekday": 3,
+      "start": "09:45",
+      "end": "10:00",
+      "kind": "spanish",
+      "label": "Spanish — vocab + listening",
+      "subjects": [
+        "spanish"
+      ],
+      "tracking": "evidence",
+      "note": "Spaced-repetition set + one short clip."
+    },
+    {
+      "id": 21,
+      "weekday": 4,
+      "start": "09:00",
+      "end": "09:25",
+      "kind": "movement",
+      "label": "Move + retrieval warm-up",
+      "subjects": [],
+      "tracking": "self_report"
+    },
+    {
+      "id": 22,
+      "weekday": 4,
+      "start": "09:25",
+      "end": "10:30",
+      "kind": "teach",
+      "label": "Deep block — Maths / CS alternating",
+      "subjects": [
+        "maths",
+        "computer-science"
+      ],
+      "alternate": {
+        "odd": [
+          "maths"
+        ],
+        "even": [
+          "computer-science"
+        ]
+      },
+      "tracking": "evidence",
+      "note": "Odd ISO weeks maths, even weeks CS. One subject, whole block."
+    },
+    {
+      "id": 23,
+      "weekday": 4,
+      "start": "10:30",
+      "end": "10:45",
+      "kind": "break",
+      "label": "Movement break",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 24,
+      "weekday": 4,
+      "start": "10:45",
+      "end": "11:45",
+      "kind": "teach",
+      "label": "English Literature — poetry / essay planning",
+      "subjects": [
+        "english-literature"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 25,
+      "weekday": 4,
+      "start": "11:45",
+      "end": "12:00",
+      "kind": "spanish",
+      "label": "Spanish — vocab review",
+      "subjects": [
+        "spanish"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 26,
+      "weekday": 5,
+      "start": "09:00",
+      "end": "09:30",
+      "kind": "movement",
+      "label": "Move",
+      "subjects": [],
+      "tracking": "self_report"
+    },
+    {
+      "id": 27,
+      "weekday": 5,
+      "start": "09:30",
+      "end": "09:45",
+      "kind": "retrieval",
+      "label": "Retrieval warm-up (whole week)",
+      "subjects": [
+        "maths",
+        "english-literature",
+        "english-language",
+        "computer-science"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 28,
+      "weekday": 5,
+      "start": "09:45",
+      "end": "11:00",
+      "kind": "consolidate",
+      "label": "Maths — consolidate + fix errors",
+      "subjects": [
+        "maths"
+      ],
+      "tracking": "evidence",
+      "note": "Mixed-topic set; correct the week's errors."
+    },
+    {
+      "id": 29,
+      "weekday": 5,
+      "start": "11:00",
+      "end": "11:15",
+      "kind": "break",
+      "label": "Movement break",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 30,
+      "weekday": 5,
+      "start": "11:15",
+      "end": "11:55",
+      "kind": "practise",
+      "label": "English Language — exam technique",
+      "subjects": [
+        "english-language"
+      ],
+      "tracking": "evidence",
+      "note": "Question by question, scaffolded, some on paper."
+    },
+    {
+      "id": 31,
+      "weekday": 5,
+      "start": "11:55",
+      "end": "12:15",
+      "kind": "retrieval",
+      "label": "Lit quotation retrieval",
+      "subjects": [
+        "english-literature"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 32,
+      "weekday": 5,
+      "start": "12:15",
+      "end": "13:00",
+      "kind": "break",
+      "label": "Lunch + outside",
+      "subjects": [],
+      "tracking": "none"
+    },
+    {
+      "id": 33,
+      "weekday": 5,
+      "start": "13:00",
+      "end": "13:45",
+      "kind": "consolidate",
+      "label": "Computer Science — quiz + fix code",
+      "subjects": [
+        "computer-science"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 34,
+      "weekday": 5,
+      "start": "13:45",
+      "end": "14:15",
+      "kind": "spanish",
+      "label": "Spanish — vocab + short reading",
+      "subjects": [
+        "spanish"
+      ],
+      "tracking": "evidence"
+    },
+    {
+      "id": 35,
+      "weekday": 5,
+      "start": "14:15",
+      "end": "15:00",
+      "kind": "review",
+      "label": "Weekly review with Dad",
+      "subjects": [],
+      "tracking": "self_report",
+      "note": "Ticked by the parent from the review chat."
+    }
+  ],
+  "targets_hours_per_week": {
+    "maths": 5.0,
+    "english-literature": 4.5,
+    "english-language": 3.5,
+    "computer-science": 3.5,
+    "spanish": 1.75
+  },
+  "_note": "No holidays here. Book days off through tracker_request_day_off once the tools are live."
+}
