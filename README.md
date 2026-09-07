@@ -72,6 +72,10 @@ only rings while the page is open. Browsers refuse to play sound until a page
 has been clicked, so if it is reloaded with the bell already on, the status
 line asks for one click first.
 
+For a reminder that reaches her with the browser closed, the timetable can be
+mirrored into a Google calendar and Google does the alerting, with nothing
+running on the server: see [docs/class-bell-calendar.md](docs/class-bell-calendar.md).
+
 ## Connecting Claude
 
 1. Settings → Connectors → Add custom connector.
