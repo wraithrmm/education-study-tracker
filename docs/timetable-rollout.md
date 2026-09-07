@@ -81,6 +81,27 @@ Version 3's Thursday runs 09:00–12:00 with block 25 at 11:45–12:00, so the
 Group block overlaps it until 25 is moved; the tool will refuse the write and
 name the clash if that step is missed.
 
+## 5. The Move blocks stop needing a tick (September 2026)
+
+Lunch and the group are labelled on the board and ask nothing of anyone; the
+five Move blocks (1, 10, 18, 21, 26) were still `self_report`, so each showed
+a mark waiting to be ticked. They are now `tracking: none` — the same
+treatment as lunch: labelled with their start and end, no mark, nothing
+judged. Their `kind` stays `movement`, so the chime still tells a walk from a
+study block. This is data, not code: it was written as timetable **version 6**
+(valid from 2026-09-07, the same week as version 4, so the newer version wins
+on the tie; version 5 was the same write with block 22's subject list dropped
+by mistake and was superseded within the minute).
+
+With no movement block self-reported, the only `self_report` block left is the
+Friday review, so the "movement ticked n of n" line on the week page and in
+the counts sentence is omitted rather than printed as "0 of 0".
+
+`docs/timetable-seed.json` and `deploy/smoke-test.sh` still carry the Move
+blocks as `self_report`: the seed is the timetable as first agreed and the
+smoke test uses it as a fixture to exercise ticking. The live timetable, not
+the seed, is the record.
+
 ## Still outstanding
 
 `skills/gcse-progress-tracker/references/timetable.md` — the block contract —

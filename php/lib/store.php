@@ -220,8 +220,8 @@ function tt_kind_check_sql(): string
 /**
  * How a block is judged.
  *   evidence    — done only when a session, attempt or practice run exists.
- *   self_report — done when someone ticks it (movement, the weekly review).
- *   none        — not judged at all (breaks).
+ *   self_report — done when someone ticks it (the weekly review).
+ *   none        — not judged at all (breaks, the Move blocks, lunch, the group).
  */
 const TIMETABLE_TRACKING = ['evidence', 'self_report', 'none'];
 

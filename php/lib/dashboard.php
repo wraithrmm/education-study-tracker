@@ -1686,6 +1686,22 @@ function render_week_page(
     return dash_shell('Week ' . $iso, $body, DASH_HAND_FONT);
 }
 
+/**
+ * "movement ticked 4 of 5 · review block ticked". Movement is only named when
+ * a movement block is still self-reported: since timetable version 6 the Move
+ * blocks are untracked like lunch, so the fraction would read "0 of 0" and say
+ * nothing. The same rule mcp_snapshot_counts_line() applies.
+ */
+function week_self_report_line(array $self, array $rev): string
+{
+    $bits = [];
+    if (($self['judged'] ?? 0) > 0) {
+        $bits[] = 'movement ticked ' . (int) $self['done'] . ' of ' . (int) $self['judged'];
+    }
+    $bits[] = 'review block ' . week_review_block_word($rev);
+    return implode(' · ', $bits);
+}
+
 /** The four headline cards: study blocks, hours, timed handwritten, movement. */
 function week_headline_cards(array $snap, array $names = []): string
 {
@@ -1713,9 +1729,7 @@ function week_headline_cards(array $snap, array $names = []): string
         . '<p class="big mono">' . (int) $ev['done'] . ' of ' . (int) $ev['judged'] . '</p>'
         . week_segbar($blocks, $ev)
         . '<p class="sub mono">' . h($sub1 ? implode(' · ', $sub1) : 'nothing missed') . '</p>'
-        . '<p class="sub mono">movement ticked ' . (int) $self['done'] . ' of '
-        . (int) $self['judged']
-        . ' · review block ' . h(week_review_block_word($rev)) . '</p></div>';
+        . '<p class="sub mono">' . h(week_self_report_line($self, $rev)) . '</p></div>';
 
     $done = array_sum($snap['hours_by_subject']);
     $plan = array_sum($snap['planned_by_subject']);

@@ -1424,9 +1424,10 @@ function mcp_tools(): array
             'name'  => 'tracker_tick_block',
             'title' => 'Tick a self-reported block',
             'description' =>
-                "Marks a self-reported block done: the movement blocks and the weekly review, which leave no logged work "
-                . "behind.\n\n"
-                . "USE WHEN: she says she did her movement block, or the parent has finished the weekly review.\n\n"
+                "Marks a self-reported block done: the weekly review, and any other block with tracking 'self_report', "
+                . "which leave no logged work behind. The Move blocks are untracked, like lunch: there is nothing to tick "
+                . "and nothing is judged against them.\n\n"
+                . "USE WHEN: the parent has finished the weekly review, or she says she did a block that is self-reported.\n\n"
                 . "DO NOT use it on a study block. Blocks with tracking 'evidence' are refused, because they are judged "
                 . "from the session, attempt or practice run that was logged against them — log the work instead, and "
                 . "the block ticks itself.\n\n"
@@ -1866,7 +1867,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 return mcp_text("There is no block $key in the timetable in force on $date.");
             }
             if ($block['tracking'] === 'none') {
-                return mcp_text("Block $key ({$block['label']}) is not tracked — a break, lunch or a slot away from the desk — so there is nothing to tick.");
+                return mcp_text("Block $key ({$block['label']}) is not tracked — a break, a Move block, lunch or a slot away from the desk — so there is nothing to tick.");
             }
             if ($block['tracking'] !== 'self_report') {
                 throw new McpError(

@@ -447,7 +447,9 @@ denominator (§3); and `weeksWithActivity(int $limit)` for `/weeks`.
 separately again. "23 of 27" puts a walk and a maths block in the same fraction, and the fraction
 then means nothing to the person reading it. So: a headline of `18 of 21 study blocks`, a line
 under it reading `movement ticked 5 of 5 · review block ticked` (or `pending`), and the same partition
-everywhere a count appears — the stat card, the save tool's return, the digest subject line, the
+everywhere a count appears. The movement clause is only printed when a movement block is actually
+self-reported: since timetable version 6 the Move blocks are untracked like lunch, so the line reads
+`review block ticked` alone rather than `movement ticked 0 of 0`. The same partition holds — the stat card, the save tool's return, the digest subject line, the
 `/weeks` row and the snapshot's `counts_by_tracking`. Against `docs/timetable-seed.json` a full
 Monday–Friday week is 21 evidence blocks, 5 movement blocks and 1 review block; breaks
 (`status === 'n/a'`) are not judged and are not counted anywhere.
