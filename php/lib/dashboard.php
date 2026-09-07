@@ -18,7 +18,9 @@ const STATUS_COLOUR = [
 ];
 
 const DASH_CSS = <<<'CSS'
-:root{--ink:#1c1917;--muted:#78716c;--line:#d6d3d1;--card:#fff}
+/* --muted is the quiet text: times, dates, captions. Stone-600 rather than
+   stone-500, because on this off-white paper the paler grey read as faded. */
+:root{--ink:#1c1917;--muted:#57534e;--line:#d6d3d1;--card:#fff}
 *{box-sizing:border-box}
 body{margin:0;color:var(--ink);background-color:#fcfcf9;
   background-image:linear-gradient(rgba(96,140,200,.12) 1px,transparent 1px),
@@ -206,7 +208,7 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .dhead .dn{font-weight:700;font-size:.98rem}
 .dhead .dd{font-size:.78rem;color:var(--muted)}
 .blk{display:flex;align-items:center;gap:.4rem;padding:.28rem .3rem .28rem .45rem;
-  border-left:3px solid var(--acc,#d6d3d1);border-radius:0 4px 4px 0;margin:.14rem 0;
+  border-left:3px solid var(--acc,#a8a29e);border-radius:0 4px 4px 0;margin:.14rem 0;
   text-decoration:none;color:inherit}
 .blk .bt{font-size:.76rem;color:var(--muted);flex:none;width:2.6rem;
   font-variant-numeric:tabular-nums}
@@ -217,8 +219,14 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
   border-radius:4px}
 .blk.s-done .bl,.blk.s-excused .bl{color:#57534e}
 .blk.s-excused .bl{text-decoration:line-through;text-decoration-color:#a8a29e}
-.blk.s-upcoming,.blk.s-pending{opacity:.66}
-.blk.s-optional{opacity:.62}
+.blk.s-upcoming,.blk.s-pending{opacity:.8}
+.blk.s-optional{opacity:.76}
+/* Lunch and the Thursday group: untracked, so no mark, but labelled — they
+   are the slots a person looks for. The end time is shown because it is the
+   question being asked: when is she back? */
+.blk.s-quiet{border-left-style:dotted;background:#f7f6f2}
+.blk.s-quiet .bl{color:#44403c}
+.blk.s-quiet .til{color:var(--muted);white-space:nowrap}
 a.blk:hover{background:#faf9f5}
 .brk{height:1px;background:#ededea;margin:.3rem .3rem .3rem 0}
 .tt-extras{margin:.35rem 0 0;padding:.3rem .2rem 0;border-top:1px dotted #e7e5e4;
@@ -252,7 +260,7 @@ a.blk:hover{background:#faf9f5}
   padding:.34rem .65rem;transform:rotate(-2.4deg);background:rgba(252,252,249,.7);
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.6rem;font-weight:700;
   line-height:1.35;letter-spacing:.13em;text-transform:uppercase;text-align:center;white-space:nowrap}
-.stamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c;transform:rotate(1.8deg)}
+.stamp.draft{border-style:dashed;border-color:#a8a29e;color:var(--muted);transform:rotate(1.8deg)}
 .panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:.72rem;color:#374151;
   font-weight:700;margin:1.6rem 0 .5rem}
 .cap{font-size:.72rem;color:var(--muted);margin:.4rem 0 0}
@@ -349,7 +357,7 @@ footer.wkfoot{margin-top:1.6rem}
 .ledger .wkid{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-weight:700;
   white-space:nowrap;text-align:left;font-size:.78rem;text-transform:none;letter-spacing:0;
   color:var(--ink);padding:.5rem .6rem;border-bottom:1px solid #ededea}
-.ledger .quiet{color:#78716c;font-style:italic}
+.ledger .quiet{color:var(--muted);font-style:italic}
 .ledger td.mono{white-space:nowrap}
 .ledger .segbar{margin:0 0 .2rem;min-width:6rem}
 .ledger .segbar span{height:7px}
@@ -359,7 +367,7 @@ footer.wkfoot{margin-top:1.6rem}
   padding:.08rem .3rem;transform:rotate(-2deg);text-decoration:none;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.56rem;font-weight:700;
   letter-spacing:.1em;text-transform:uppercase}
-.ministamp.draft{border-style:dashed;border-color:#a8a29e;color:#78716c}
+.ministamp.draft{border-style:dashed;border-color:#a8a29e;color:var(--muted)}
 .ministamp.none{border:0;transform:none;color:#a8a29e;letter-spacing:.06em}
 .driftdot{display:inline-block;width:7px;height:7px;border-radius:999px;background:#b45309;
   margin-left:.3rem;vertical-align:middle}
@@ -650,8 +658,7 @@ function tt_design_a(array $w, array $names, ?array $ctl = null): string
 
         foreach ($day['blocks'] as $b) {
             if ($b['status'] === 'n/a') {
-                $out .= '<div class="brk" role="separator" aria-label="'
-                    . h($b['label'] . ' ' . $b['start'] . '–' . $b['end']) . '"></div>';
+                $out .= tt_quiet_block($b);
                 continue;
             }
             $b['accent'] = tt_accent($b['subjects']);
@@ -688,6 +695,24 @@ function tt_design_a(array $w, array $names, ?array $ctl = null): string
         $out .= tt_extras_block($day['extras'], $names) . '</div>';
     }
     return $out . '</div>';
+}
+
+/**
+ * An untracked block. A short break is a rule between chips — it is not a
+ * thing anyone looks for. Lunch and the group session are: they are labelled,
+ * with their end time, and carry no mark because nothing judges them.
+ */
+function tt_quiet_block(array $b): string
+{
+    $span = $b['start'] . '–' . $b['end'];
+    if (($b['kind'] ?? '') === 'break') {
+        return '<div class="brk" role="separator" aria-label="'
+            . h($b['label'] . ' ' . $span) . '"></div>';
+    }
+    return '<div class="blk s-quiet" aria-label="' . h($b['label'] . ' ' . $span) . '">'
+        . '<span class="bt mono">' . h($b['start']) . '</span>'
+        . '<span class="bl">' . h($b['label'])
+        . ' <span class="til mono">– ' . h($b['end']) . '</span></span></div>';
 }
 
 /**

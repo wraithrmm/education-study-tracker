@@ -1866,7 +1866,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 return mcp_text("There is no block $key in the timetable in force on $date.");
             }
             if ($block['tracking'] === 'none') {
-                return mcp_text("Block $key ({$block['label']}) is a break — there is nothing to tick.");
+                return mcp_text("Block $key ({$block['label']}) is not tracked — a break, lunch or a slot away from the desk — so there is nothing to tick.");
             }
             if ($block['tracking'] !== 'self_report') {
                 throw new McpError(

@@ -196,11 +196,26 @@ CREATE INDEX IF NOT EXISTS idx_papers_attempt ON attempt_papers(attempt_id, sort
 CREATE INDEX IF NOT EXISTS idx_questions_paper ON attempt_questions(paper_id, sort_order);
 SQL;
 
-/** The block kinds the timetable understands, in the order the day runs. */
+/**
+ * The block kinds the timetable understands, in the order the day runs.
+ *
+ * `break` is the short movement break: the board draws it as a rule between
+ * chips. `lunch` and `group` are also untracked, but they are slots a person
+ * looks for — when is lunch, when is she out — so the board labels them.
+ */
 const TIMETABLE_KINDS = [
     'movement', 'retrieval', 'teach', 'practise', 'timed_handwritten',
     'coding', 'writing', 'consolidate', 'spanish', 'review', 'break',
+    'lunch', 'group',
 ];
+
+/** The `kind` column's CHECK constraint, built from TIMETABLE_KINDS so the two can never disagree. */
+function tt_kind_check_sql(): string
+{
+    return 'CHECK (kind IN (' . implode(',', array_map(
+        static fn(string $k): string => "'" . $k . "'", TIMETABLE_KINDS
+    )) . '))';
+}
 
 /**
  * How a block is judged.
@@ -449,7 +464,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 6;
+    private const SCHEMA_VERSION = 7;
 
     private function migrate(): void
     {
@@ -618,6 +633,36 @@ final class Store
             $this->createWeeklyReviewTable();
             return;
         }
+
+        if ($v === 7) {
+            // Two kinds joined the timetable: `lunch`, so the board can say
+            // when it is, and `group`, Thursday's session away from the desk.
+            // The kind column's CHECK constraint names every kind it allows
+            // and SQLite cannot alter a constraint, so an existing table is
+            // rebuilt around the new list. Every row is carried across with
+            // its id; a fresh database already has the new constraint.
+            $sql = (string) $this->db->query(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'timetable_blocks'"
+            )->fetchColumn();
+            if ($sql !== '' && !str_contains($sql, "'lunch'")) {
+                // The index would otherwise follow the old table through the
+                // rename, and IF NOT EXISTS would then skip creating it on
+                // the new one.
+                $this->db->exec('DROP INDEX IF EXISTS idx_blocks_version');
+                $this->db->exec('ALTER TABLE timetable_blocks RENAME TO timetable_blocks_old');
+                $this->createTimetableBlocksTable();
+                $this->db->exec(
+                    'INSERT INTO timetable_blocks
+                       (id, version_id, block_key, weekday, start, end, kind, label, note,
+                        subjects_json, alternate_json, tracking, sort)
+                     SELECT id, version_id, block_key, weekday, start, end, kind, label, note,
+                            subjects_json, alternate_json, tracking, sort
+                     FROM timetable_blocks_old'
+                );
+                $this->db->exec('DROP TABLE timetable_blocks_old');
+            }
+            return;
+        }
     }
 
     /**
@@ -734,6 +779,40 @@ final class Store
      * has the tables but not the block_key columns would judge every block as
      * missed, which is worse than not having the feature.
      */
+    /**
+     * The blocks of every timetable version. On its own because schema step 7
+     * rebuilds it: SQLite cannot widen a CHECK constraint in place.
+     *
+     * block_key is the identity that survives a re-cut: an excusal written
+     * against block 16 in week 37 still resolves after the timetable is
+     * edited in week 40. The primary key does not, so nothing user-facing
+     * is ever allowed to reference it.
+     */
+    private function createTimetableBlocksTable(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS timetable_blocks (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               version_id     INTEGER NOT NULL REFERENCES timetable_versions(id) ON DELETE CASCADE,
+               block_key      INTEGER NOT NULL,
+               weekday        INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+               start          TEXT NOT NULL,
+               end            TEXT NOT NULL,
+               kind           TEXT NOT NULL " . tt_kind_check_sql() . ",
+               label          TEXT NOT NULL,
+               note           TEXT,
+               subjects_json  TEXT NOT NULL DEFAULT '[]',
+               alternate_json TEXT,
+               tracking       TEXT NOT NULL CHECK (tracking IN ('evidence','self_report','none')),
+               sort           INTEGER NOT NULL,
+               UNIQUE (version_id, block_key)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_blocks_version ON timetable_blocks(version_id, weekday, sort)'
+        );
+    }
+
     private function createTimetableTables(): void
     {
         // A timetable is versioned rather than edited, so a week judged in
@@ -747,33 +826,7 @@ final class Store
              )"
         );
 
-        // block_key is the identity that survives a re-cut: an excusal written
-        // against block 16 in week 37 still resolves after the timetable is
-        // edited in week 40. The primary key does not, so nothing user-facing
-        // is ever allowed to reference it.
-        $this->db->exec(
-            "CREATE TABLE IF NOT EXISTS timetable_blocks (
-               id             INTEGER PRIMARY KEY AUTOINCREMENT,
-               version_id     INTEGER NOT NULL REFERENCES timetable_versions(id) ON DELETE CASCADE,
-               block_key      INTEGER NOT NULL,
-               weekday        INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
-               start          TEXT NOT NULL,
-               end            TEXT NOT NULL,
-               kind           TEXT NOT NULL CHECK (kind IN (
-                                'movement','retrieval','teach','practise','timed_handwritten',
-                                'coding','writing','consolidate','spanish','review','break')),
-               label          TEXT NOT NULL,
-               note           TEXT,
-               subjects_json  TEXT NOT NULL DEFAULT '[]',
-               alternate_json TEXT,
-               tracking       TEXT NOT NULL CHECK (tracking IN ('evidence','self_report','none')),
-               sort           INTEGER NOT NULL,
-               UNIQUE (version_id, block_key)
-             )"
-        );
-        $this->db->exec(
-            'CREATE INDEX IF NOT EXISTS idx_blocks_version ON timetable_blocks(version_id, weekday, sort)'
-        );
+        $this->createTimetableBlocksTable();
 
         // Anyone may ask for a day off; only the parent decides. Declined and
         // un-approved records are kept with their note, so "we said no and

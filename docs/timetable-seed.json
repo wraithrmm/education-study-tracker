@@ -70,7 +70,7 @@
       "weekday": 1,
       "start": "12:15",
       "end": "13:00",
-      "kind": "break",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
@@ -175,7 +175,7 @@
       "weekday": 2,
       "start": "12:15",
       "end": "13:00",
-      "kind": "break",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
@@ -292,7 +292,7 @@
       "id": 24,
       "weekday": 4,
       "start": "10:45",
-      "end": "11:45",
+      "end": "11:30",
       "kind": "teach",
       "label": "English Literature — poetry / essay planning",
       "subjects": [
@@ -303,14 +303,25 @@
     {
       "id": 25,
       "weekday": 4,
-      "start": "11:45",
-      "end": "12:00",
+      "start": "11:30",
+      "end": "11:45",
       "kind": "spanish",
       "label": "Spanish — vocab review",
       "subjects": [
         "spanish"
       ],
       "tracking": "evidence"
+    },
+    {
+      "id": 37,
+      "weekday": 4,
+      "start": "11:45",
+      "end": "15:20",
+      "kind": "group",
+      "label": "Group",
+      "subjects": [],
+      "tracking": "none",
+      "note": "Every Thursday. Away from the desk; lunch is there. Nothing is judged against it."
     },
     {
       "id": 26,
@@ -390,7 +401,7 @@
       "weekday": 5,
       "start": "12:15",
       "end": "13:00",
-      "kind": "break",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
