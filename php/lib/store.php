@@ -464,7 +464,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 7;
+    private const SCHEMA_VERSION = 8;
 
     private function migrate(): void
     {
@@ -660,6 +660,16 @@ final class Store
                      FROM timetable_blocks_old'
                 );
                 $this->db->exec('DROP TABLE timetable_blocks_old');
+            }
+            return;
+        }
+
+        if ($v === 8) {
+            // cs_code_lab joined the seed. As at step 5: the registry was
+            // seeded once, so a new source reaches a live database only by
+            // re-running the upsert, which is idempotent over the whole list.
+            foreach (PRACTICE_SOURCE_SEED as $source) {
+                $this->upsertPracticeSource($source);
             }
             return;
         }
