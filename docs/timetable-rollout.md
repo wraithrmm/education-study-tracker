@@ -56,9 +56,11 @@ Two block kinds were added after the first cut: `lunch` and `group`. Both are
 untracked, like `break`, but the board labels them — with the start and end
 time — instead of drawing them as a rule between chips. A `break` is still a
 rule: it is not a slot anyone looks for. The seed carries the change:
-blocks 6, 15 and 32 are `lunch`, and block 37 is **Group**, every Thursday
-11:45–15:20. Thursday's Spanish review (25) moves to 11:30–11:45 to make room
-and the Literature block before it (24) ends at 11:30.
+blocks 6, 15 and 32 are `lunch` and run for an hour, with the afternoon
+blocks after them fifteen minutes later than before; block 37 is **Group**,
+every Thursday 11:45–15:20. Thursday's Spanish review (25) moves to
+11:30–11:45 to make room and the Literature block before it (24) ends at
+11:30. Thursday has no lunch block: lunch is at the group.
 
 The live timetable is data, so this too has to be written **after** the deploy
 that carries the new kinds — the service in force before it refuses them.
@@ -67,10 +69,13 @@ there, not from the file:
 
 > Read the timetable with `tracker_get_timetable`. Keep every block and its
 > block_key. Change the three "Lunch + outside" blocks (6, 15, 32) to kind
-> `lunch`. On Thursday, end block 24 at 11:30, move block 25 to 11:30–11:45,
-> and add block 37, kind `group`, label "Group", 11:45–15:20, no subjects,
-> tracking `none`. Write it with `tracker_set_timetable`, `valid_from` the
-> coming Monday. Show me the diff first.
+> `lunch` and make each an hour, 12:00–13:00, moving every block after it
+> that day fifteen minutes later (Monday 7, 8, 9; Tuesday 16, 17; Friday 33,
+> 34, 35), so those days end at 15:00. On Thursday, end block 24 at 11:30,
+> move block 25 to 11:30–11:45, and add block 37, kind `group`, label
+> "Group", 11:45–15:20, no subjects, tracking `none`. Write it with
+> `tracker_set_timetable`, `valid_from` the coming Monday. Show me the diff
+> first.
 
 Version 3's Thursday runs 09:00–12:00 with block 25 at 11:45–12:00, so the
 Group block overlaps it until 25 is moved; the tool will refuse the write and

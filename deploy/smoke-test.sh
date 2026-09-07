@@ -741,7 +741,7 @@ contains "the register speaks the one block format" "$body" "#3   09:45-11:00  M
 contains "every missed block is named with day, time, label and what was absent" "$body" \
   "Wed 09:45 Spanish — vocab + listening — no practice logged"
 contains "and a timed block says it was an attempt that was missing" "$body" \
-  "Tue 13:00 Timed handwritten practice — no attempt logged"
+  "Tue 13:15 Timed handwritten practice — no attempt logged"
 contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
 contains "hours are read against the timetable's planned hours" "$body" "maths 1.93/4.83"
 contains "and totalled against the same figure" "$body" "of 13.08 planned hours"
@@ -888,7 +888,7 @@ if [ "$REMOTE" = 0 ]; then
     "$week" 'aria-label="Move 09:00 — optional, nothing logged"'
   lacks "so it never gets a red cross" "$week" 'aria-label="Move 09:00 — missed"'
   contains "a break is a rule, not a chip" "$week" 'class="brk"'
-  contains "lunch is a labelled slot with its end time" "$week" 'aria-label="Lunch + outside 12:15–13:00"'
+  contains "lunch is a labelled slot with its end time" "$week" 'aria-label="Lunch + outside 12:15–13:15"'
   contains "and so is the Thursday group" "$week" 'aria-label="Group 11:45–15:20"'
   lacks "neither carries a status mark" "$week" 'aria-label="Group 11:45 —'
   contains "the done block links to the work that made it done" "$week" '/session/'
@@ -936,7 +936,7 @@ if [ "$REMOTE" = 0 ]; then
     "under the timetable"
 
   contains "a missed block is named with its day and time" "$week" \
-    'Tue 10 Sep · 13:00–14:00'
+    'Tue 10 Sep · 13:15–14:15'
   contains "and with its label" "$week" "<b>Timed handwritten practice</b>"
   contains "and with what was absent" "$week" "no attempt logged that day"
   contains "a missed Spanish block says practice was what was missing" "$week" \
@@ -1065,13 +1065,13 @@ if [ "$REMOTE" = 0 ]; then
     -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=skip&note=Dentist&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
   contains "a block can be marked skipped, with the reason kept" "$week" \
-    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
+    'aria-label="Computer Science — Python 13:15 — excused: Dentist"'
 
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/block" \
     -d "csrf=$CSRF&date=2024-09-09&block_key=7&action=clear&next=/"
   week="$("${CURL[@]}" -b "$JAR" "$BASE/week/2024-W37")"
   lacks "and clearing puts it back to what the evidence says" "$week" \
-    'aria-label="Computer Science — Python 13:00 — excused: Dentist"'
+    'aria-label="Computer Science — Python 13:15 — excused: Dentist"'
 
   "${CURL[@]}" -b "$JAR" -o /dev/null -X POST "$BASE/tt/day" \
     -d "csrf=$CSRF&date=2024-09-11&reason=Grandma visiting&next=/"
