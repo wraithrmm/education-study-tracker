@@ -144,6 +144,22 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .tt-total b{color:var(--ink)}
 .tt-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;margin-top:.6rem;font-size:.82rem;color:var(--muted)}
 .tt-legend span{display:flex;align-items:center;gap:.25rem}
+/* The class bell. Hers to switch, and quiet until she does: a switch, a
+   button to hear it, and one line saying what it will ring for next. */
+.tt-bell{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .7rem;margin:.6rem 0 .8rem;
+  padding:.45rem .7rem;background:var(--card);border:1px solid var(--line);border-radius:10px;
+  font-size:.85rem;color:#57534e}
+.tt-bell[hidden]{display:none}
+.tt-bell-switch,.tt-bell-try{font:inherit;font-size:.82rem;padding:.25rem .7rem;
+  border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);cursor:pointer}
+.tt-bell-switch b{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.68rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-left:.15rem}
+.tt-bell-switch:hover,.tt-bell-try:hover{border-color:#a8a29e}
+.tt-bell-switch:focus-visible,.tt-bell-try:focus-visible{outline:2px solid #7c3aed;outline-offset:2px}
+.tt-bell.is-on .tt-bell-switch{background:#292524;border-color:#292524;color:#fcfcf9}
+.tt-bell.is-on .tt-bell-switch b{color:#fcd34d}
+.tt-bell.is-blocked .tt-bell-switch{background:#78716c;border-color:#78716c}
+.tt-bell-status{flex:1 1 14rem;min-width:0;line-height:1.35}
 /* The parent's controls. Invisible to everyone else, and quiet even for him:
    the board is for reading, and these are for the times it is wrong. */
 .tt-signin{margin:.3rem 0 0;text-align:right}
@@ -376,7 +392,7 @@ footer.wkfoot{margin-top:1.6rem}
   .wk{gap:.3rem}
   .wkcol{break-inside:avoid;box-shadow:none}
   .tt-legend,.tt-total{font-size:8pt}
-  .tt-signin,.tt-extras,.blockctl,.tt-ctl,.tt-ctl-menu,footer,.item,h2{display:none}
+  .tt-signin,.tt-bell,.tt-extras,.blockctl,.tt-ctl,.tt-ctl-menu,footer,.item,h2{display:none}
   .tt{margin:0}
 }
 CSS;
@@ -720,6 +736,203 @@ function tt_short_date(string $date): string
     return (new DateTimeImmutable($date, tt_zone()))->format('j M');
 }
 
+// ---- the class bell ------------------------------------------------------
+//
+// She loses track of time, and the model on the other end of the chat is no
+// better at it. So the page keeps time instead: with the bell on, the browser
+// plays a chime at every boundary in today's timetable — a block ending, the
+// next one starting — and says in words what has just changed. It is hers to
+// switch, it remembers her choice on this device, and it writes nothing to
+// the record: nothing here can mark a block done, missed or anything else.
+
+/**
+ * The bell's script. Plain JavaScript, no library: the chime is synthesised
+ * with the Web Audio API so there is no sound file to fetch and nothing to
+ * cache. Everything it needs is in the JSON block beside it — today's blocks
+ * and the server's clock — and everything it does is between the browser and
+ * her ears.
+ *
+ * Time is kept as "minutes since midnight, Europe/London": the server's
+ * reading at render plus however long the page has been open. That way the
+ * browser's own timezone never enters into it, and a test that freezes the
+ * clock with TRACKER_NOW freezes the bell along with the board.
+ *
+ * Browsers refuse to make a sound until the page has been clicked, so
+ * switching the bell on is the click that unlocks it, and the switch chimes
+ * once to prove it. If the page is reloaded with the bell already on, the
+ * status line says so until she has clicked anywhere on the page.
+ */
+const TT_BELL_JS = <<<'JS'
+(function(){
+var box=document.getElementById('ttbell');if(!box)return;
+var data;try{data=JSON.parse(document.getElementById('ttbell-data').textContent);}catch(e){return;}
+var KEY='tt-bell';
+var sw=box.querySelector('.tt-bell-switch'),tryBtn=box.querySelector('.tt-bell-try'),
+    status=box.querySelector('.tt-bell-status');
+var t0=Date.now();
+function nowMin(){return data.minute+(Date.now()-t0)/60000;}
+function mins(s){var p=s.split(':');return p[0]*60+ +p[1];}
+function hhmm(m){m=Math.round(m);var h=Math.floor(m/60),n=m%60;return (h<10?'0':'')+h+':'+(n<10?'0':'')+n;}
+function span(m){m=Math.ceil(m);if(m<1)return 'now';if(m<60)return 'in '+m+' min';
+  var h=Math.floor(m/60),n=m%60;return 'in '+h+' h'+(n?' '+n+' min':'');}
+
+/* Every boundary in the day, with what starts and what ends there. */
+var marks={};
+data.blocks.forEach(function(b){
+  var s=mins(b.start),e=mins(b.end);
+  (marks[s]=marks[s]||{at:s,starts:[],ends:[]}).starts.push(b);
+  (marks[e]=marks[e]||{at:e,starts:[],ends:[]}).ends.push(b);
+});
+var bounds=Object.keys(marks).map(Number).sort(function(a,b){return a-b;}).map(function(k){return marks[k];});
+function kindOf(mark){
+  if(!mark.starts.length)return 'end';
+  return mark.starts.every(function(b){return b.rest;})?'rest':'work';
+}
+function describe(mark){
+  if(mark.starts.length){var b=mark.starts[0];return b.label+' until '+b.end;}
+  return mark.ends[0].label+' is over: that is the day done';
+}
+function nextAfter(n){for(var i=0;i<bounds.length;i++){if(bounds[i].at>n)return bounds[i];}return null;}
+
+/* The sound. Three partials per note, the upper two inharmonic, so it rings
+   like a small bell rather than buzzing like a tone. A study block starting
+   is a rising three-note chime; a break is a two-note ding-dong; the end of
+   the day falls away over three. */
+var ctx=null;
+function audio(){
+  if(!ctx){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+    ctx=new AC();ctx.addEventListener('statechange',function(){render(nowMin());});}
+  if(ctx.state==='suspended'){try{ctx.resume();}catch(e){}}
+  return ctx;
+}
+function note(ac,freq,when,len){
+  var g=ac.createGain();
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(0.28,when+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,when+len);
+  g.connect(ac.destination);
+  [[1,1],[2.01,0.35],[2.76,0.18]].forEach(function(p){
+    var o=ac.createOscillator(),pg=ac.createGain();
+    o.type='sine';o.frequency.value=freq*p[0];pg.gain.value=p[1];
+    o.connect(pg);pg.connect(g);o.start(when);o.stop(when+len+0.05);
+  });
+}
+function chime(kind,gesture){
+  var ac=audio();if(!ac)return false;
+  /* Outside a click the browser may still be holding the sound back; queued
+     notes would then play at some later click, out of nowhere, so don't. */
+  if(!gesture&&ac.state!=='running')return false;
+  var t=ac.currentTime+0.03;
+  if(kind==='rest'){note(ac,880,t,1.4);note(ac,659,t+0.38,1.9);}
+  else if(kind==='end'){note(ac,880,t,1.2);note(ac,740,t+0.32,1.2);note(ac,587,t+0.64,2.2);}
+  else{note(ac,784,t,1.1);note(ac,988,t+0.3,1.1);note(ac,1175,t+0.6,2.2);}
+  return true;
+}
+
+/* Her choice, kept on this device only. */
+var on=false;try{on=localStorage.getItem(KEY)==='1';}catch(e){}
+var last=Math.floor(nowMin()),rung={},recent=null,timer=null;
+
+function render(n){
+  var blocked=on&&ctx&&ctx.state!=='running';
+  sw.setAttribute('aria-checked',on?'true':'false');
+  sw.querySelector('b').textContent=on?'on':'off';
+  box.classList.toggle('is-on',on);
+  box.classList.toggle('is-blocked',!!blocked);
+  var msg,next=nextAfter(n);
+  if(data.dayOff)msg='Day off: nothing to ring for.';
+  else if(!bounds.length)msg='No blocks today: nothing to ring for.';
+  else if(n>=1440)msg='That was yesterday’s timetable. Reload the page for today’s.';
+  else if(!next)msg='The last block has ended: nothing more to ring for today.';
+  else msg='Next '+(on?'chime':'change')+' '+hhmm(next.at)+', '+describe(next)+' ('+span(next.at-n)+').';
+  if(recent&&n-recent.at<5)msg='Rang '+hhmm(recent.at)+': '+recent.text+'. '+msg;
+  if(blocked)msg='The browser is holding the sound back until you click somewhere on the page. '+msg;
+  else if(!on)msg='Off. Switch it on to hear a chime when a block starts or ends. '+msg;
+  status.textContent=msg;
+}
+function tick(){
+  var n=nowMin(),cur=Math.floor(n),hit=null;
+  for(var i=0;i<bounds.length;i++){if(bounds[i].at>last&&bounds[i].at<=cur)hit=bounds[i];}
+  last=cur;
+  if(hit&&on&&!rung[hit.at]){
+    rung[hit.at]=1;recent={at:hit.at,text:describe(hit)};
+    chime(kindOf(hit),false);
+  }
+  render(n);schedule(n);
+}
+function schedule(n){
+  if(timer)clearTimeout(timer);
+  var next=nextAfter(n);
+  var toMinute=(1-(n-Math.floor(n)))*60000+120;
+  var toNext=next?(next.at-n)*60000+120:Infinity;
+  timer=setTimeout(tick,Math.max(250,Math.min(toMinute,toNext,60000)));
+}
+
+sw.addEventListener('click',function(){
+  on=!on;try{localStorage.setItem(KEY,on?'1':'0');}catch(e){}
+  if(on)chime('work',true);
+  render(nowMin());
+});
+tryBtn.addEventListener('click',function(){
+  chime('work',true);setTimeout(function(){chime('rest',true);},2600);
+  status.textContent='That is the start-of-block chime, then the break chime.';
+});
+/* Reloaded with the bell on: any click on the page is enough to unlock it. */
+function unlock(){var ac=audio();if(ac&&ac.state==='running'){
+  document.removeEventListener('pointerdown',unlock,true);document.removeEventListener('keydown',unlock,true);}}
+if(on){audio();if(ctx&&ctx.state!=='running'){
+  document.addEventListener('pointerdown',unlock,true);document.addEventListener('keydown',unlock,true);}}
+/* A tab in the background gets its timers slowed to once a minute; coming
+   back to it catches up at once, and a boundary crossed meanwhile still rings. */
+document.addEventListener('visibilitychange',function(){if(!document.hidden)tick();});
+setInterval(tick,30000);
+box.hidden=false;
+tick();
+})();
+JS;
+
+/**
+ * The bell's panel: the switch, a button to hear the sound, a status line
+ * that says what is coming next, and the day's blocks as JSON for the script
+ * to keep time against. Rendered hidden and unhidden by the script, so with
+ * JavaScript off there is no dead control on the page. Only today's blocks
+ * are carried: a day off has nothing to ring for, and neither does a weekend.
+ */
+function tt_bell(array $day): string
+{
+    $blocks = [];
+    $dayOff = false;
+    foreach ($day['blocks'] as $b) {
+        if ($b['status'] === 'day_off') {
+            $dayOff = true;
+        }
+        $blocks[] = [
+            'start' => $b['start'],
+            'end'   => $b['end'],
+            'label' => $b['label'],
+            // A break or a walk chimes differently from a study block, so she
+            // can tell which it is from across the room.
+            'rest'  => $b['tracking'] === 'none' || in_array($b['kind'], ['break', 'movement'], true),
+        ];
+    }
+    $now  = tt_now();
+    $data = [
+        'minute' => (int) $now->format('G') * 60 + (int) $now->format('i') + (int) $now->format('s') / 60,
+        'dayOff' => $dayOff,
+        'blocks' => $dayOff ? [] : $blocks,
+    ];
+    // HEX_TAG so a label can never close the script element early.
+    $json = json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+
+    return '<div class="tt-bell" id="ttbell" hidden>'
+        . '<button type="button" class="tt-bell-switch" role="switch" aria-checked="false">'
+        . '<span aria-hidden="true">&#128276;</span> Class bell <b>off</b></button>'
+        . '<button type="button" class="tt-bell-try">try the sound</button>'
+        . '<span class="tt-bell-status" aria-live="polite"></span>'
+        . '<script type="application/json" id="ttbell-data">' . $json . '</script>'
+        . '<script>' . TT_BELL_JS . '</script></div>';
+}
+
 /**
  * The whole section: heading, the chosen design, the totals line and the
  * legend. `$week` is any date inside the week to render.
@@ -749,6 +962,11 @@ function render_timetable_section(
     // rendering an empty board.
     if ($isThisWeek && $w['days'][(int) $now->format('N') - 1]['blocks'] === []) {
         $body .= '<p class="tt-quiet">No blocks today — <b>Monday 09:00</b> next.</p>';
+    }
+
+    // The bell keeps time for her on the day she is looking at, and no other.
+    if ($isThisWeek) {
+        $body .= tt_bell($w['days'][(int) $now->format('N') - 1]);
     }
 
     $body .= tt_design_a($w, $names, $ctl);

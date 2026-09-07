@@ -34,6 +34,7 @@ DEPLOYMENT.md has the recipe for poking at it by hand.
 | `PUBLIC_URL` | The exact public HTTPS origin, no trailing slash. Used as the OAuth issuer and the `resource` value, so a mismatch breaks the handshake. |
 | `TRACKER_PASSWORD` | Consent-screen password, and the parent's sign-in for the board at `/login`. Required; the service refuses to serve without it. |
 | `DASHBOARD_PUBLIC` | `true` (default) leaves the dashboard readable to anyone with the link. `false` puts it behind the same token as the API. |
+| `DB_PATH` | Defaults to `../tracker-shared/data/tracker.db`, outside the document root. |
 
 ### Editing the board
 
@@ -54,7 +55,22 @@ assertion is superseded.
 Sign-in is a signed, httpOnly cookie carrying its own expiry; there is no
 session table. Changing `TRACKER_PASSWORD` signs every device out. Writes need
 both the cookie and a CSRF token.
-| `DB_PATH` | Defaults to `../tracker-shared/data/tracker.db`, outside the document root. |
+
+### The class bell
+
+Under the header on the index page is a **class bell**. Switched on, the
+browser chimes at every boundary in today's timetable — a block ending, the
+next one starting — and the line beside it says what has just changed and
+what is coming next. A study block starting is a rising three-note chime, a
+break or a walk is a two-note ding-dong, and the end of the day falls away.
+"Try the sound" plays both without waiting for a boundary.
+
+It is hers, not the parent's: it ships off, the switch needs no sign-in, and
+her choice is remembered only in that browser. It writes nothing to the
+record — ringing cannot mark a block done, missed or anything else — and it
+only rings while the page is open. Browsers refuse to play sound until a page
+has been clicked, so if it is reloaded with the bell already on, the status
+line asks for one click first.
 
 ## Connecting Claude
 

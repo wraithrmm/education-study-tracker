@@ -39,8 +39,12 @@ trap cleanup EXIT
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 check() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (expected '$3', got '$2')"; fi; }
-contains() { if printf '%s' "$2" | grep -qF "$3"; then pass "$1"; else fail "$1 — missing '$3'"; fi; }
-lacks() { if printf '%s' "$2" | grep -qF "$3"; then fail "$1 — unexpectedly contains '$3'"; else pass "$1"; fi; }
+# A substring test in the shell, not a pipe into grep -q: grep quits on the
+# first match, and once a page outgrows the pipe buffer printf is still
+# writing when it does, takes SIGPIPE, and pipefail reports a match as a
+# failure — intermittently, and only on the biggest pages.
+contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1 — missing '$3'"; fi; }
+lacks() { if [[ "$2" == *"$3"* ]]; then fail "$1 — unexpectedly contains '$3'"; else pass "$1"; fi; }
 
 if [ "$REMOTE" = 1 ]; then
   BASE="${BASE:?set BASE for a remote run}"
@@ -873,6 +877,11 @@ if [ "$REMOTE" = 0 ]; then
   contains "and it leads the page" "$page" "<h1>This week</h1>"
   contains "with the subjects list still below it" "$page" "<h2>Subjects</h2>"
   contains "and the date it thinks it is, in monospace" "$page" 'class="tt-stamp mono"'
+  # The class bell is hers to switch, so it ships off and remembers nothing
+  # server-side: the page carries the switch and today's blocks, nothing more.
+  contains "the class bell is on the board" "$page" 'class="tt-bell" id="ttbell" hidden'
+  contains "and it starts off" "$page" 'role="switch" aria-checked="false"'
+  contains "with today's blocks for it to keep time against" "$page" 'id="ttbell-data"'
 
   code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
   check "a past week renders on its own page" "$code" "200"
@@ -908,6 +917,7 @@ if [ "$REMOTE" = 0 ]; then
   # index page and on any other week's page, because both render the one
   # component from the one judge.
   contains "the week page is the week strip" "$week" 'class="wk"'
+  lacks "but a past week has no bell to ring" "$week" 'id="ttbell"'
   contains "and it prints" "$week" '@media print'
 
   code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/week/not-a-week")"
