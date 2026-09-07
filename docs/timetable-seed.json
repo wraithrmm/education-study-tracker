@@ -69,8 +69,8 @@
       "id": 6,
       "weekday": 1,
       "start": "12:15",
-      "end": "13:00",
-      "kind": "break",
+      "end": "13:15",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
@@ -78,8 +78,8 @@
     {
       "id": 7,
       "weekday": 1,
-      "start": "13:00",
-      "end": "14:00",
+      "start": "13:15",
+      "end": "14:15",
       "kind": "coding",
       "label": "Computer Science — Python",
       "subjects": [
@@ -91,8 +91,8 @@
     {
       "id": 8,
       "weekday": 1,
-      "start": "14:00",
-      "end": "14:15",
+      "start": "14:15",
+      "end": "14:30",
       "kind": "break",
       "label": "Movement break",
       "subjects": [],
@@ -101,8 +101,8 @@
     {
       "id": 9,
       "weekday": 1,
-      "start": "14:15",
-      "end": "15:00",
+      "start": "14:30",
+      "end": "15:15",
       "kind": "writing",
       "label": "English Language — creative writing",
       "subjects": [
@@ -174,8 +174,8 @@
       "id": 15,
       "weekday": 2,
       "start": "12:15",
-      "end": "13:00",
-      "kind": "break",
+      "end": "13:15",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
@@ -183,8 +183,8 @@
     {
       "id": 16,
       "weekday": 2,
-      "start": "13:00",
-      "end": "14:00",
+      "start": "13:15",
+      "end": "14:15",
       "kind": "timed_handwritten",
       "label": "Timed handwritten practice",
       "subjects": [
@@ -199,8 +199,8 @@
     {
       "id": 17,
       "weekday": 2,
-      "start": "14:00",
-      "end": "15:00",
+      "start": "14:15",
+      "end": "15:15",
       "kind": "teach",
       "label": "Computer Science — theory or code",
       "subjects": [
@@ -292,7 +292,7 @@
       "id": 24,
       "weekday": 4,
       "start": "10:45",
-      "end": "11:45",
+      "end": "11:30",
       "kind": "teach",
       "label": "English Literature — poetry / essay planning",
       "subjects": [
@@ -303,14 +303,25 @@
     {
       "id": 25,
       "weekday": 4,
-      "start": "11:45",
-      "end": "12:00",
+      "start": "11:30",
+      "end": "11:45",
       "kind": "spanish",
       "label": "Spanish — vocab review",
       "subjects": [
         "spanish"
       ],
       "tracking": "evidence"
+    },
+    {
+      "id": 37,
+      "weekday": 4,
+      "start": "11:45",
+      "end": "15:20",
+      "kind": "group",
+      "label": "Group",
+      "subjects": [],
+      "tracking": "none",
+      "note": "Every Thursday. Away from the desk; lunch is there. Nothing is judged against it."
     },
     {
       "id": 26,
@@ -389,8 +400,8 @@
       "id": 32,
       "weekday": 5,
       "start": "12:15",
-      "end": "13:00",
-      "kind": "break",
+      "end": "13:15",
+      "kind": "lunch",
       "label": "Lunch + outside",
       "subjects": [],
       "tracking": "none"
@@ -398,8 +409,8 @@
     {
       "id": 33,
       "weekday": 5,
-      "start": "13:00",
-      "end": "13:45",
+      "start": "13:15",
+      "end": "14:00",
       "kind": "consolidate",
       "label": "Computer Science — quiz + fix code",
       "subjects": [
@@ -410,8 +421,8 @@
     {
       "id": 34,
       "weekday": 5,
-      "start": "13:45",
-      "end": "14:15",
+      "start": "14:00",
+      "end": "14:30",
       "kind": "spanish",
       "label": "Spanish — vocab + short reading",
       "subjects": [
@@ -422,8 +433,8 @@
     {
       "id": 35,
       "weekday": 5,
-      "start": "14:15",
-      "end": "15:00",
+      "start": "14:30",
+      "end": "15:15",
       "kind": "review",
       "label": "Weekly review with Dad",
       "subjects": [],
