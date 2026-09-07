@@ -169,6 +169,8 @@ table on its own and reported a grade for an exam only a third sat. That step
 is guarded on the exact shape step 1 produces, so a database where those rows
 have since been edited or built on is left alone. Step 3 adds the practice
 tables, seeds the source registry and pins the Spanish and maths scoreboards.
+Steps 5 and 8 re-run the source seed, which is how a source added later
+(`retrieval_mixed`, `cs_code_lab`) reaches a database step 3 already seeded.
 
 ## The weekly review
 

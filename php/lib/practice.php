@@ -49,6 +49,12 @@ const PRACTICE_SOURCE_SEED = [
      'metrics_schema' => []],
     ['key' => 'retrieval_quotes',   'display_name' => 'Quotation retrieval', 'subject_slug' => 'english-literature',
      'metrics_schema' => []],
+    // One Code Lab day is one run: a task is an item, `correct` is solved on
+    // the first run, `correct_after_retry` solved after one or more failed
+    // runs, `incorrect` not solved by the end. The stored CS scoreboard
+    // filters three panels on this key and read empty until it existed.
+    ['key' => 'cs_code_lab',        'display_name' => 'Code Lab',            'subject_slug' => 'computer-science',
+     'metrics_schema' => ['tasks_solved' => 'number', 'runs_taken' => 'number']],
 ];
 
 /**
