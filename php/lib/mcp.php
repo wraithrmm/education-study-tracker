@@ -59,6 +59,172 @@ function mcp_resource_line(array $r, bool $showRef = false): string
 }
 
 /**
+ * The subject-wide resources under a queue, kept to a size a session can
+ * read. Past papers and mark schemes are the bulk of a subject's library —
+ * seventy lines for English Literature — and a session opening on the queue
+ * needs the notes and the spec, not every series since 2017. Over the cap,
+ * papers are counted and pointed at rather than listed.
+ *
+ * @param array<int,array> $rows
+ * @return array<int,string>
+ */
+function mcp_resource_group(string $slug, array $rows): array
+{
+    if (count($rows) <= 12) {
+        return array_map(static fn($r) => mcp_resource_line($r), $rows);
+    }
+    $papers = array_values(array_filter($rows, static fn($r) => $r['kind'] === 'paper'));
+    $rest   = array_values(array_filter($rows, static fn($r) => $r['kind'] !== 'paper'));
+    $lines  = array_map(static fn($r) => mcp_resource_line($r), array_slice($rest, 0, 12));
+    if (count($rest) > 12) {
+        $lines[] = '- …and ' . (count($rest) - 12) . ' more — tracker_list_resources(subject: "' . $slug . '") lists them.';
+    }
+    if ($papers) {
+        $lines[] = '- [paper] ' . count($papers) . ' past papers and mark schemes are stored — '
+            . 'tracker_list_resources(subject: "' . $slug . '") for the list, or ask for a series by name.';
+    }
+    return $lines;
+}
+
+/**
+ * The last-session block: what the previous session planned, as a JSON
+ * object so next_steps arrives verbatim and a caller can read it without
+ * parsing prose. Null when there is no session.
+ */
+function mcp_last_session_text(Store $store, string $slug): string
+{
+    $block = $store->lastSessionBlock($slug);
+    $json  = json_encode($block, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $lines = ['### last_session', '```json', $json, '```'];
+    if ($block === null) {
+        $lines[] = 'No sessions logged for this subject yet.';
+        return implode("\n", $lines);
+    }
+    if ($block['stale']) {
+        $lines[] = 'stale: the last session was ' . $block['days_ago'] . ' days ago. Its plan is still shown; '
+            . 'decide whether it still holds.';
+    }
+    $lines[] = 'Open on next_steps' . ($block['unfinished'] !== null ? ' and on the unfinished item' : '')
+        . '; both are the previous session\'s own words.';
+    return implode("\n", $lines);
+}
+
+/**
+ * Open unfinished items as lines. The ids are what resolves: [] takes.
+ *
+ * @param array<int,array> $items Store::openUnfinished()
+ * @return array<int,string>
+ */
+function mcp_unfinished_lines(array $items): array
+{
+    $out = [];
+    foreach ($items as $u) {
+        $out[] = '- **Session ' . $u['session_id'] . '** (' . $u['date'] . ', ' . $u['days_open'] . ' day'
+            . ($u['days_open'] === 1 ? '' : 's') . ' open'
+            . ($u['block_key'] !== null ? ', block ' . $u['block_key'] : '')
+            . ($u['stale'] ? ', STALE' : '') . '): ' . $u['text']
+            . ($u['refs'] ? ' — refs ' . implode(', ', $u['refs']) : '');
+    }
+    return $out;
+}
+
+/** A session's unfinished item as one line: open, closed by whom, or auto-closed. */
+function mcp_unfinished_status(array $x): string
+{
+    $text = 'Unfinished: ' . $x['unfinished'];
+    $refs = Store::decodeRefs($x['unfinished_refs'] ?? null);
+    if ($refs) {
+        $text .= ' (refs ' . implode(', ', $refs) . ')';
+    }
+    if (($x['unfinished_closed_at'] ?? null) === null) {
+        $days = tt_days_between((string) $x['date'], tt_today());
+        return $text . ' — OPEN, ' . $days . ' day' . ($days === 1 ? '' : 's')
+            . ($days > UNFINISHED_STALE_DAYS ? ', STALE' : '');
+    }
+    [$on] = tt_local((string) $x['unfinished_closed_at']);
+    $by   = $x['unfinished_closed_by_session_id'] ?? null;
+    return $text . ' — closed ' . $on . ($by ? ' by session ' . $by : '')
+        . ': ' . ($x['unfinished_closed_reason'] ?? '');
+}
+
+/**
+ * Validate a resolves[] list against the record before anything is written.
+ *
+ * Each id must be a session of this subject with an open unfinished item.
+ * One already closed by a session is not an error: applying resolves twice
+ * is a no-op, the rule client_run_id already keeps for practice. Anything
+ * else is refused naming the id, so a typo cannot close the wrong item.
+ *
+ * @return array{close:array<int,int>,already:array<int,string>}
+ */
+function mcp_check_resolves(Store $store, string $slug, mixed $raw): array
+{
+    if ($raw === null) {
+        return ['close' => [], 'already' => []];
+    }
+    if (!is_array($raw)) {
+        throw new McpError('resolves must be an array of session ids.');
+    }
+    if (count($raw) > 20) {
+        throw new McpError('resolves may hold at most 20 session ids.');
+    }
+    $close   = [];
+    $already = [];
+    foreach ($raw as $id) {
+        if (!is_int($id) && !(is_numeric($id) && (int) $id == $id)) {
+            throw new McpError('resolves entries must be integer session ids.');
+        }
+        $id  = (int) $id;
+        $row = $store->sessionById($id);
+        if (!$row) {
+            throw new McpError("resolves names session $id, and there is no such session. "
+                . 'The ids are in the UNFINISHED group of tracker_review_queue. Nothing was written.');
+        }
+        if ((string) $row['subject_slug'] !== $slug) {
+            throw new McpError("resolves names session $id, which belongs to " . $row['subject_slug']
+                . ", not $slug. A session can only resolve unfinished work in its own subject. Nothing was written.");
+        }
+        if ($row['unfinished'] === null) {
+            throw new McpError("resolves names session $id, which has no unfinished work recorded. "
+                . 'Check the UNFINISHED group of tracker_review_queue. Nothing was written.');
+        }
+        if ($row['void_reason'] !== null) {
+            throw new McpError("resolves names session $id, which is void. Nothing was written.");
+        }
+        if ($row['unfinished_closed_at'] !== null) {
+            $already[] = "session $id was already closed"
+                . ($row['unfinished_closed_by_session_id'] ? ' by session ' . $row['unfinished_closed_by_session_id'] : '')
+                . ' (' . $row['unfinished_closed_reason'] . ')';
+            continue;
+        }
+        $close[] = $id;
+    }
+    return ['close' => array_values(array_unique($close)), 'already' => $already];
+}
+
+/**
+ * The nudge. When a subject still has open unfinished work and the session
+ * just logged neither resolved it nor set a new item, say so in the result.
+ * A warning, never an error: the service never gates teaching.
+ */
+function mcp_unfinished_warning(Store $store, string $slug, int $newSessionId): ?string
+{
+    $open = array_values(array_filter(
+        $store->openUnfinished($slug),
+        static fn(array $u): bool => $u['session_id'] !== $newSessionId
+    ));
+    if (!$open) {
+        return null;
+    }
+    $u = $open[0];
+    $more = count($open) > 1 ? ' (' . (count($open) - 1) . ' more open — see tracker_review_queue)' : '';
+    return "warning: Session {$u['session_id']} ({$u['date']}) is still marked unfinished: '{$u['text']}'. "
+        . "This session did not resolve it$more. If it was completed, log it with resolves: [{$u['session_id']}] "
+        . "— tracker_amend_session(subject: \"$slug\", session_id: $newSessionId, resolves: [{$u['session_id']}]) "
+        . 'closes it against this session.';
+}
+
+/**
  * The grade for a whole attempt. Only a full paper sitting converts: a check
  * on a handful of topics cannot stand in for a paper, so it reports a
  * percentage and says so.
@@ -187,6 +353,14 @@ function mcp_block_line(array $b): string
     $status = $b['status'];
     if ($status === 'done' && !empty($b['short'])) {
         $status = 'done but SHORT (' . $b['minutes'] . ' min of ' . $b['length'] . ')';
+    }
+    if ($status !== 'done' && str_starts_with($status, 'done') && ($b['shape'] ?? null) === 'unmet') {
+        $status .= ' — done_shape_unmet: ' . $b['shape_reason'];
+    } elseif ($status === 'done' && ($b['shape'] ?? null) === 'unmet') {
+        // Still done. The word says what the work was not.
+        $status = 'done_shape_unmet — ' . $b['shape_reason'];
+    } elseif ($status === 'done' && empty($b['shape_rule']) && !empty($b['shape_reason'])) {
+        $status = 'done (' . $b['shape_reason'] . ')';
     } elseif ($status === 'excused') {
         $status = 'excused — ' . ($b['reason'] ?? 'no reason given');
     } elseif ($status === 'day_off') {
@@ -450,8 +624,15 @@ function mcp_snapshot_counts_line(array $snapshot): string
     $by = $snapshot['counts_by_tracking'] ?? [];
     $ev = $by['evidence'] ?? ['done' => 0, 'judged' => 0, 'short' => 0, 'missed' => 0,
                               'excused' => 0, 'day_off' => 0, 'declared' => 0];
+    $qual = [];
+    if ($ev['short']) {
+        $qual[] = $ev['short'] . ' short';
+    }
+    if (!empty($ev['shape_unmet'])) {
+        $qual[] = $ev['shape_unmet'] . ' not in shape';
+    }
     $s  = 'study blocks ' . $ev['done'] . ' of ' . $ev['judged'] . ' done'
-        . ($ev['short'] ? ' (' . $ev['short'] . ' short)' : '')
+        . ($qual ? ' (' . implode(', ', $qual) . ')' : '')
         . ', ' . $ev['missed'] . ' missed, ' . $ev['excused'] . ' excused';
     // Never inside the done fraction: the parent's word is accounted for
     // beside the evidence, never as evidence.
@@ -601,10 +782,16 @@ function mcp_tools(): array
             'name'  => 'tracker_review_queue',
             'title' => 'What to work on next',
             'description' =>
-                "The prioritised queue for a subject, in three groups: ageing secures due a retrieval check, loose ends on otherwise-secure topics, and priority gaps (lower tier first). "
+                "The prioritised queue for a subject, and the plan the last session left. It opens with a `last_session` block — "
+                . "the most recent non-void session's id, date, days_ago, its next_steps verbatim, the tail of its summary, "
+                . "any unfinished item it carries, and stale: true when it is more than 14 days old (a flag, not a filter). "
+                . "Then the groups, in priority order: UNFINISHED (work a session stopped before the end of — first, always), "
+                . "ageing secures due a retrieval check, loose ends on otherwise-secure topics, and priority gaps (lower tier first). "
                 . "Each entry lists the teaching resources attached to it, so this alone is enough to plan a session.\n\n"
                 . "USE WHEN: opening a study or tutoring session, or asked \"what should we do today\", \"what next\", \"what needs work\". "
-                . "Call this FIRST in any session, before deciding what to teach.\n\n"
+                . "Call this FIRST in any session, before deciding what to teach. YOU ARE EXPECTED TO OPEN ON last_session.next_steps "
+                . "and on any UNFINISHED item: finish what was started before starting something new, and when you do finish it, "
+                . "close it with tracker_log_session resolves: [session_id].\n\n"
                 . "Args: subject (slug). Optional ageing_weeks (default 8).\n"
                 . 'Read-only.',
             'inputSchema' => [
@@ -685,7 +872,8 @@ function mcp_tools(): array
             'name'  => 'tracker_history',
             'title' => 'Progress over time, grouped by week',
             'description' =>
-                "The audit trail for a subject, week by week: each session logged, and every topic status change it produced, with the evidence recorded at the time.\n\n"
+                "The audit trail for a subject, week by week: each session logged, and every topic status change it produced, with the evidence recorded at the time. "
+                . "A session row shows its unfinished item (open, closed by which session, or auto-closed) and the items it resolved.\n\n"
                 . "USE WHEN: asked how progress has gone over time, what happened in a period, what changed recently, "
                 . "\"what did we do last month\", \"when did X become secure\", or when writing a progress report. "
                 . "Also use it to check a record before correcting one.\n\n"
@@ -755,8 +943,17 @@ function mcp_tools(): array
                 . "USE WHEN: closing a study or tutoring session. This is the normal way to end one — do it before the conversation finishes, "
                 . "or the work is not in the record. Also use when told what was covered in a past session.\n\n"
                 . "Each update carries its own evidence (10-500 chars). Unknown topic references are reported back rather than silently skipped, so a typo is visible.\n\n"
+                . "UNFINISHED WORK: if the session stopped before the end — an exit ticket at Q4 of 5, a paragraph half written — "
+                . "pass unfinished (≤ 300 chars saying what is outstanding) and optionally unfinished_refs. It becomes a queryable item "
+                . "that leads tracker_review_queue until closed. When a session completes an earlier session's unfinished work, pass "
+                . "resolves: [that session's id] — the ids come from the queue's UNFINISHED group. If the subject has an open item and "
+                . "this call neither resolves it nor sets a new one, the write still succeeds and the result carries a warning.\n\n"
+                . "RETRIEVAL: an update may carry retrieval_outcome (correct|retry|incorrect) to feed the topic's spacing schedule; "
+                . "a status rise counts as correct and a demotion as incorrect without it. A consolidation block should pass "
+                . "consolidates: [{ ref, error_session_id? }] naming the errors it re-worked.\n\n"
                 . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
-                . 'Args: subject, summary. Optional date (defaults today), next_steps, block_key, duration_minutes, updates[] of { ref, status?, evidence, watch? }.',
+                . 'Args: subject, summary. Optional date (defaults today), next_steps, block_key, duration_minutes, '
+                . 'unfinished, unfinished_refs[], resolves[], consolidates[], updates[] of { ref, status?, evidence, watch?, retrieval_outcome? }.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
@@ -770,6 +967,27 @@ function mcp_tools(): array
                         'description' => 'The timetable block this session fulfilled, from tracker_today'],
                     'duration_minutes' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600,
                         'description' => 'How long it actually ran, so a short sitting reads as short'],
+                    'unfinished' => ['type' => 'string', 'maxLength' => 300,
+                        'description' => 'What is outstanding, if the session stopped before the end. Presence is the flag.'],
+                    'unfinished_refs' => ['type' => 'array', 'maxItems' => 10,
+                        'items' => ['type' => 'string', 'maxLength' => 40],
+                        'description' => 'Topic refs the unfinished work belongs to'],
+                    'resolves'   => ['type' => 'array', 'maxItems' => 20,
+                        'items' => ['type' => 'integer', 'minimum' => 1],
+                        'description' => 'Session ids whose unfinished work this session completed'],
+                    'consolidates' => [
+                        'type' => 'array', 'maxItems' => 30,
+                        'description' => 'For a consolidation block: the errors re-worked, by topic',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'ref'              => ['type' => 'string', 'minLength' => 1, 'maxLength' => 40],
+                                'error_session_id' => ['type' => 'integer', 'minimum' => 1,
+                                    'description' => 'The session the error was recorded in, if known'],
+                            ],
+                            'required' => ['ref'],
+                        ],
+                    ],
                     'updates'    => [
                         'type'     => 'array',
                         'maxItems' => 50,
@@ -781,6 +999,8 @@ function mcp_tools(): array
                                 'status'   => $statusEnum,
                                 'evidence' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 500],
                                 'watch'    => ['type' => ['string', 'null'], 'maxLength' => 500],
+                                'retrieval_outcome' => ['type' => 'string', 'enum' => RETRIEVAL_OUTCOMES,
+                                    'description' => 'How a retrieval check on this topic went, for the spacing schedule'],
                             ],
                             'required'   => ['ref', 'evidence'],
                         ],
@@ -799,7 +1019,10 @@ function mcp_tools(): array
                 . "Voiding keeps the row and its reason — an audit trail that can lose entries is not one — and marks it VOID in the history, so it stops counting towards the review queue and the export. "
                 . "To correct a TOPIC's status instead, call tracker_update_topic with the right status and evidence saying it is a correction: "
                 . "that appends to the trail rather than rewriting it.\n\n"
-                . 'Args: subject, session_id (from tracker_history). Any of date, summary, next_steps, void_reason.',
+                . "UNFINISHED WORK: set unfinished to record that this session stopped before the end (or to correct the text); "
+                . "pass unfinished: null to close its open item by hand — the item stays visible in the history, stamped 'cleared by hand'. "
+                . "Pass resolves: [ids] to record that this session completed those sessions' unfinished work.\n\n"
+                . 'Args: subject, session_id (from tracker_history). Any of date, summary, next_steps, void_reason, unfinished, unfinished_refs, resolves.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
@@ -811,6 +1034,13 @@ function mcp_tools(): array
                     'next_steps'  => ['type' => 'string', 'maxLength' => 1000],
                     'void_reason' => ['type' => ['string', 'null'], 'maxLength' => 500,
                         'description' => 'Why this session should not count. null un-voids it.'],
+                    'unfinished'  => ['type' => ['string', 'null'], 'maxLength' => 300,
+                        'description' => 'What is outstanding, or null to close the open item by hand'],
+                    'unfinished_refs' => ['type' => 'array', 'maxItems' => 10,
+                        'items' => ['type' => 'string', 'maxLength' => 40]],
+                    'resolves'    => ['type' => 'array', 'maxItems' => 20,
+                        'items' => ['type' => 'integer', 'minimum' => 1],
+                        'description' => 'Session ids whose unfinished work this session completed'],
                 ],
                 'required'   => ['subject', 'session_id'],
             ],
@@ -1030,8 +1260,13 @@ function mcp_tools(): array
                 . "Args: subject, runs[] of { client_run_id, source, label, attempted, correct, incorrect, correct_after_retry?, "
                 . "played_at?, duration_seconds?, metrics?, topic_refs?, items?[] }. "
                 . "source is a key from the registry (tracker_practice_stats lists them). "
-                . "Each item is { outcome (correct|retry|incorrect), prompt?, topic_ref?, attempts_taken?, position?, note? } — "
+                . "Each item is { outcome (correct|retry|incorrect), prompt?, topic_ref?, item_key?, attempts_taken?, position?, note? } — "
                 . "supply items where you know them per question; the per-topic breakdown is built from them.\n\n"
+                . "RETRIEVAL SCHEDULING: every item with a topic_ref updates that topic's spacing schedule (correct: next due at the "
+                . "ladder interval; retry: +3 days; incorrect: tomorrow, and a scaffold after two). Give an item a stable item_key "
+                . "(≤ 64 chars, unique per subject — a registry id, or the key tracker_retrieval_due handed you) and it is scheduled "
+                . "at item grain too. Retrieval runs use a source starting retrieval_ (retrieval_warmup, retrieval_mixed, "
+                . "retrieval_subject, retrieval_quotes): that is what satisfies a retrieval block and keeps them apart from app games.\n\n"
                 . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
                 . 'Logging practice never changes a topic status: that happens through tracker_log_session only.',
             'inputSchema' => [
@@ -1079,6 +1314,8 @@ function mcp_tools(): array
                                             'prompt'    => ['type' => 'string', 'maxLength' => 500,
                                                 'description' => 'The word shown, or the question asked'],
                                             'topic_ref' => ['type' => 'string', 'maxLength' => 40],
+                                            'item_key'  => ['type' => 'string', 'maxLength' => 64,
+                                                'description' => 'Stable id for this item, unique per subject; schedules it at item grain'],
                                             'outcome'   => ['type' => 'string', 'enum' => PRACTICE_OUTCOMES],
                                             'attempts_taken' => ['type' => 'integer', 'minimum' => 1,
                                                 'description' => '1 = first time'],
@@ -1224,7 +1461,11 @@ function mcp_tools(): array
             'name'  => 'tracker_today',
             'title' => "Today's timetable and what has been missed",
             'description' =>
-                "Which block the student is in right now, what is next, and what has already been missed today.\n\n"
+                "Which block the student is in right now, what is next, and what has already been missed today. "
+                . "For each subject with a block today it also carries that subject's `last_session` block (the plan the "
+                . "previous session left, verbatim) and any open UNFINISHED items, so a session that opens on this call "
+                . "alone still sees what it should continue from. A done block whose work was not the shape the block "
+                . "asked for is shown as done_shape_unmet with the reason — it still counts as done.\n\n"
                 . "USE WHEN: call this after tracker_review_queue at the start of every session. It tells you which block "
                 . "she is in and what has already been missed today.\n\n"
                 . "DO NOT use it to decide whether to help — the timetable is a plan, not a gate. If she wants maths at "
@@ -1450,7 +1691,9 @@ function mcp_tools(): array
                 "One read for a whole week: every block with its status, the extras, the counts, the hours "
                 . "against what the timetable planned, each subject's topic movement with the evidence behind it, anything sat, "
                 . "the practice runs, the top of each review queue, pending days off, and any weekly review "
-                . "already saved for that week.\n\n"
+                . "already saved for that week. Blocks done in the wrong shape (done_shape_unmet — a retrieval block met by a "
+                . "three-item run, a consolidation that re-worked nothing) are listed apart with the reason; they still count as done. "
+                . "Each subject reports its unfinished work: opened this week, closed this week, and open now.\n\n"
                 . "USE WHEN: writing or preparing the Friday weekly review, or answering \"how did the week "
                 . "go\" across all subjects. This replaces the dozen calls that used to open a review — "
                 . "week_status, then history, attempts, practice and review_queue per subject — with one.\n\n"
@@ -1550,6 +1793,41 @@ function mcp_tools(): array
             ],
             'annotations' => $readOnly,
         ],
+        [
+            'name'  => 'tracker_retrieval_due',
+            'title' => 'What to ask in a retrieval block, in order',
+            'description' =>
+                "An already-ordered, already-mixed set of retrieval items for a block: the service does the spacing "
+                . "arithmetic and the interleaving, so the list is deterministic and identical between sittings. Ask the "
+                . "items in the order returned — no two consecutive entries share a subject, and no two share a topic.\n\n"
+                . "USE WHEN: running any retrieval block — the daily warm-up, the mixed quiz, a single-subject retrieval slot — "
+                . "or opening a session with a starter. Call it instead of reconstructing \"what did she get wrong a fortnight "
+                . "ago\" from evidence prose.\n\n"
+                . "Every subject named gets at least 2 slots; the rest weight toward the subject with the most instability in "
+                . "the last 14 days. Within a subject: needs_scaffold, then overdue, due today, loose ends, recently taught and "
+                . "still developing, then the longest-untouched secure topics. Each entry carries grain (item or topic), key, "
+                . "topic_ref, difficulty_level (1 plain · 2 varied · 3 exam), needs_scaffold, last_asked, days_overdue and a "
+                . "short `why` you can put in the evidence string. Log the outcomes with tracker_log_practice (source "
+                . "retrieval_warmup / retrieval_mixed / retrieval_subject), passing each entry's key back as item_key where "
+                . "grain is item and topic_ref always — that is what advances the schedule.\n\n"
+                . "Args: subjects[] (from the block; one or many — or block_key alone to take the block's subjects). "
+                . 'Optional limit (default 8, about one item per 2 minutes), block_key, include_retired (default false). Read-only.',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'subjects'  => ['type' => 'array', 'maxItems' => 12,
+                        'items' => ['type' => 'string', 'minLength' => 1],
+                        'description' => 'Subject slugs, from the block'],
+                    'limit'     => ['type' => 'integer', 'minimum' => 1, 'maximum' => 60, 'default' => 8],
+                    'block_key' => ['type' => 'integer', 'minimum' => 1,
+                        'description' => "The block being run, from tracker_today; supplies the subjects when subjects is omitted"],
+                    'include_retired' => ['type' => 'boolean', 'default' => false,
+                        'description' => 'Include items retired at difficulty 3 after four straight correct answers'],
+                ],
+                'required'   => [],
+            ],
+            'annotations' => $readOnly,
+        ],
     ];
 }
 
@@ -1614,6 +1892,43 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     static fn($e) => $e['subject'] . ' ' . $e['type'] . ' #' . $e['id'] . ' ' . $e['label'],
                     $day['extras']
                 )) . '.';
+            }
+            $unmet = array_values(array_filter($judged, static fn($b) => ($b['shape'] ?? null) === 'unmet'));
+            if ($unmet) {
+                $lines[] = 'Done, but not the shape the block asked for (still counted as done): '
+                    . implode('; ', array_map(
+                        static fn($b) => '#' . $b['block_key'] . ' ' . $b['label'] . ' — ' . $b['shape_reason'],
+                        $unmet
+                    )) . '.';
+            }
+
+            // Continuity, per subject with a block today: what the last
+            // session planned, and anything it or an earlier one left
+            // unfinished. A session that opens on this call alone still
+            // sees it.
+            $subjects = [];
+            foreach ($judged as $b) {
+                if ($b['tracking'] !== 'evidence') {
+                    continue;
+                }
+                foreach ($b['subjects'] as $slug) {
+                    $subjects[$slug] = true;
+                }
+            }
+            foreach (array_keys($subjects) as $slug) {
+                if (!$store->getSubject($slug)) {
+                    continue;
+                }
+                $lines[] = '';
+                $lines[] = "## $slug";
+                $lines[] = mcp_last_session_text($store, $slug);
+                $open = $store->openUnfinished($slug);
+                if ($open) {
+                    $lines[] = '### unfinished (open — finish these before starting something new)';
+                    foreach (mcp_unfinished_lines($open) as $l) {
+                        $lines[] = $l;
+                    }
+                }
             }
             $lines[] = '';
             $lines[] = 'The timetable is a plan, not a gate: help with whatever is actually being asked.';
@@ -1958,6 +2273,30 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     . ' — ' . $b['minutes'] . ' min of ' . $b['length'];
             }
 
+            // Done in the wrong shape: counted as done above, named here so
+            // the Friday review can say so. The reason describes the work.
+            $unmet = array_values(array_filter(
+                $snap['blocks'], static fn($b) => ($b['shape'] ?? null) === 'unmet'
+            ));
+            $lines[] = "\nDONE, BUT NOT THE SHAPE THE BLOCK ASKED FOR (done_shape_unmet — still counted as done)";
+            if (!$unmet) {
+                $lines[] = '- none.';
+            }
+            foreach ($unmet as $b) {
+                $lines[] = '- ' . $short($b) . ' ' . $b['start'] . ' ' . $b['label'] . ' (' . $b['kind'] . ') — '
+                    . $b['shape_reason'];
+            }
+            $noRule = [];
+            foreach ($snap['blocks'] as $b) {
+                if ($b['status'] === 'done' && empty($b['shape_rule']) && ($b['tracking'] ?? '') === 'evidence') {
+                    $noRule[$b['kind']] = true;
+                }
+            }
+            if ($noRule) {
+                $lines[] = '- kinds with no shape rule, judged as always met: ' . implode(', ', array_keys($noRule))
+                    . '. Add a row to block_kind_rules to judge them.';
+            }
+
             $lines[] = "\nEXTRA WORK, OUTSIDE THE TIMETABLE";
             if (!$snap['extras']) {
                 $lines[] = '- none. An extra never offsets a miss; it is logged beside it.';
@@ -2057,6 +2396,20 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 }
                 $q = $snap['queue_top'][$slug] ?? null;
                 $lines[] = $q ? '- next in the queue: ' . $q['line'] : '- the review queue is empty.';
+                $u = $snap['unfinished'][$slug] ?? null;
+                if ($u !== null) {
+                    $lines[] = '- unfinished: ' . count($u['opened']) . ' opened this week, '
+                        . count($u['closed']) . ' closed this week, ' . count($u['open_now']) . ' open now.';
+                    foreach ($u['open_now'] as $item) {
+                        $lines[] = '  - OPEN: session ' . $item['session_id'] . ' (' . $item['date'] . ', '
+                            . $item['days_open'] . ' days' . ($item['stale'] ? ', STALE' : '') . '): '
+                            . $item['text'];
+                    }
+                    foreach ($u['closed'] as $item) {
+                        $lines[] = '  - closed: session ' . $item['session_id'] . ' — ' . $item['text']
+                            . ' (' . $item['closed_reason'] . ')';
+                    }
+                }
             }
 
             $review    = $store->weeklyReview($week);
@@ -2217,6 +2570,87 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text(implode("\n", $lines));
         }
 
+        case 'tracker_retrieval_due': {
+            $limit    = (int) mcp_num($a, 'limit', false, 1, 60, 8);
+            $retired  = !empty($a['include_retired']);
+            $blockKey = isset($a['block_key']) ? (int) mcp_num($a, 'block_key', false, 1) : null;
+            $subjects = $a['subjects'] ?? null;
+            if ($subjects !== null && !is_array($subjects)) {
+                throw new McpError('subjects must be an array of subject slugs.');
+            }
+            $subjects = array_values(array_filter(array_map(
+                static fn($s) => is_string($s) ? trim($s) : '', $subjects ?? []
+            ), static fn(string $s): bool => $s !== ''));
+            $blockLabel = null;
+            if ($blockKey !== null) {
+                $block = mcp_find_block($store, $blockKey, tt_today());
+                if ($block === null) {
+                    throw new McpError(mcp_no_such_block($blockKey, tt_today()));
+                }
+                $blockLabel = $block['label'];
+                if (!$subjects) {
+                    $subjects = tt_subjects_for($block, tt_today());
+                }
+            }
+            if (!$subjects) {
+                throw new McpError('subjects is required: the slugs of the block being run, or a block_key '
+                    . 'from tracker_today to take them from.');
+            }
+            foreach ($subjects as $slug) {
+                $r = mcp_resolve($store, $slug);
+                if (isset($r['error'])) {
+                    return mcp_text($r['error']);
+                }
+            }
+
+            $due = retrieval_due($store, $subjects, $limit, $retired);
+            $lines = ['**Retrieval due — ' . implode(', ', $subjects) . '**'
+                . ($blockLabel ? " · block $blockKey $blockLabel" : '') . ' · ' . tt_today()];
+            $slotBits = [];
+            foreach ($subjects as $slug) {
+                $slotBits[] = $slug . ' ' . ($due['slots'][$slug] ?? 0) . ' of ' . $limit
+                    . ' (instability ' . ($due['instability'][$slug] ?? 0) . ', '
+                    . ($due['candidates'][$slug] ?? 0) . ' candidates)';
+            }
+            $lines[] = 'Slots: ' . implode(' · ', $slotBits) . '.';
+            $lines[] = 'Intervals in force (days): ' . implode(', ', array_map(
+                static fn(string $s): string => $s . ' [' . implode(',', $store->retrievalIntervals($s)) . ']',
+                $subjects
+            )) . '.';
+            if (!$due['entries']) {
+                $lines[] = '';
+                $lines[] = 'Nothing to ask: no scheduled items, loose ends, recent teaching or secure topics '
+                    . 'in these subjects yet. Log practice with topic_refs and items to build the schedule.';
+                return mcp_text(implode("\n", $lines));
+            }
+            $lines[] = '';
+            $lines[] = 'Ask in this order:';
+            foreach ($due['entries'] as $i => $e) {
+                $lines[] = sprintf(
+                    '%2d. [%s] %s%s — %s · level %d%s · last asked %s · %s',
+                    $i + 1,
+                    $e['subject'],
+                    $e['topic_ref'] ?? '(no topic)',
+                    $e['topic_name'] ? ' ' . $e['topic_name'] : '',
+                    $e['grain'] === 'item'
+                        ? 'item ' . $e['key'] . ($e['prompt'] ? ': ' . str_replace("\n", ' ', $e['prompt']) : '')
+                        : 'topic',
+                    $e['difficulty_level'],
+                    $e['needs_scaffold'] ? ' · NEEDS SCAFFOLD' : '',
+                    $e['last_asked'] ?? 'never',
+                    $e['why']
+                );
+            }
+            $lines[] = '';
+            $lines[] = '```json';
+            $lines[] = json_encode($due['entries'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $lines[] = '```';
+            $lines[] = 'Log the outcomes with tracker_log_practice (source retrieval_warmup, retrieval_mixed or '
+                . 'retrieval_subject; block_key from tracker_today), one item per entry: topic_ref always, '
+                . 'and key as item_key where grain is item. The "why" is safe to quote in evidence.';
+            return mcp_text(implode("\n", $lines));
+        }
+
         case 'tracker_list_subjects':
             $subjects = $store->listSubjects();
             if (!$subjects) {
@@ -2284,6 +2718,18 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
             $parts = ['**Review queue — ' . $s['name'] . '**'];
 
+            // Continuity first: the plan the last session left, verbatim,
+            // and then whatever was stopped before the end. Both come before
+            // the three groups because both name work already begun.
+            $parts[] = "\n" . mcp_last_session_text($store, $slug);
+            if ($queue['unfinished']) {
+                $parts[] = "\n### UNFINISHED (open — finish these before starting something new)\n"
+                    . implode("\n", mcp_unfinished_lines($queue['unfinished']))
+                    . "\nWhen one is completed, close it: tracker_log_session with resolves: [session_id].";
+            } else {
+                $parts[] = "\n### Unfinished\nNothing open.";
+            }
+
             // Resources are indented under the topic they belong to, so the
             // queue alone is enough to plan a session without a second call.
             $withResources = static function (string $line, string $ref) use ($store, $slug): string {
@@ -2337,16 +2783,13 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $general = $store->listResources($slug, '');
             if ($general) {
                 $parts[] = "\n### Resources for the whole subject\n"
-                    . implode("\n", array_map(static fn($r) => mcp_resource_line($r), $general));
+                    . implode("\n", mcp_resource_group($slug, $general));
             }
 
-            $sessions = array_values(array_filter(
-                $store->listSessions($slug, 10),
-                static fn($x) => empty($x['void_reason'])
-            ));
-            $parts[]  = $sessions
-                ? "\nLast session logged: " . $sessions[0]['date'] . ' — ' . $sessions[0]['summary']
-                    . ($sessions[0]['next_steps'] ? "\nPlanned next: " . $sessions[0]['next_steps'] : '')
+            $last = $store->lastSession($slug);
+            $parts[] = $last
+                ? "\nLast session logged: " . $last['date'] . ' — ' . $last['summary']
+                    . ($last['next_steps'] ? "\nPlanned next: " . $last['next_steps'] : '')
                 : "\nNo sessions logged yet.";
 
             return mcp_text(implode("\n", $parts));
@@ -2486,6 +2929,13 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         . ($void ? ' — VOID: ' . $void : '') . ' — ' . $x['summary'];
                     if ($x['next_steps']) {
                         $parts[] = '  - Planned next: ' . $x['next_steps'];
+                    }
+                    if (($x['unfinished'] ?? null) !== null) {
+                        $parts[] = '  - ' . mcp_unfinished_status($x);
+                    }
+                    foreach ($store->sessionsClosedBy((int) $x['id']) as $closed) {
+                        $parts[] = '  - Resolved session ' . $closed['id'] . '\'s unfinished work ('
+                            . $closed['date'] . '): ' . $closed['unfinished'];
                     }
                 }
 
@@ -2644,6 +3094,42 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $minutes = isset($a['duration_minutes'])
                 ? (int) mcp_num($a, 'duration_minutes', false, 1, 600) : null;
 
+            // Unfinished work, and what this session resolves. Both are
+            // checked before the row is written: a resolves id that belongs
+            // to another subject would close the wrong item.
+            $unfinished = mcp_str($a, 'unfinished', false, 1, 300);
+            $unfinishedRefs = mcp_ref_list($a['unfinished_refs'] ?? null, 'unfinished_refs', 10);
+            $resolves   = mcp_check_resolves($store, $slug, $a['resolves'] ?? null);
+            $consolidates = mcp_consolidates($store, $slug, $a['consolidates'] ?? null);
+            $knownRefs  = array_column($store->listTopics($slug), 'ref');
+
+            // Updates are validated as a whole before the session row exists,
+            // so a malformed update never leaves a session with half its
+            // changes applied.
+            $cleanUpdates = [];
+            foreach ($updates as $u) {
+                if (!is_array($u)) {
+                    throw new McpError('each update must be an object.');
+                }
+                $cu = [
+                    'ref'      => mcp_str($u, 'ref', true, 1),
+                    'evidence' => mcp_str($u, 'evidence', true, 10, 500),
+                    'status'   => mcp_status($u, 'status', false),
+                    'outcome'  => null,
+                ];
+                if (array_key_exists('watch', $u)) {
+                    $cu['watch'] = $u['watch'] === null ? null : mcp_str($u, 'watch', false, 0, 500);
+                }
+                if (isset($u['retrieval_outcome']) && $u['retrieval_outcome'] !== '') {
+                    if (!in_array($u['retrieval_outcome'], RETRIEVAL_OUTCOMES, true)) {
+                        throw new McpError("retrieval_outcome on {$cu['ref']} must be one of: "
+                            . implode(', ', RETRIEVAL_OUTCOMES) . '.');
+                    }
+                    $cu['outcome'] = (string) $u['retrieval_outcome'];
+                }
+                $cleanUpdates[] = $cu;
+            }
+
             $sessionId = $store->addSession([
                 'subject_slug'     => $slug,
                 'date'             => $when,
@@ -2652,39 +3138,57 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 'next_steps'       => $next,
                 'block_key'        => $blockKey ?: null,
                 'duration_minutes' => $minutes,
+                'unfinished'       => $unfinished,
+                'unfinished_refs'  => $unfinishedRefs,
+                'consolidates'     => $consolidates['clean'],
             ]);
 
-            foreach ($updates as $u) {
-                if (!is_array($u)) {
-                    throw new McpError('each update must be an object.');
-                }
-                $uref = mcp_str($u, 'ref', true, 1);
-                $uev  = mcp_str($u, 'evidence', true, 10, 500);
-                $ust  = mcp_status($u, 'status', false);
+            $scheduled = 0;
+            foreach ($cleanUpdates as $cu) {
+                $uref = $cu['ref'];
                 $refs[] = $uref;
                 $args = [
                     'subject_slug' => $slug,
                     'ref'          => $uref,
-                    'status'       => $ust,
-                    'evidence'     => $uev,
+                    'status'       => $cu['status'],
+                    'evidence'     => $cu['evidence'],
                     'last_touched' => $when,
                     'session_id'   => $sessionId,
                 ];
-                if (array_key_exists('watch', $u)) {
-                    $args['watch'] = $u['watch'] === null ? null : mcp_str($u, 'watch', false, 0, 500);
+                if (array_key_exists('watch', $cu)) {
+                    $args['watch'] = $cu['watch'];
                 }
                 $res = $store->updateTopicStatus($args);
                 if (!$res) {
                     $missing[] = $uref;
-                } else {
-                    $applied[] = $res['previous'] === $res['current']
-                        ? "$uref (still " . STATUS_LABEL[$res['current']] . ')'
-                        : "$uref: " . STATUS_LABEL[$res['previous']] . ' → ' . STATUS_LABEL[$res['current']];
+                    continue;
+                }
+                $applied[] = $res['previous'] === $res['current']
+                    ? "$uref (still " . STATUS_LABEL[$res['current']] . ')'
+                    : "$uref: " . STATUS_LABEL[$res['previous']] . ' → ' . STATUS_LABEL[$res['current']];
+
+                // Retrieval evidence at topic grain. An explicit outcome
+                // wins; otherwise only a rise or a fall says anything.
+                $outcome = $cu['outcome'] ?? retrieval_infer_outcome($res['previous'], $res['current']);
+                if ($outcome !== null) {
+                    retrieval_apply($store, $slug, 'topic', $uref, $uref, null, $outcome, $when);
+                    $scheduled++;
+                }
+                if (retrieval_infer_outcome($res['previous'], $res['current']) === 'incorrect') {
+                    // A demotion brings retired items on the topic back.
+                    retrieval_unretire_topic($store, $slug, $uref);
                 }
             }
 
             if ($refs) {
                 $store->setSessionTopics($sessionId, implode(', ', $refs));
+            }
+
+            $closed = [];
+            foreach ($resolves['close'] as $id) {
+                if ($store->closeUnfinished($id, $sessionId, "completed in session $sessionId")) {
+                    $closed[] = $id;
+                }
             }
 
             $lines = ["Session $sessionId logged for " . $s['name'] . " on $when."];
@@ -2694,6 +3198,42 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if ($missing) {
                 $lines[] = 'Not found, so not updated: ' . implode(', ', $missing)
                     . '. Check the references with tracker_get_state.';
+            }
+            if ($unfinished !== null) {
+                $lines[] = "Unfinished work recorded against session $sessionId: '$unfinished'. It leads "
+                    . 'tracker_review_queue until a later session passes resolves: [' . $sessionId . '].';
+                $unknownU = array_diff($unfinishedRefs, $knownRefs);
+                if ($unknownU) {
+                    $lines[] = 'Note: no topic with reference ' . implode(', ', $unknownU)
+                        . ' exists in this subject; unfinished_refs is stored as sent.';
+                }
+            }
+            if ($closed) {
+                $lines[] = 'Resolved: unfinished work from session' . (count($closed) === 1 ? ' ' : 's ')
+                    . implode(', ', $closed) . ' is now closed against this session.';
+            }
+            foreach ($resolves['already'] as $note) {
+                $lines[] = 'Note: ' . $note . ' — resolving it again is a no-op.';
+            }
+            if ($consolidates['clean']) {
+                $lines[] = 'Consolidated: ' . implode(', ', array_map(
+                    static fn($c) => $c['ref'] . (isset($c['error_session_id']) ? ' (session ' . $c['error_session_id'] . ')' : ''),
+                    $consolidates['clean']
+                )) . '.';
+            }
+            if ($consolidates['unknown']) {
+                $lines[] = 'Note: consolidates names ' . implode(', ', $consolidates['unknown'])
+                    . ', which is not a topic in this subject. Stored as sent; check it with tracker_get_state.';
+            }
+            if ($scheduled) {
+                $lines[] = "Retrieval schedule updated for $scheduled topic" . ($scheduled === 1 ? '' : 's') . '.';
+            }
+            if ($unfinished === null && !$resolves['close'] && !$resolves['already']) {
+                $warning = mcp_unfinished_warning($store, $slug, $sessionId);
+                if ($warning !== null) {
+                    $lines[] = '';
+                    $lines[] = $warning;
+                }
             }
             return mcp_text(implode("\n", $lines));
         }
@@ -2705,7 +3245,8 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if (isset($r['error'])) {
                 return mcp_text($r['error']);
             }
-            if (!$store->getSession($slug, $id)) {
+            $existing = $store->getSession($slug, $id);
+            if (!$existing) {
                 return mcp_text("No session $id in $slug. Call tracker_history to see the ids.");
             }
             $fields = [];
@@ -2721,15 +3262,60 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if (array_key_exists('void_reason', $a)) {
                 $fields['void_reason'] = $a['void_reason'] === null ? null : mcp_str($a, 'void_reason', false, 0, 500);
             }
-            if (!$fields) {
-                throw new McpError('Give at least one of date, summary, next_steps or void_reason to change.');
-            }
-            $store->amendSession($slug, $id, $fields);
             $what = [];
+            if (array_key_exists('unfinished', $a)) {
+                if ($a['unfinished'] === null) {
+                    // Closing by hand. The text stays and the closure says
+                    // who did it, so the row still shows the item existed.
+                    if ($existing['unfinished'] !== null && $existing['unfinished_closed_at'] === null) {
+                        $fields['unfinished_closed_at']     = tt_now_utc();
+                        $fields['unfinished_closed_reason'] = 'cleared by hand (tracker_amend_session)';
+                        $what[] = 'unfinished item closed by hand';
+                    } else {
+                        $what[] = 'no open unfinished item to clear';
+                    }
+                } else {
+                    $fields['unfinished'] = mcp_str($a, 'unfinished', true, 1, 300);
+                    // Setting text re-opens: a corrected item is an open one.
+                    $fields['unfinished_closed_at']            = null;
+                    $fields['unfinished_closed_by_session_id'] = null;
+                    $fields['unfinished_closed_reason']        = null;
+                    $what[] = 'unfinished set';
+                }
+            }
+            if (array_key_exists('unfinished_refs', $a)) {
+                $list = mcp_ref_list($a['unfinished_refs'], 'unfinished_refs', 10);
+                $fields['unfinished_refs'] = $list ? json_encode($list, JSON_UNESCAPED_UNICODE) : null;
+                $what[] = 'unfinished_refs updated';
+            }
+            $resolves = mcp_check_resolves($store, $slug, $a['resolves'] ?? null);
+            foreach ($resolves['close'] as $target) {
+                if ($target === $id) {
+                    throw new McpError("resolves names session $id itself. A session cannot resolve its own "
+                        . 'unfinished work; pass unfinished: null to clear it by hand. Nothing was written.');
+                }
+            }
+            if (!$fields && !$resolves['close'] && !$resolves['already']) {
+                throw new McpError('Give at least one of date, summary, next_steps, void_reason, unfinished, '
+                    . 'unfinished_refs or resolves to change.');
+            }
+            if ($fields) {
+                $store->amendSession($slug, $id, $fields);
+            }
             foreach ($fields as $k => $v) {
-                $what[] = $k === 'void_reason'
-                    ? ($v === null ? 'un-voided' : 'voided (' . $v . ')')
-                    : "$k updated";
+                if (in_array($k, ['date', 'summary', 'next_steps'], true)) {
+                    $what[] = "$k updated";
+                } elseif ($k === 'void_reason') {
+                    $what[] = $v === null ? 'un-voided' : 'voided (' . $v . ')';
+                }
+            }
+            foreach ($resolves['close'] as $target) {
+                if ($store->closeUnfinished($target, $id, "completed in session $id")) {
+                    $what[] = "resolved session $target's unfinished work";
+                }
+            }
+            foreach ($resolves['already'] as $note) {
+                $what[] = $note . ' (no-op)';
             }
             return mcp_text("Session $id amended: " . implode('; ', $what) . '.');
         }
@@ -3181,6 +3767,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     $cleanItems[] = [
                         'prompt'         => mcp_str($item, 'prompt', false, 0, 500),
                         'topic_ref'      => $itemRef,
+                        'item_key'       => mcp_str($item, 'item_key', false, 1, 64),
                         'outcome'        => (string) $outcome,
                         'attempts_taken' => isset($item['attempts_taken'])
                             ? (int) mcp_num($item, 'attempts_taken', false, 1) : null,
@@ -3220,9 +3807,19 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $rows   = [];
             $stored = 0;
             $dupes  = 0;
+            $sched  = ['item' => 0, 'topic' => 0];
             foreach ($clean as $run) {
                 $res = $store->addPracticeRun($run);
                 $res['status'] === 'stored' ? $stored++ : $dupes++;
+                // The schedule advances once per stored run: a duplicate
+                // client_run_id stores nothing and schedules nothing, so a
+                // retried report cannot count an answer twice.
+                if ($res['status'] === 'stored' && $run['items']) {
+                    [$runDate] = tt_local($run['played_at']);
+                    $n = retrieval_apply_run($store, $slug, $runDate, $run['items']);
+                    $sched['item']  += $n['item'];
+                    $sched['topic'] += $n['topic'];
+                }
                 $rows[] = '| ' . $res['id'] . ' | ' . str_replace('|', '/', $run['label'])
                     . ' | ' . $run['source'] . ' | ' . $run['attempted']
                     . ' | ' . $run['correct'] . '/' . $run['correct_after_retry'] . '/' . $run['incorrect']
@@ -3251,6 +3848,10 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if ($dropped) {
                 $lines[] = 'Note: dropped non-numeric metric ' . implode(', ', array_unique($dropped))
                     . '. The run is stored without it.';
+            }
+            if ($sched['item'] + $sched['topic'] > 0) {
+                $lines[] = 'Retrieval schedule updated: ' . $sched['topic'] . ' topic-grain and '
+                    . $sched['item'] . ' item-grain outcomes applied. tracker_retrieval_due reads it.';
             }
             $lines[] = '';
             $lines[] = 'No topic status was changed: practice never moves a status. Use tracker_log_session for that.';
@@ -3495,6 +4096,89 @@ function num(float|int|string $n): string
 
 // ---- JSON-RPC dispatch ---------------------------------------------------
 
+/** ' for subject "maths"' when the call named one, so a failure says which. */
+function mcp_subject_tag(array $args): string
+{
+    $slug = $args['subject'] ?? ($args['slug'] ?? null);
+    if (is_string($slug) && $slug !== '') {
+        return ' for subject "' . $slug . '"';
+    }
+    if (is_array($args['subjects'] ?? null) && $args['subjects']) {
+        return ' for subjects ' . implode(', ', array_map('strval', $args['subjects']));
+    }
+    return '';
+}
+
+/**
+ * A list of topic refs from an argument: non-empty strings, bounded.
+ *
+ * @return array<int,string>
+ */
+function mcp_ref_list(mixed $raw, string $what, int $max): array
+{
+    if ($raw === null) {
+        return [];
+    }
+    if (!is_array($raw)) {
+        throw new McpError("$what must be an array of topic references.");
+    }
+    if (count($raw) > $max) {
+        throw new McpError("$what may hold at most $max entries.");
+    }
+    $out = [];
+    foreach ($raw as $ref) {
+        if (!is_string($ref) || trim($ref) === '' || mb_strlen($ref) > 40) {
+            throw new McpError("$what entries must be non-empty strings of at most 40 characters.");
+        }
+        $out[] = trim($ref);
+    }
+    return array_values(array_unique($out));
+}
+
+/**
+ * A consolidates[] list, validated: every ref a string, every
+ * error_session_id a session of this subject. Unknown refs are reported
+ * back rather than refused, as an unknown topic ref is everywhere else.
+ *
+ * @return array{clean:array<int,array{ref:string,error_session_id?:int}>,unknown:array<int,string>}
+ */
+function mcp_consolidates(Store $store, string $slug, mixed $raw): array
+{
+    if ($raw === null) {
+        return ['clean' => [], 'unknown' => []];
+    }
+    if (!is_array($raw)) {
+        throw new McpError('consolidates must be an array of { ref, error_session_id? }.');
+    }
+    if (count($raw) > 30) {
+        throw new McpError('consolidates may hold at most 30 entries.');
+    }
+    $known   = array_column($store->listTopics($slug), 'ref');
+    $clean   = [];
+    $unknown = [];
+    foreach (array_values($raw) as $i => $c) {
+        if (!is_array($c)) {
+            throw new McpError('consolidates[' . $i . '] must be an object with ref.');
+        }
+        $ref = mcp_str($c, 'ref', true, 1, 40);
+        if (!in_array($ref, $known, true)) {
+            $unknown[] = $ref;
+        }
+        $entry = ['ref' => $ref];
+        if (isset($c['error_session_id']) && $c['error_session_id'] !== null) {
+            $sid = (int) mcp_num($c, 'error_session_id', false, 1);
+            $row = $store->sessionById($sid);
+            if (!$row || (string) $row['subject_slug'] !== $slug) {
+                throw new McpError("consolidates[$i] names error_session_id $sid, which is not a session of $slug. "
+                    . 'Nothing was written.');
+            }
+            $entry['error_session_id'] = $sid;
+        }
+        $clean[] = $entry;
+    }
+    return ['clean' => $clean, 'unknown' => array_values(array_unique($unknown))];
+}
+
 function mcp_handle(Store $store, array $req): ?array
 {
     $id     = $req['id'] ?? null;
@@ -3536,15 +4220,33 @@ function mcp_handle(Store $store, array $req): ?array
         case 'tools/call': {
             $name = (string) ($params['name'] ?? '');
             $args = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
+            // Noted for the shutdown handler in index.php: a fatal error
+            // mid-call (memory, time limit) otherwise answers with an empty
+            // body, and the caller sees "Tool execution failed" and nothing
+            // to act on.
+            $GLOBALS['mcp_inflight'] = ['id' => $id, 'name' => $name, 'subject' => mcp_subject_tag($args)];
             try {
-                return $ok(mcp_call_tool($store, $name, $args));
+                $result = mcp_call_tool($store, $name, $args);
+                $GLOBALS['mcp_inflight'] = null;
+                return $ok($result);
             } catch (McpError $e) {
+                $GLOBALS['mcp_inflight'] = null;
                 // A tool-level failure is a result with isError, not a protocol
                 // error: the model should see the message and correct itself.
-                return $ok(array_merge(mcp_text($e->getMessage()), ['isError' => true]));
+                // The tool and the subject are named so the caller has
+                // something to act on rather than something to guess at.
+                return $ok(array_merge(
+                    mcp_text($name . mcp_subject_tag($args) . ' refused: ' . $e->getMessage()),
+                    ['isError' => true]
+                ));
             } catch (Throwable $e) {
+                $GLOBALS['mcp_inflight'] = null;
                 error_log('tracker tool ' . $name . ' failed: ' . $e->getMessage());
-                return $ok(array_merge(mcp_text('The tool failed: ' . $e->getMessage()), ['isError' => true]));
+                return $ok(array_merge(
+                    mcp_text($name . mcp_subject_tag($args) . ' failed: ' . get_class($e) . ': '
+                        . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')'),
+                    ['isError' => true]
+                ));
             }
         }
     }

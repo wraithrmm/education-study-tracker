@@ -49,6 +49,15 @@ const PRACTICE_SOURCE_SEED = [
      'metrics_schema' => []],
     ['key' => 'retrieval_quotes',   'display_name' => 'Quotation retrieval', 'subject_slug' => 'english-literature',
      'metrics_schema' => []],
+    // The retrieval-block convention: a warm-up at the start of a block, the
+    // mixed cross-subject quiz, and a single-subject retrieval slot. All
+    // three start `retrieval_`, so they satisfy a retrieval block and stay
+    // distinguishable from app games in tracker_practice_stats. Null
+    // subject: any subject may log them.
+    ['key' => 'retrieval_warmup',   'display_name' => 'Retrieval warm-up (starter)', 'subject_slug' => null,
+     'metrics_schema' => []],
+    ['key' => 'retrieval_subject',  'display_name' => 'Retrieval (single subject)', 'subject_slug' => null,
+     'metrics_schema' => []],
     // One Code Lab day is one run: a task is an item, `correct` is solved on
     // the first run, `correct_after_retry` solved after one or more failed
     // runs, `incorrect` not solved by the end. The stored CS scoreboard

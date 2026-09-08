@@ -137,13 +137,16 @@ the database has no subjects, so later deploys never touch real progress.
 ```bash
 bash deploy/smoke-test.sh
 php deploy/practice-test.php
+php deploy/continuity-test.php
 ```
 
 The first boots the service on PHP's built-in server against a throwaway
 database and exercises every endpoint and tool. The second runs the practice
 acceptance tests and diffs the scoreboard golden snapshots in `tests/golden`
 — run it after any change to a panel type, and `--update` to rewrite the
-snapshots on purpose. Both run in CI on every push. To poke at it by hand:
+snapshots on purpose. The third covers last-session continuity, unfinished
+work, the block shape rules and retrieval scheduling, with the clock frozen.
+All three run in CI on every push. To poke at it by hand:
 
 ```bash
 mkdir -p /tmp/tracker/tracker-shared/data

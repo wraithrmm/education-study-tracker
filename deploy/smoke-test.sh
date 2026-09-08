@@ -270,7 +270,8 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_amend_session tracker_log_attempt tracker_create_subject \
             tracker_list_resources tracker_add_resource tracker_remove_resource \
             tracker_log_practice tracker_list_practice tracker_practice_stats \
-            tracker_void_practice tracker_get_scoreboard tracker_set_scoreboard; do
+            tracker_void_practice tracker_get_scoreboard tracker_set_scoreboard \
+            tracker_retrieval_due; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -281,10 +282,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 33 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 34 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 33 of 33)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 34 of 34)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -452,6 +453,15 @@ contains "an unknown topic ref is flagged but still stored" "$body" "no topic wi
 # The queue is what a session opens with, so the materials have to reach it.
 body="$(call tracker_review_queue '{"subject":"maths"}')"
 contains "the review queue carries subject-wide resources" "$body" "Resources for the whole subject"
+contains "and opens with the last session's plan as JSON" "$body" '### last_session'
+contains "with next_steps verbatim" "$body" 'next_steps'
+contains "and an unfinished group" "$body" "### Unfinished"
+
+body="$(call tracker_retrieval_due '{"subjects":["maths"],"limit":4}')"
+contains "tracker_retrieval_due answers for a subject" "$body" "Retrieval due — maths"
+contains "and says the intervals in force" "$body" "Intervals in force"
+body="$(call tracker_retrieval_due '{"subjects":["nonexistent"]}')"
+contains "an unknown subject is reported helpfully" "$body" "Known subjects"
 
 if [ "$REMOTE" = 0 ]; then
   body="$("${CURL[@]}" "$BASE/s/maths")"
@@ -633,7 +643,12 @@ contains "a session can name the block it fulfilled" "$body" "logged for"
 
 body="$(call tracker_today '{"date":"2024-09-09"}')"
 contains "tracker_today attributes the session to block 3" "$body" "<- session #"
-lacks "so block 3 is not in the missed list" "$body" "#3 Maths"
+lacks "so block 3 is not in the missed list" "$body" ", #3 Maths"
+# The session moved no topic, so a teach block was done in the wrong shape:
+# still done, said so, and never a miss.
+contains "and a teach session with no topic update is done, but not in shape" \
+  "$body" "#3 Maths — new topic — expected at least one topic update carrying evidence"
+contains "and the block line says done_shape_unmet rather than done" "$body" "done_shape_unmet"
 contains "block 2 stays missed: a teaching session is not retrieval practice" \
   "$body" "#2 Retrieval warm-up (mixed)"
 contains "block 5 is missed — nothing was logged for it" "$body" "#5 English Literature"
@@ -886,7 +901,9 @@ if [ "$REMOTE" = 0 ]; then
   code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
   check "a past week renders on its own page" "$code" "200"
   week="$(cat "$WORK/week.html")"
-  contains "the done block says so in words" "$week" 'aria-label="Maths — new topic 09:45 — done"'
+  contains "the done block says so in words, shape included" "$week" \
+    'aria-label="Maths — new topic 09:45 — done, but not the shape the block asked for: expected at least one topic update carrying evidence; got a session with no topic updates, 70 min recorded"'
+  lacks "and it is not a clean tick" "$week" 'aria-label="Maths — new topic 09:45 — done"'
   contains "the missed block says so in words" "$week" 'aria-label="English Literature — set text 11:15 — missed"'
   contains "a ticked movement block is done" "$week" 'aria-label="Move — walk, bike or dance 09:00 — done"'
 
@@ -940,7 +957,7 @@ if [ "$REMOTE" = 0 ]; then
   contains "with movement counted separately" "$week" "movement ticked 1 of 5"
   contains "and the review block separately again" "$week" "review block not ticked"
   contains "the segmented bar says the counts in words, not in colour" "$week" \
-    'aria-label="21 study blocks: 2 done, 18 missed, 1 excused"'
+    'aria-label="21 study blocks: 2 done, 1 of the done not in shape, 18 missed, 1 excused"'
   contains "hours are read against the timetable's planned hours" "$week" "1.93 / 4.83"
   contains "and the bar says which side of the plan it is on, in words" "$week" \
     "under the timetable"
@@ -1114,7 +1131,7 @@ if [ "$REMOTE" = 0 ]; then
   lacks "and it is not in the MISSED list" "$report" \
     '<b>English Literature — set text</b> — no session logged that day'
   contains "and the bar counts it apart from both done and missed, in words" "$report" \
-    'aria-label="21 study blocks: 2 done, 1 marked by hand, 17 missed, 1 excused"'
+    'aria-label="21 study blocks: 2 done, 1 of the done not in shape, 1 marked by hand, 17 missed, 1 excused"'
 fi
 
 echo

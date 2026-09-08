@@ -49,6 +49,12 @@ jobs:
       - name: Practice acceptance tests and golden snapshots
         run: php deploy/practice-test.php
 
+      # Continuity, unfinished work, kind-aware shape checks and retrieval
+      # scheduling, against a frozen clock: the acceptance criteria of that
+      # spec, one check each.
+      - name: Continuity, shape and retrieval acceptance tests
+        run: php deploy/continuity-test.php
+
       - name: Check required secrets are present
         env:
           SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
