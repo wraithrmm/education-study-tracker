@@ -13,8 +13,11 @@ if (!defined('TRACKER')) {
 }
 
 // The practice scoreboard's configuration constants are read during migration,
-// so they have to be loaded before a Store is ever constructed.
+// so they have to be loaded before a Store is ever constructed. The shape
+// rules and the retrieval scheduler are seeded by migration too.
 require_once __DIR__ . '/practice.php';
+require_once __DIR__ . '/shape.php';
+require_once __DIR__ . '/retrieval.php';
 
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
@@ -264,6 +267,12 @@ function tt_today(): string
     return tt_now()->format('Y-m-d');
 }
 
+/** The tracker's clock as a stored UTC stamp — honours TRACKER_NOW, unlike gmdate(). */
+function tt_now_utc(): string
+{
+    return tt_now()->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+}
+
 /** Minutes since midnight, for a 'HH:MM'. */
 function tt_mins(string $hhmm): int
 {
@@ -417,20 +426,36 @@ function tt_subjects_for(array $block, string $date): array
  * @param array<string,mixed> $block
  * @param array<string,mixed> $ev
  */
-function tt_kind_accepts(array $block, array $ev): bool
+function tt_kind_accepts(array $block, array $ev, array $rules = []): bool
 {
     if ($ev['block_key'] !== null && $ev['block_key'] === $block['block_key']) {
         return true;
     }
-    return match ($block['kind']) {
-        'timed_handwritten' => $ev['type'] === 'attempt',
-        'retrieval'         => $ev['type'] === 'practice' && str_starts_with((string) $ev['source'], 'retrieval_'),
-        default             => true,
+    // The refinement is a row in block_kind_rules when the table has one for
+    // the kind; the match below is the same rule for a database that has
+    // not migrated yet, and the fallback for a kind with no row.
+    $by = $rules[$block['kind']]['satisfied_by'] ?? match ($block['kind']) {
+        'timed_handwritten' => 'attempt',
+        'retrieval'         => 'retrieval_practice',
+        default             => 'any',
+    };
+    return match ($by) {
+        'attempt'            => $ev['type'] === 'attempt',
+        'retrieval_practice' => $ev['type'] === 'practice'
+            && str_starts_with((string) $ev['source'], 'retrieval_'),
+        default              => true,
     };
 }
 
 /** What a resource is for, used to sort and label it. */
 const RESOURCE_KINDS = ['video', 'notes', 'practice', 'paper', 'book', 'other'];
+
+/** An unfinished item is flagged stale after this many days open, and auto-closed after the second. */
+const UNFINISHED_STALE_DAYS      = 21;
+const UNFINISHED_AUTO_CLOSE_DAYS = 56;
+const UNFINISHED_AUTO_CLOSE_REASON = 'auto-closed, stale';
+/** A last session older than this is flagged stale on the queue — a flag, never a filter. */
+const LAST_SESSION_STALE_DAYS = 14;
 
 final class Store
 {
@@ -464,7 +489,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 8;
+    private const SCHEMA_VERSION = 11;
 
     private function migrate(): void
     {
@@ -673,6 +698,232 @@ final class Store
             }
             return;
         }
+
+        if ($v === 9) {
+            // Unfinished work as a field rather than a sentence in the
+            // summary. Presence is the flag: a non-null `unfinished` means
+            // something is outstanding and the text says what. Closure is
+            // three nullable columns set on resolution, never a delete, so
+            // the row still shows the item existed. No backfill: nothing here
+            // scrapes old summaries for the word "unfinished".
+            //
+            // `consolidates` is the D change riding on the same step: a
+            // consolidation session states which errors it re-worked, as
+            // JSON, rather than the service inferring it from prose.
+            foreach ([
+                'unfinished'                      => 'TEXT',
+                'unfinished_refs'                 => 'TEXT',
+                'unfinished_closed_at'            => 'TEXT',
+                'unfinished_closed_by_session_id' => 'INTEGER',
+                'unfinished_closed_reason'        => 'TEXT',
+                'consolidates'                    => 'TEXT',
+            ] as $col => $type) {
+                if (!$this->hasColumn('sessions', $col)) {
+                    $this->db->exec("ALTER TABLE sessions ADD COLUMN $col $type");
+                }
+            }
+            return;
+        }
+
+        if ($v === 10) {
+            // How a block of each kind is judged, as rows rather than a match
+            // statement: a new kind is a row, and a rule that turns out
+            // wrong is an UPDATE. Seeded once; a row someone has edited by
+            // hand since is left alone (INSERT OR IGNORE).
+            $this->createBlockKindRulesTable();
+            foreach (SHAPE_RULE_SEED as $rule) {
+                $this->seedBlockKindRule($rule);
+            }
+            return;
+        }
+
+        if ($v === 11) {
+            // Retrieval scheduling over the practice rows that already exist:
+            // an optional stable id per item, a schedule row per (subject,
+            // grain, key), and the interval ladder as a config row per
+            // subject so the final phase can compress it without a deploy.
+            if (!$this->hasColumn('practice_item', 'item_key')) {
+                $this->db->exec('ALTER TABLE practice_item ADD COLUMN item_key TEXT');
+                $this->db->exec(
+                    'CREATE INDEX IF NOT EXISTS idx_practice_item_key ON practice_item(item_key)'
+                );
+            }
+            $this->createRetrievalTables();
+            // The retrieval sources the D rules are judged on, and that
+            // tracker_practice_stats tells apart from app games.
+            foreach (PRACTICE_SOURCE_SEED as $source) {
+                $this->upsertPracticeSource($source);
+            }
+            return;
+        }
+    }
+
+    /**
+     * One row per block kind: what binds to it and what shape the work must
+     * have to count as met. `shape_json` is a list of alternatives, each an
+     * object of conditions that must all hold; an empty list is always met.
+     * The condition vocabulary is in shape.php.
+     */
+    private function createBlockKindRulesTable(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS block_kind_rules (
+               kind         TEXT PRIMARY KEY,
+               satisfied_by TEXT NOT NULL DEFAULT 'any'
+                              CHECK (satisfied_by IN ('any','attempt','retrieval_practice')),
+               shape_json   TEXT NOT NULL DEFAULT '[]',
+               expects      TEXT,
+               note         TEXT,
+               updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+    }
+
+    /** Insert a seed rule unless a row for that kind already exists. */
+    private function seedBlockKindRule(array $rule): void
+    {
+        $st = $this->db->prepare(
+            'INSERT OR IGNORE INTO block_kind_rules (kind, satisfied_by, shape_json, expects, note)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        $st->execute([
+            $rule['kind'], $rule['satisfied_by'] ?? 'any',
+            json_encode($rule['shape'] ?? [], JSON_UNESCAPED_SLASHES),
+            $rule['expects'] ?? null, $rule['note'] ?? null,
+        ]);
+    }
+
+    /**
+     * The retrieval schedule. One row per (subject, grain, key): item grain
+     * where the client supplied an item_key, topic grain always, from the
+     * topic_ref. `history` is the last few dated outcomes, which is what the
+     * "why" line on tracker_retrieval_due is written from.
+     */
+    private function createRetrievalTables(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS retrieval_state (
+               subject_slug        TEXT NOT NULL REFERENCES subjects(slug) ON DELETE CASCADE,
+               grain               TEXT NOT NULL CHECK (grain IN ('item','topic')),
+               key                 TEXT NOT NULL,
+               topic_ref           TEXT,
+               prompt              TEXT,
+               last_asked          TEXT,
+               next_due            TEXT,
+               consecutive_correct INTEGER NOT NULL DEFAULT 0,
+               consecutive_wrong   INTEGER NOT NULL DEFAULT 0,
+               difficulty_level    INTEGER NOT NULL DEFAULT 1 CHECK (difficulty_level BETWEEN 1 AND 3),
+               needs_scaffold      INTEGER NOT NULL DEFAULT 0,
+               retired             INTEGER NOT NULL DEFAULT 0,
+               asked               INTEGER NOT NULL DEFAULT 0,
+               history             TEXT NOT NULL DEFAULT '[]',
+               updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
+               PRIMARY KEY (subject_slug, grain, key)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_retrieval_due ON retrieval_state(subject_slug, next_due)'
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_retrieval_topic ON retrieval_state(subject_slug, topic_ref)'
+        );
+        // The interval ladder, per subject. '*' is the default every subject
+        // without a row of its own reads. Changing a subject's row is how the
+        // final phase compresses spacing: a config change, not a deploy.
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS retrieval_config (
+               subject_slug   TEXT PRIMARY KEY,
+               intervals_json TEXT NOT NULL,
+               note           TEXT,
+               updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+        $st = $this->db->prepare(
+            'INSERT OR IGNORE INTO retrieval_config (subject_slug, intervals_json, note) VALUES (?, ?, ?)'
+        );
+        $st->execute(['*', json_encode(RETRIEVAL_DEFAULT_INTERVALS), 'Default ladder, days. Last value repeats.']);
+    }
+
+    // ---- block kind rules -------------------------------------------------
+
+    /**
+     * Every rule, keyed by kind, decoded. Cached for the request: judging a
+     * week reads it once per block otherwise.
+     *
+     * @return array<string,array{kind:string,satisfied_by:string,shape:array,expects:?string,note:?string}>
+     */
+    public function blockKindRules(): array
+    {
+        if ($this->rulesCache !== null) {
+            return $this->rulesCache;
+        }
+        $cache = [];
+        foreach ($this->all('SELECT * FROM block_kind_rules ORDER BY kind') as $r) {
+            $shape = json_decode((string) $r['shape_json'], true);
+            $cache[(string) $r['kind']] = [
+                'kind'         => (string) $r['kind'],
+                'satisfied_by' => (string) $r['satisfied_by'],
+                'shape'        => is_array($shape) ? $shape : [],
+                'expects'      => $r['expects'] ?? null,
+                'note'         => $r['note'] ?? null,
+            ];
+        }
+        $this->rulesCache = $cache;
+        return $cache;
+    }
+
+    /** @var ?array<string,array> block_kind_rules, read once per request */
+    private ?array $rulesCache = null;
+
+    /** Write or replace one rule row. Used by tests; the table is the config. */
+    public function setBlockKindRule(array $rule): void
+    {
+        $this->rulesCache = null;
+        $st = $this->db->prepare(
+            'INSERT INTO block_kind_rules (kind, satisfied_by, shape_json, expects, note, updated_at)
+             VALUES (?, ?, ?, ?, ?, datetime(\'now\'))
+             ON CONFLICT(kind) DO UPDATE SET satisfied_by = excluded.satisfied_by,
+               shape_json = excluded.shape_json, expects = excluded.expects,
+               note = excluded.note, updated_at = excluded.updated_at'
+        );
+        $st->execute([
+            $rule['kind'], $rule['satisfied_by'] ?? 'any',
+            json_encode($rule['shape'] ?? [], JSON_UNESCAPED_SLASHES),
+            $rule['expects'] ?? null, $rule['note'] ?? null,
+        ]);
+    }
+
+    // ---- retrieval config -------------------------------------------------
+
+    /**
+     * The interval ladder in force for a subject: its own row, else '*'.
+     *
+     * @return array<int,int> days, ascending; the last value repeats
+     */
+    public function retrievalIntervals(string $slug): array
+    {
+        foreach ([$slug, '*'] as $key) {
+            $row = $this->one('SELECT intervals_json FROM retrieval_config WHERE subject_slug = ?', [$key]);
+            if ($row) {
+                $v = json_decode((string) $row['intervals_json'], true);
+                if (is_array($v) && $v) {
+                    return array_values(array_map('intval', $v));
+                }
+            }
+        }
+        return RETRIEVAL_DEFAULT_INTERVALS;
+    }
+
+    /** @param array<int,int> $intervals */
+    public function setRetrievalIntervals(string $slug, array $intervals, ?string $note = null): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO retrieval_config (subject_slug, intervals_json, note, updated_at)
+             VALUES (?, ?, ?, datetime(\'now\'))
+             ON CONFLICT(subject_slug) DO UPDATE SET intervals_json = excluded.intervals_json,
+               note = excluded.note, updated_at = excluded.updated_at'
+        );
+        $st->execute([$slug, json_encode(array_values(array_map('intval', $intervals))), $note]);
     }
 
     /**
@@ -1483,10 +1734,177 @@ final class Store
         $st->execute([$topics, $id]);
     }
 
-    /** @param array<string,mixed> $fields date, summary, next_steps, void_reason */
+    /**
+     * The most recent session that still counts — the one a new session
+     * opens on. Void sessions are skipped rather than surfaced: a session
+     * logged in error is exactly what the next one must not continue from.
+     */
+    public function lastSession(string $slug): ?array
+    {
+        return $this->one(
+            'SELECT * FROM sessions WHERE subject_slug = ? AND void_reason IS NULL
+             ORDER BY date DESC, id DESC LIMIT 1',
+            [$slug]
+        );
+    }
+
+    /** One session by id alone, any subject. Used where the subject is not yet known. */
+    public function sessionById(int $id): ?array
+    {
+        return $this->one('SELECT * FROM sessions WHERE id = ?', [$id]);
+    }
+
+    // ---- unfinished work ----------------------------------------------------
+    //
+    // "We stopped before the end" as a field the next session cannot miss.
+    // Open means: non-null `unfinished`, no closure, and the session is not
+    // void. Closing is a stamp — who closed it, when, why — never a delete.
+
+    /**
+     * Open unfinished items for a subject, oldest first, each with how long
+     * it has been open and whether that is stale. Runs the ageing sweep
+     * first, so an item past the auto-close line is closed before it is
+     * listed rather than listed and then closed on some later read.
+     *
+     * @return array<int,array{session_id:int,date:string,days_open:int,block_key:?int,
+     *               text:string,refs:array<int,string>,stale:bool}>
+     */
+    public function openUnfinished(string $slug): array
+    {
+        $this->sweepUnfinished();
+        $today = tt_today();
+        $out   = [];
+        foreach ($this->all(
+            'SELECT * FROM sessions
+             WHERE subject_slug = ? AND unfinished IS NOT NULL AND unfinished_closed_at IS NULL
+               AND void_reason IS NULL
+             ORDER BY date, id',
+            [$slug]
+        ) as $s) {
+            $out[] = $this->unfinishedEntry($s, $today);
+        }
+        return $out;
+    }
+
+    /** One session row as a queue entry. */
+    public function unfinishedEntry(array $s, ?string $today = null): array
+    {
+        $today ??= tt_today();
+        $days = tt_days_between((string) $s['date'], $today);
+        return [
+            'session_id' => (int) $s['id'],
+            'date'       => (string) $s['date'],
+            'days_open'  => $days,
+            'block_key'  => $s['block_key'] === null ? null : (int) $s['block_key'],
+            'text'       => (string) $s['unfinished'],
+            'refs'       => self::decodeRefs($s['unfinished_refs'] ?? null),
+            'stale'      => $days > UNFINISHED_STALE_DAYS,
+        ];
+    }
+
+    /** @return array<int,string> */
+    public static function decodeRefs(mixed $json): array
+    {
+        if ($json === null || $json === '') {
+            return [];
+        }
+        $v = json_decode((string) $json, true);
+        return is_array($v) ? array_values(array_map('strval', $v)) : [];
+    }
+
+    /**
+     * Auto-close anything open past the line, with the reason and no closing
+     * session. Idempotent: closed rows are not matched again.
+     */
+    public function sweepUnfinished(): int
+    {
+        $st = $this->db->prepare(
+            'UPDATE sessions
+             SET unfinished_closed_at = ?, unfinished_closed_reason = ?
+             WHERE unfinished IS NOT NULL AND unfinished_closed_at IS NULL AND void_reason IS NULL
+               AND date < ?'
+        );
+        // days_open > AUTO_CLOSE ⇔ date < today − AUTO_CLOSE days.
+        $st->execute([
+            tt_now_utc(), UNFINISHED_AUTO_CLOSE_REASON,
+            tt_add_days(tt_today(), -UNFINISHED_AUTO_CLOSE_DAYS),
+        ]);
+        return $st->rowCount();
+    }
+
+    /**
+     * Stamp one item closed. Returns false when there was nothing open to
+     * close — already closed, or never unfinished — so a repeat is a no-op
+     * rather than a re-stamp.
+     */
+    public function closeUnfinished(int $sessionId, ?int $bySessionId, string $reason): bool
+    {
+        $st = $this->db->prepare(
+            'UPDATE sessions
+             SET unfinished_closed_at = ?, unfinished_closed_by_session_id = ?, unfinished_closed_reason = ?
+             WHERE id = ? AND unfinished IS NOT NULL AND unfinished_closed_at IS NULL'
+        );
+        $st->execute([tt_now_utc(), $bySessionId, $reason, $sessionId]);
+        return $st->rowCount() > 0;
+    }
+
+    /** The sessions whose unfinished work a given session closed. */
+    public function sessionsClosedBy(int $sessionId): array
+    {
+        return $this->all(
+            'SELECT * FROM sessions WHERE unfinished_closed_by_session_id = ? ORDER BY date, id',
+            [$sessionId]
+        );
+    }
+
+    /**
+     * The week's account of unfinished work for one subject: items opened
+     * by sessions dated in the week, items closed during it, and whatever
+     * is open now. `open_now` is the live list — the review names it, and
+     * the snapshot freezes it as it stood.
+     *
+     * @return array{opened:array<int,array>,closed:array<int,array>,open_now:array<int,array>}
+     */
+    public function unfinishedForWeek(string $slug, string $monday, string $sunday): array
+    {
+        $today  = tt_today();
+        $opened = [];
+        foreach ($this->all(
+            'SELECT * FROM sessions
+             WHERE subject_slug = ? AND unfinished IS NOT NULL AND void_reason IS NULL
+               AND date BETWEEN ? AND ? ORDER BY date, id',
+            [$slug, $monday, $sunday]
+        ) as $s) {
+            $e = $this->unfinishedEntry($s, $today);
+            $e['closed'] = $s['unfinished_closed_at'] !== null;
+            $opened[] = $e;
+        }
+        $closed = [];
+        foreach ($this->all(
+            'SELECT * FROM sessions
+             WHERE subject_slug = ? AND unfinished IS NOT NULL AND void_reason IS NULL
+               AND unfinished_closed_at IS NOT NULL AND date(unfinished_closed_at) BETWEEN ? AND ?
+             ORDER BY unfinished_closed_at, id',
+            [$slug, $monday, $sunday]
+        ) as $s) {
+            $e = $this->unfinishedEntry($s, $today);
+            $e['closed_at']            = (string) $s['unfinished_closed_at'];
+            $e['closed_by_session_id'] = $s['unfinished_closed_by_session_id'] === null
+                ? null : (int) $s['unfinished_closed_by_session_id'];
+            $e['closed_reason']        = (string) $s['unfinished_closed_reason'];
+            $closed[] = $e;
+        }
+        return ['opened' => $opened, 'closed' => $closed, 'open_now' => $this->openUnfinished($slug)];
+    }
+
+    /**
+     * @param array<string,mixed> $fields date, summary, next_steps, void_reason,
+     *                                    unfinished, unfinished_refs
+     */
     public function amendSession(string $slug, int $id, array $fields): bool
     {
-        $allowed = ['date', 'summary', 'next_steps', 'void_reason'];
+        $allowed = ['date', 'summary', 'next_steps', 'void_reason', 'unfinished', 'unfinished_refs',
+                    'unfinished_closed_at', 'unfinished_closed_by_session_id', 'unfinished_closed_reason'];
         $sets    = [];
         $params  = [];
         foreach ($allowed as $k) {
@@ -1587,10 +2005,13 @@ final class Store
     {
         $st = $this->db->prepare(
             'INSERT INTO sessions
-               (subject_slug, date, summary, topics_touched, next_steps, block_key, duration_minutes)
+               (subject_slug, date, summary, topics_touched, next_steps, block_key, duration_minutes,
+                unfinished, unfinished_refs, consolidates)
              VALUES (:subject_slug, :date, :summary, :topics_touched, :next_steps,
-                     :block_key, :duration_minutes)'
+                     :block_key, :duration_minutes, :unfinished, :unfinished_refs, :consolidates)'
         );
+        $refs = $s['unfinished_refs'] ?? null;
+        $cons = $s['consolidates'] ?? null;
         $st->execute([
             ':subject_slug'     => $s['subject_slug'],
             ':date'             => $s['date'],
@@ -1599,6 +2020,9 @@ final class Store
             ':next_steps'       => $s['next_steps'] ?? null,
             ':block_key'        => $s['block_key'] ?? null,
             ':duration_minutes' => $s['duration_minutes'] ?? null,
+            ':unfinished'       => $s['unfinished'] ?? null,
+            ':unfinished_refs'  => $refs ? json_encode(array_values($refs), JSON_UNESCAPED_UNICODE) : null,
+            ':consolidates'     => $cons ? json_encode(array_values($cons), JSON_UNESCAPED_UNICODE) : null,
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -2262,7 +2686,7 @@ final class Store
         $counts = [
             'done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
             'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
-            'declared' => 0, 'extra' => 0, 'judged' => 0,
+            'declared' => 0, 'extra' => 0, 'judged' => 0, 'shape_unmet' => 0,
         ];
         $hours = [];
         foreach ($days as $day) {
@@ -2274,6 +2698,11 @@ final class Store
                 $counts[$b['status']] = ($counts[$b['status']] ?? 0) + 1;
                 if (!empty($b['short'])) {
                     $counts['short']++;
+                }
+                // Inside `done`, never instead of it: the block was done, in
+                // the wrong shape, and both facts are counted.
+                if (($b['shape'] ?? null) === 'unmet') {
+                    $counts['shape_unmet']++;
                 }
                 if ($b['status'] === 'done' && $b['subject'] !== null) {
                     $hours[$b['subject']] = ($hours[$b['subject']] ?? 0) + $b['minutes'];
@@ -2330,6 +2759,7 @@ final class Store
             $ticks[$r['date'] . '/' . (int) $r['block_key']] = $r;
         }
         $daysOff = $this->listDaysOff($from, $to);
+        $rules   = $this->blockKindRules();
 
         $versionCache = [];
         $out = [];
@@ -2388,7 +2818,7 @@ final class Store
                     if (isset($claimed[$i]) || !in_array($e['subject'], $subjects, true)) {
                         continue;
                     }
-                    if (!tt_kind_accepts($b, $e)) {
+                    if (!tt_kind_accepts($b, $e, $rules)) {
                         continue;
                     }
                     $bound[$b['block_key']] = $e;
@@ -2418,6 +2848,14 @@ final class Store
                     'subject'   => count($subjects) === 1 ? $subjects[0] : null,
                     'evidence'  => [],
                     'reason'    => null,
+                    // The shape verdict, D. `shape` is 'met', 'unmet' or null
+                    // (nothing to judge, or the kind has no rule); the reason
+                    // says what was expected and what was found. The status
+                    // stays 'done' — a block done in the wrong shape counts
+                    // for adherence and hours, and is never a miss.
+                    'shape'        => null,
+                    'shape_reason' => null,
+                    'shape_rule'   => isset($rules[$b['kind']]) || isset($rules['*']),
                 ];
 
                 // Precedence, highest first. An excusal outranks a day off so
@@ -2471,6 +2909,10 @@ final class Store
                         $row['short']   = true;
                         $row['minutes'] = $e['minutes'];
                     }
+                    $verdict = shape_judge($this, $b, $e, $length, $date, $rules);
+                    $row['shape']        = $verdict['shape'];
+                    $row['shape_reason'] = $verdict['reason'];
+                    $row['shape_rule']   = $verdict['has_rule'];
                     $rows[] = $row;
                     continue;
                 } else {
@@ -2586,7 +3028,7 @@ final class Store
         // the local date decided in PHP. Around a clock change that is the
         // difference between a block being done and being missed.
         foreach ($this->all(
-            'SELECT id, subject_slug, source, label, played_at, duration_seconds, block_key
+            'SELECT id, subject_slug, source, label, played_at, duration_seconds, block_key, attempted
              FROM practice_run
              WHERE void_reason IS NULL AND played_at BETWEEN ? AND ?',
             [tt_add_days($from, -1) . ' 00:00:00', tt_add_days($to, 1) . ' 23:59:59']
@@ -2602,6 +3044,7 @@ final class Store
                     ? null : (int) round(((int) $r['duration_seconds']) / 60),
                 'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
                 'source' => (string) $r['source'],
+                'attempted' => (int) $r['attempted'],
             ];
         }
 
@@ -2865,7 +3308,11 @@ final class Store
      */
     public function reviewQueue(string $slug, int $ageingWeeks = 8): array
     {
-        $all    = $this->listTopics($slug);
+        // Unfinished work leads the queue: it is the one group that names
+        // something already begun, and the case the group exists for is a
+        // new poem started while yesterday's was still half-written.
+        $unfinished = $this->openUnfinished($slug);
+        $all        = $this->listTopics($slug);
         $ageing = [];
         foreach ($all as $t) {
             if ($t['status'] === 'secure' || $t['status'] === 'examready') {
@@ -2884,7 +3331,39 @@ final class Store
         $gaps  = array_values(array_filter($all, static fn($t) => $t['status'] === 'gap'));
         usort($gaps, static fn($x, $y) => strcmp($x['tier'], $y['tier']));
 
-        return ['ageing' => $ageing, 'loose' => $loose, 'gaps' => $gaps];
+        return ['unfinished' => $unfinished, 'ageing' => $ageing, 'loose' => $loose, 'gaps' => $gaps];
+    }
+
+    /**
+     * The last-session block a session opens on: the most recent non-void
+     * session, its plan verbatim, the tail of its summary, and any open
+     * unfinished item it carries. Null when the subject has no sessions.
+     *
+     * @return ?array{session_id:int,date:string,days_ago:int,block_key:?int,
+     *                duration_minutes:?int,next_steps:?string,summary_tail:string,
+     *                unfinished:?string,stale:bool}
+     */
+    public function lastSessionBlock(string $slug): ?array
+    {
+        $s = $this->lastSession($slug);
+        if (!$s) {
+            return null;
+        }
+        $days    = tt_days_between((string) $s['date'], tt_today());
+        $summary = (string) $s['summary'];
+        $tail    = mb_strlen($summary) > 300 ? '…' . mb_substr($summary, -300) : $summary;
+        $open    = $s['unfinished'] !== null && $s['unfinished_closed_at'] === null;
+        return [
+            'session_id'       => (int) $s['id'],
+            'date'             => (string) $s['date'],
+            'days_ago'         => $days,
+            'block_key'        => $s['block_key'] === null ? null : (int) $s['block_key'],
+            'duration_minutes' => $s['duration_minutes'] === null ? null : (int) $s['duration_minutes'],
+            'next_steps'       => $s['next_steps'] === null ? null : (string) $s['next_steps'],
+            'summary_tail'     => $tail,
+            'unfinished'       => $open ? (string) $s['unfinished'] : null,
+            'stale'            => $days > LAST_SESSION_STALE_DAYS,
+        ];
     }
 
     /** The top line of one subject's queue: ageing first, then a loose end, then a gap. */
@@ -2962,13 +3441,15 @@ final class Store
         }
         ksort($daysOff);
 
-        $coverage  = [];
-        $practice  = [];
-        $queueTop  = [];
+        $coverage   = [];
+        $practice   = [];
+        $queueTop   = [];
+        $unfinished = [];
         foreach ($this->listSubjects() as $s) {
             $slug            = $s['slug'];
             $coverage[$slug] = $this->coverageAcross($slug, $monday, $sunday);
             $queueTop[$slug] = $this->queueTop($slug);
+            $unfinished[$slug] = $this->unfinishedForWeek($slug, $monday, $sunday);
             $runs = $this->listPracticeRuns($slug, ['since' => $monday, 'until' => $sunday]);
             if (!$runs) {
                 continue;
@@ -3011,6 +3492,7 @@ final class Store
             'practice'             => $practice,
             'timed'                => $this->timedFor($monday, $flat['blocks']),
             'queue_top'            => $queueTop,
+            'unfinished'           => $unfinished,
         ];
     }
 
@@ -3208,6 +3690,9 @@ final class Store
                     'length'    => $b['length'],
                     'reason'    => $b['reason'],
                     'evidence'  => $b['evidence'],
+                    'shape'        => $b['shape'] ?? null,
+                    'shape_reason' => $b['shape_reason'] ?? null,
+                    'shape_rule'   => $b['shape_rule'] ?? true,
                 ];
             }
             foreach ($day['extras'] as $e) {
@@ -3246,7 +3731,7 @@ final class Store
     {
         $blank = ['done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
                   'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
-                  'declared' => 0, 'judged' => 0];
+                  'declared' => 0, 'judged' => 0, 'shape_unmet' => 0];
         $out = ['evidence' => $blank, 'self_report' => $blank, 'review' => $blank];
         foreach ($blocks as $b) {
             $part = $b['tracking'] === 'evidence'
@@ -3256,6 +3741,9 @@ final class Store
             $out[$part][$b['status']] = ($out[$part][$b['status']] ?? 0) + 1;
             if (!empty($b['short'])) {
                 $out[$part]['short']++;
+            }
+            if (($b['shape'] ?? null) === 'unmet') {
+                $out[$part]['shape_unmet']++;
             }
         }
         return $out;
@@ -3455,6 +3943,19 @@ function gradeFor(array $subject, float $score, float $max, string $tier): strin
         }
     }
     return 'below ' . $sorted[count($sorted) - 1][0];
+}
+
+/** Whole days from one local date to another; negative when $to is earlier. */
+function tt_days_between(string $from, string $to): int
+{
+    try {
+        $a = new DateTimeImmutable($from, tt_zone());
+        $b = new DateTimeImmutable($to, tt_zone());
+    } catch (Throwable) {
+        return 0;
+    }
+    $d = $a->diff($b);
+    return $d->invert ? -$d->days : $d->days;
 }
 
 /** Whole weeks since an ISO date, or null if never touched. */

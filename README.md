@@ -25,9 +25,11 @@ for the pipeline, the repository secrets it needs, why it is PHP rather than
 the Node service it began as, and what to check when a deploy goes red.
 
 To run it locally, `bash deploy/smoke-test.sh` boots it against a throwaway
-database and exercises every endpoint, and `php deploy/practice-test.php` runs
-the practice acceptance tests and the scoreboard golden snapshots;
-DEPLOYMENT.md has the recipe for poking at it by hand.
+database and exercises every endpoint, `php deploy/practice-test.php` runs
+the practice acceptance tests and the scoreboard golden snapshots, and
+`php deploy/continuity-test.php` covers session continuity, unfinished work,
+block shape and retrieval scheduling against a frozen clock; DEPLOYMENT.md
+has the recipe for poking at it by hand.
 
 | Variable | Purpose |
 |---|---|
@@ -96,14 +98,14 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_list_subjects` | Every subject with a coverage percentage. |
 | `tracker_list_resources` | The materials stored for a topic or subject. |
 | `tracker_get_state` | Full topic state, filterable by status or strand. Consult before teaching. |
-| `tracker_review_queue` | Ageing secures, loose ends, priority gaps. Use this to open a session. |
+| `tracker_review_queue` | The last session's plan, unfinished work, ageing secures, loose ends, priority gaps. Use this to open a session. |
 | `tracker_list_attempts` | Every sitting, with its papers and the grade for the attempt as a whole. |
 | `tracker_get_attempt` | One attempt question by question, with marks lost per topic. |
 | `tracker_history` | The audit trail week by week: sessions, and every change each one made. |
 | `tracker_export_markdown` | Renders the whole state as a markdown document. |
 | `tracker_update_topic` | Change one topic. Evidence is mandatory. |
-| `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. |
-| `tracker_amend_session` | Correct or void a session already logged. |
+| `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. Carries `unfinished` and `resolves`. |
+| `tracker_amend_session` | Correct or void a session already logged; set or clear its unfinished item. |
 | `tracker_log_attempt` | Record a sitting: its papers, and the questions, answers and marks behind them. |
 | `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
 | `tracker_remove_resource` | Delete one stored resource by title. |
@@ -114,7 +116,8 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_void_practice` | Mark one practice run as not counting, with a reason. Never hard-deletes. |
 | `tracker_get_scoreboard` | Read a subject's scoreboard panel configuration. |
 | `tracker_set_scoreboard` | Replace it. One invalid panel rejects the whole configuration. |
-| `tracker_today` | Which block she is in now, what is next, what has been missed today. |
+| `tracker_today` | Which block she is in now, what is next, what has been missed today — and each subject's last-session plan and open unfinished work. |
+| `tracker_retrieval_due` | An ordered, interleaved set of retrieval items for a block, from the spacing schedule. |
 | `tracker_week_status` | A whole week block by block, with counts and hours against target. |
 | `tracker_get_timetable` | The timetable version in force on a date. Read before any re-cut. |
 | `tracker_set_timetable` | Replace the timetable from a date. Refuses overlaps and unknown slugs. |
@@ -123,7 +126,7 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_decide_day_off` | Parent-only: approve, decline or un-approve one. |
 | `tracker_excuse_block` | Excuse one block on one date, with the parent's reason. Null un-excuses. |
 | `tracker_tick_block` | Tick a self-reported block. Refused on study blocks — those are judged from logged work. |
-| `tracker_week_report` | Everything a week is judged on in one call: blocks, extras, hours against the timetable, movement, attempts, practice, queue tops. |
+| `tracker_week_report` | Everything a week is judged on in one call: blocks, extras, hours against the timetable, movement, attempts, practice, queue tops, blocks done in the wrong shape, unfinished work. |
 | `tracker_save_weekly_review` | Save the written half of a week as a new version. The tracker attaches its own snapshot of the figures. |
 | `tracker_get_weekly_review` | Read a saved review back, with the snapshot it was written against and how the record has moved since. |
 
@@ -171,6 +174,104 @@ have since been edited or built on is left alone. Step 3 adds the practice
 tables, seeds the source registry and pins the Spanish and maths scoreboards.
 Steps 5 and 8 re-run the source seed, which is how a source added later
 (`retrieval_mixed`, `cs_code_lab`) reaches a database step 3 already seeded.
+Step 9 adds the unfinished-work and `consolidates` columns to sessions, step
+10 creates and seeds `block_kind_rules`, and step 11 adds `item_key` to
+practice items, the `retrieval_state` and `retrieval_config` tables, and the
+`retrieval_warmup` and `retrieval_subject` sources. None of them backfills:
+no old summary is scraped for the word "unfinished", and no old practice run
+is replayed into the schedule.
+
+## Continuity between sessions
+
+Two things used to depend on a model remembering to make a second call: what
+the last session planned, and what it left half done. Both are now carried
+by the service.
+
+**The last session.** `tracker_review_queue` and `tracker_today` open with a
+`last_session` block for the subject — the most recent non-void session, its
+`next_steps` verbatim, the tail of its summary, any unfinished item it
+carries, and `stale: true` when it is more than fourteen days old. Stale is a
+flag, never a filter: the plan is still shown and the caller decides.
+
+**Unfinished work.** A session that stopped before the end says so with
+`unfinished` (at most 300 characters saying what is outstanding) and
+optionally `unfinished_refs`. Presence is the flag; there is no separate
+boolean. The item leads the review queue, ahead of the ageing secures, until
+a later session passes `resolves: [id]`, which stamps the closure — when, by
+which session, why — on the original row. Nothing is deleted: `tracker_history`
+shows the item on the session that opened it and the closure on the session
+that closed it. An item open more than 21 days is flagged stale and still
+listed first; past 56 days it is auto-closed with the reason `auto-closed,
+stale` and no closing session, and still shows in the history. Clearing one
+by hand is `tracker_amend_session` with `unfinished: null`, which closes it
+as `cleared by hand` rather than erasing it.
+
+When a session is logged for a subject with an open item and neither
+resolves it nor sets a new one, the write succeeds and the result carries a
+warning naming the item and the `resolves` call that would close it. The
+service never gates teaching; it makes the fact impossible to miss. Passing
+`resolves` for an item already closed is a no-op, the rule `client_run_id`
+already keeps for practice.
+
+## Block shape
+
+The board decides whether a block was done — a record exists for one of its
+subjects on its date. `block_kind_rules` decides whether the work had the
+shape the block asked for: a retrieval block satisfied by a three-item run, a
+consolidation session that named no errors, a teach session that moved no
+topic. Such a block is reported as **done_shape_unmet** with a `shape_reason`
+that describes the work. It counts as done for adherence and hours, is listed
+apart in `tracker_week_report` and on the week page, and is never converted
+into a miss — a missed block still means nothing was logged.
+
+The rules are rows, keyed by kind, so a new kind is a row and a rule that
+turns out wrong is an `UPDATE`. A row is a list of alternatives, each an
+object of conditions that must all hold (`min_items`, `min_updates`,
+`min_updates_with_evidence`, `min_distinct_topics`, `consolidates_nonempty`,
+`recent_error_update_days`, `min_duration_minutes`, `min_duration_fraction`,
+`evidence_type`; the vocabulary is documented in `php/lib/shape.php`). A kind
+with no row is judged as always met and the response says so, so it can be
+added rather than improvised twice. The binding refinement — a timed block
+takes an attempt, a retrieval block takes a `retrieval_` practice run — is
+the `satisfied_by` column of the same row, and is deliberately no stricter
+than it was before the rules existed.
+
+A consolidation session states what it re-worked with `consolidates:
+[{ ref, error_session_id? }]` on `tracker_log_session`, rather than the
+service inferring it from prose.
+
+## Retrieval scheduling
+
+`tracker_log_practice` already stores one row per item. Scheduling runs over
+those rows at two grains: **item**, where the client supplies a stable
+`item_key` (a registry id, or a hash of the canonical prompt, unique per
+subject), and **topic**, always, from `topic_ref` — which is what makes the
+feature work on day one for a subject with no item bank. Per (subject, grain,
+key) the service holds `last_asked`, `next_due`, the streaks,
+`difficulty_level` (1 plain · 2 varied · 3 exam), `needs_scaffold` and
+`retired`. Correct moves `next_due` out along the ladder; a retry is three
+days; incorrect is tomorrow, and two in a row raise the scaffold. An item at
+level 3 with four straight correct answers retires, and comes back when it is
+answered wrongly or its topic is demoted.
+
+The ladder is a row in `retrieval_config` — `*` holds the default
+`[1, 3, 7, 14, 30, 60]` days, and a row for a subject overrides it — so
+compressing the spacing for the final phase is a row, not a deploy.
+
+Sessions feed the topic grain too. A status rise counts as correct and a
+demotion as incorrect. An update that leaves the status where it was says
+nothing on its own — on this record those are as often "left blank, walked
+through" as "held" — so an update may carry an explicit `retrieval_outcome`.
+
+`tracker_retrieval_due` returns the set for a block already ordered and
+mixed: every subject named gets at least two slots, the rest weight toward
+the subject with the most instability in the last fortnight, and no two
+consecutive entries share a subject or a topic. Each entry carries a short
+`why` ("failed twice, 4 Sep and 8 Sep") the caller can quote in its evidence.
+Retrieval runs are logged with a source starting `retrieval_`
+(`retrieval_warmup`, `retrieval_mixed`, `retrieval_subject`,
+`retrieval_quotes`), which is what satisfies a retrieval block and keeps them
+apart from app games in `tracker_practice_stats`.
 
 ## The weekly review
 

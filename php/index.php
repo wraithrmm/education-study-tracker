@@ -31,9 +31,51 @@ function send_json(mixed $data, int $status = 200): never
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $body = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($body === false) {
+        // One byte of malformed UTF-8 anywhere in a stored note would
+        // otherwise turn the whole reply into an empty body, which the
+        // client reports as a failed tool with nothing to act on. Substitute
+        // the bad byte and say so in the log; the reply still arrives.
+        error_log('tracker: json_encode failed (' . json_last_error_msg() . '); substituting invalid UTF-8');
+        $body = json_encode(
+            $data,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+        );
+    }
+    echo $body === false ? '{"error":"internal_error","error_description":"The reply could not be encoded."}' : $body;
     exit;
 }
+
+// A fatal error inside a tool call — the memory limit, the time limit, an
+// engine error nothing catches — used to end the request with an empty 500
+// body. Every MCP client renders that as "Tool execution failed", with no
+// tool named and no reason. mcp_handle notes the call in flight; if PHP dies
+// under it, this answers with a JSON-RPC result that names the tool, the
+// subject and the error, so the caller has something to act on.
+$GLOBALS['mcp_inflight'] = null;
+register_shutdown_function(static function (): void {
+    $call = $GLOBALS['mcp_inflight'] ?? null;
+    $err  = error_get_last();
+    if ($call === null || $err === null) {
+        return;
+    }
+    if (!in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR], true)) {
+        return;
+    }
+    $text = $call['name'] . $call['subject'] . ' failed: fatal error: ' . $err['message']
+        . ' (' . basename((string) $err['file']) . ':' . $err['line'] . ')';
+    error_log('tracker: ' . $text);
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode([
+        'jsonrpc' => '2.0',
+        'id'      => $call['id'],
+        'result'  => ['content' => [['type' => 'text', 'text' => $text]], 'isError' => true],
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+});
 
 function send_text(string $body, int $status = 200): never
 {

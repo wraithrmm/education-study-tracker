@@ -129,6 +129,13 @@ tr.none td:first-child{box-shadow:inset 3px 0 0 #ef4444}
 .tt-stamp{font-size:.9rem;color:var(--muted);margin:0}
 .tt .mk{flex:none;display:block}
 .tt .markwrap{display:flex;flex-direction:column;align-items:center;gap:0;flex:none;line-height:1}
+.tt .shapecap{font-size:.62rem;font-weight:700;letter-spacing:.04em;color:#475569;line-height:1;margin-top:-1px}
+.blk.s-shape .bl{color:#334155}
+/* Unfinished work: a badge on the session row and the subject header. */
+.unfin{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#9a3412;background:#ffedd5;border:1px solid #fdba74;border-radius:4px;padding:0 .35rem;vertical-align:middle}
+.unfin.stale{color:#991b1b;background:#fee2e2;border-color:#fca5a5}
+.unfin.closed{color:#57534e;background:#f5f5f4;border-color:#d6d3d1;text-decoration:line-through}
 .tt .shortcap{font-size:.66rem;font-weight:700;letter-spacing:.04em;color:#b45309;
   font-family:ui-monospace,"Cascadia Mono",Menlo,monospace}
 .mk.pulse{animation:ttpulse 2.2s ease-in-out infinite;transform-origin:center}
@@ -293,6 +300,9 @@ a.blk:hover{background:#faf9f5}
 /* Marked by hand: stone and broken, the segment of the dashed tick the
    register draws. Never the emerald of a block the record can prove. */
 .segbar .h{background:repeating-linear-gradient(90deg,#78716c 0 3px,#e0ddd6 3px 5px)}
+/* Done, in the wrong shape: slate, so it is neither the emerald of a clean
+   tick nor the red of a miss. */
+.segbar .p{background:#475569}
 .minibar{height:9px;border-radius:999px;background:#e7e5e4;overflow:hidden;margin-top:.45rem}
 .minibar i{display:block;height:100%;background:#059669;border-radius:999px}
 .minibar i.under{background:#f59e0b}
@@ -301,6 +311,7 @@ a.blk:hover{background:#faf9f5}
   border-radius:0 8px 8px 0;padding:.5rem .7rem;margin-top:.4rem;font-size:.88rem}
 .named.shortlist li{border-left-color:#d97706}
 .named.handlist li{border-left-color:#78716c;border-left-style:dashed}
+.named.shapelist li{border-left-color:#475569;border-left-style:double}
 .named .when{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.76rem;color:#57534e}
 .decide{margin:.55rem 0 0;padding:0;list-style:none}
 .decide li{background:var(--card);border:1px dashed var(--line);border-radius:8px;
@@ -502,6 +513,18 @@ function tt_mark(array $b): string
                     "$name — done, but short: {$b['minutes']} minutes of {$b['length']}"
                 ) . '<span class="shortcap">short</span>');
             }
+            if (($b['shape'] ?? null) === 'unmet') {
+                // Done, in the wrong shape. A tick — it was done — in slate
+                // rather than emerald, with a small "shape" under it, so it
+                // reads as neither a clean tick nor a miss. The reason
+                // describes the work, never the student.
+                return $wrap($svg(
+                    '<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#475569" '
+                    . 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+                    . '<circle cx="14.6" cy="13.6" r="2.4" fill="none" stroke="#475569" stroke-width="1.3"/>',
+                    "$name — done, but not the shape the block asked for: " . ($b['shape_reason'] ?? '')
+                ) . '<span class="shapecap">shape</span>');
+            }
             return $wrap($svg(
                 '<path d="M3.2 9.6 6.8 13.4 14.8 4.3" fill="none" stroke="#059669" '
                 . 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -631,13 +654,16 @@ function tt_total_line(array $w, array $names): string
 function tt_legend(): string
 {
     $rows = [
-        ['done', 'done'], ['short', ''], ['declared', 'marked by hand'], ['now', 'now'],
-        ['pending', 'pending'], ['missed', 'missed'], ['excused', 'excused'],
+        ['done', 'done'], ['short', ''], ['shape', 'not in shape'], ['declared', 'marked by hand'],
+        ['now', 'now'], ['pending', 'pending'], ['missed', 'missed'], ['excused', 'excused'],
         ['optional', 'optional'], ['upcoming', 'to come'],
     ];
     $out = '<p class="tt-legend">';
     foreach ($rows as [$status, $text]) {
-        $b = ['status' => $status === 'short' ? 'done' : $status, 'short' => $status === 'short',
+        $b = ['status' => in_array($status, ['short', 'shape'], true) ? 'done' : $status,
+              'short' => $status === 'short',
+              'shape' => $status === 'shape' ? 'unmet' : null,
+              'shape_reason' => $status === 'shape' ? 'the work was not the shape the block asked for' : null,
               'label' => $text ?: 'short', 'start' => '', 'end' => '', 'accent' => '#7c3aed',
               'minutes' => 0, 'length' => 0, 'reason' => null];
         $out .= '<span>' . tt_mark($b) . h($text) . '</span>';
@@ -682,11 +708,15 @@ function tt_design_a(array $w, array $names, ?array $ctl = null): string
             foreach ($b['evidence'] as $ev) {
                 $href = tt_evidence_href($ev, $b['subject']);
             }
-            $cls = 'class="blk s-' . h($b['status']) . '" style="--acc:' . h($b['accent']) . '"';
+            $cls = 'class="blk s-' . h($b['status'])
+                . (($b['shape'] ?? null) === 'unmet' ? ' s-shape' : '')
+                . '" style="--acc:' . h($b['accent']) . '"';
             if ($b['status'] === 'excused' && $b['reason']) {
                 $cls .= ' title="' . h('Excused: ' . $b['reason']) . '"';
             } elseif ($b['status'] === 'declared' && $b['reason']) {
                 $cls .= ' title="' . h('Marked done by Dad: ' . $b['reason']) . '"';
+            } elseif (($b['shape'] ?? null) === 'unmet' && !empty($b['shape_reason'])) {
+                $cls .= ' title="' . h('Done, but not in shape: ' . $b['shape_reason']) . '"';
             }
             if ($ctl) {
                 // Signed in, the mark becomes the control, so the chip cannot
@@ -1079,7 +1109,7 @@ function week_counts(array $days): array
 {
     $blank = ['done' => 0, 'short' => 0, 'missed' => 0, 'excused' => 0, 'day_off' => 0,
               'now' => 0, 'pending' => 0, 'upcoming' => 0, 'optional' => 0,
-              'declared' => 0, 'judged' => 0];
+              'declared' => 0, 'judged' => 0, 'shape_unmet' => 0];
     $out = ['evidence' => $blank, 'self_report' => $blank, 'review' => $blank];
     foreach ($days as $day) {
         foreach ($day['blocks'] as $b) {
@@ -1091,6 +1121,9 @@ function week_counts(array $days): array
             $out[$part][$b['status']] = ($out[$part][$b['status']] ?? 0) + 1;
             if (!empty($b['short'])) {
                 $out[$part]['short']++;
+            }
+            if (($b['shape'] ?? null) === 'unmet') {
+                $out[$part]['shape_unmet']++;
             }
         }
     }
@@ -1136,6 +1169,9 @@ function week_count_words(array $c): string
     $bits = [];
     foreach ([
         [$plainDone, 'done'], [$c['short'] ?? 0, 'done but short'],
+        // Inside the done count, not instead of it: said after it so the
+        // fraction stays what it was and the shape is still in words.
+        [$c['shape_unmet'] ?? 0, 'of the done not in shape'],
         [$c['declared'] ?? 0, 'marked by hand'],
         [$c['missed'] ?? 0, 'missed'], [$c['excused'] ?? 0, 'excused'],
         [$c['optional'] ?? 0, 'optional'],
@@ -1158,10 +1194,13 @@ function week_segbar(array $blocks, array $counts): string
     $out   = '<div class="segbar" role="img" aria-label="' . h(week_count_words($counts)) . '">';
     foreach ($blocks as $b) {
         $short = $b['status'] === 'done' && !empty($b['short']);
-        $c = $short ? 's' : ($class[$b['status']] ?? '');
+        $shape = $b['status'] === 'done' && !$short && ($b['shape'] ?? null) === 'unmet';
+        $c = $short ? 's' : ($shape ? 'p' : ($class[$b['status']] ?? ''));
         $out .= '<span' . ($c === '' ? '' : ' class="' . $c . '"') . ' title="'
             . h(week_day_label($b['date']) . ' ' . $b['start'] . ' ' . $b['label'] . ' — '
-                . ($short ? 'done, but short' : ($word[$b['status']] ?? $b['status']))) . '"></span>';
+                . ($short ? 'done, but short'
+                    : ($shape ? 'done, but not in shape: ' . ($b['shape_reason'] ?? '')
+                        : ($word[$b['status']] ?? $b['status'])))) . '"></span>';
     }
     return $out . '</div>';
 }
@@ -1263,7 +1302,7 @@ function week_report_sections(
  */
 function week_missed_section(array $snap): string
 {
-    $missed = $short = $hand = [];
+    $missed = $short = $hand = $shape = [];
     foreach ($snap['blocks'] as $b) {
         if ($b['status'] === 'missed') {
             $missed[] = $b;
@@ -1271,6 +1310,9 @@ function week_missed_section(array $snap): string
             $hand[] = $b;
         } elseif ($b['status'] === 'done' && !empty($b['short'])) {
             $short[] = $b;
+        }
+        if ($b['status'] === 'done' && ($b['shape'] ?? null) === 'unmet') {
+            $shape[] = $b;
         }
     }
     $when = static fn(array $b): string => '<span class="when">' . h(week_day_label($b['date']))
@@ -1301,6 +1343,17 @@ function week_missed_section(array $snap): string
         foreach ($short as $b) {
             $out .= '<li>' . $when($b) . '<b>' . h($b['label']) . '</b> — '
                 . (int) $b['minutes'] . ' minutes of ' . (int) $b['length'] . ' logged.</li>';
+        }
+        $out .= '</ul>';
+    }
+    if ($shape) {
+        // Done, and counted as done. Listed so the shape is visible: the
+        // reason describes the work the block asked for and the work that
+        // was logged, and nothing else.
+        $out .= '<p class="sublab">Done, but not the shape the block asked for</p><ul class="named shapelist">';
+        foreach ($shape as $b) {
+            $out .= '<li>' . $when($b) . '<b>' . h($b['label']) . '</b> — '
+                . h((string) ($b['shape_reason'] ?? '')) . '.</li>';
         }
         $out .= '</ul>';
     }
@@ -1501,7 +1554,19 @@ function week_subject_section(
                     . '% right first time') . ' · best run ' . (int) $p['best_score'] . '.</dd>';
         }
         $q = $snap['queue_top'][$slug] ?? null;
-        $out .= '<dt>Queue top</dt><dd>' . ($q ? h($q['line']) : 'Nothing waiting.') . '</dd></dl>';
+        $out .= '<dt>Queue top</dt><dd>' . ($q ? h($q['line']) : 'Nothing waiting.') . '</dd>';
+        $u = $snap['unfinished'][$slug] ?? null;
+        if ($u && ($u['opened'] || $u['closed'] || $u['open_now'])) {
+            $out .= '<dt>Unfinished</dt><dd>' . count($u['opened']) . ' opened, ' . count($u['closed'])
+                . ' closed, ' . count($u['open_now']) . ' open now.';
+            foreach ($u['open_now'] as $item) {
+                $out .= '<br><span class="unfin' . ($item['stale'] ? ' stale' : '') . '">open</span> '
+                    . h($item['text']) . ' <small>(session ' . (int) $item['session_id'] . ', '
+                    . (int) $item['days_open'] . ' days)</small>';
+            }
+            $out .= '</dd>';
+        }
+        $out .= '</dl>';
 
         $line = $carry[$slug] ?? null;
         if (is_string($line) && $line !== '') {
@@ -2103,6 +2168,22 @@ function render_subject(Store $store, array $subject): string
 
     $withResources = $store->refsWithResources($subject['slug']);
 
+    // Open unfinished work leads the header: it is the one thing a session
+    // must not start over the top of.
+    $openUnfinished = $store->openUnfinished($subject['slug']);
+    $unfinishedCard = '';
+    if ($openUnfinished) {
+        $stale = count(array_filter($openUnfinished, static fn($u) => $u['stale']));
+        $unfinishedCard = '<div class="card"><p class="label">Unfinished work</p><p class="big mono">'
+            . count($openUnfinished) . ' <span class="unfin' . ($stale ? ' stale' : '') . '">open</span></p>';
+        foreach (array_slice($openUnfinished, 0, 3) as $u) {
+            $unfinishedCard .= '<p><small><a href="/s/' . h($subject['slug']) . '/session/'
+                . (int) $u['session_id'] . '">Session ' . (int) $u['session_id'] . '</a> · '
+                . (int) $u['days_open'] . ' days: ' . h($u['text']) . '</small></p>';
+        }
+        $unfinishedCard .= '</div>';
+    }
+
     // The first four panels of the subject's scoreboard, plus a link to the
     // rest. Empty when nothing has been practised, rather than an empty board.
     $practiceHtml = practice_dashboard_section($store, $subject);
@@ -2265,10 +2346,12 @@ function render_subject(Store $store, array $subject): string
                     . h($subject['slug']) . '/session/' . (int) $x['id'] . '">' . h($x['date'])
                     . '</a></strong>'
                     . ($void ? ' <b style="color:#b91c1c">VOID</b>' : '')
+                    . dash_unfinished_badge($x)
                     . '<div><small>' . h($x['summary']) . '</small></div>'
                     . ($void ? '<div><small>Voided: ' . h($void) . '</small></div>' : '')
                     . $moved
                     . ($x['next_steps'] ? '<div><small><em>Next: ' . h($x['next_steps']) . '</em></small></div>' : '')
+                    . dash_unfinished_line($x)
                     . '</div></div>';
             }
         }
@@ -2322,6 +2405,7 @@ function render_subject(Store $store, array $subject): string
     <p><small>topics secure or better</small></p></div>
   <div class="card"><p class="label">Latest paper</p>
     {$latest}</div>
+  {$unfinishedCard}
 </div>
 
 {$ageingHtml}
@@ -2353,6 +2437,43 @@ HTML;
 // The tools could always return the question-by-question record; the dashboard
 // could not show it. These three pages are the auditable views: one sitting in
 // full, one session in full, and one topic's whole history.
+
+/**
+ * The unfinished badge on a session row: OPEN (stale after three weeks),
+ * or closed with the reason in the title. Nothing when the session has no
+ * item. The text describes the work; it never characterises the student.
+ */
+function dash_unfinished_badge(array $x): string
+{
+    if (($x['unfinished'] ?? null) === null) {
+        return '';
+    }
+    if (($x['unfinished_closed_at'] ?? null) === null) {
+        $days = tt_days_between((string) $x['date'], tt_today());
+        return ' <span class="unfin' . ($days > UNFINISHED_STALE_DAYS ? ' stale' : '') . '" title="'
+            . h('Unfinished work, open ' . $days . ' days') . '">unfinished</span>';
+    }
+    return ' <span class="unfin closed" title="' . h('Closed: ' . ($x['unfinished_closed_reason'] ?? ''))
+        . '">unfinished · closed</span>';
+}
+
+/** The unfinished item under a session row, with its closure where there is one. */
+function dash_unfinished_line(array $x): string
+{
+    if (($x['unfinished'] ?? null) === null) {
+        return '';
+    }
+    $refs = Store::decodeRefs($x['unfinished_refs'] ?? null);
+    $line = '<div><small><b>Unfinished:</b> ' . h((string) $x['unfinished'])
+        . ($refs ? ' <span class="mono">(' . h(implode(', ', $refs)) . ')</span>' : '');
+    if (($x['unfinished_closed_at'] ?? null) !== null) {
+        [$on] = tt_local((string) $x['unfinished_closed_at']);
+        $by   = $x['unfinished_closed_by_session_id'] ?? null;
+        $line .= ' — closed ' . h($on) . ($by ? ' by session ' . (int) $by : '')
+            . ': ' . h((string) ($x['unfinished_closed_reason'] ?? ''));
+    }
+    return $line . '</small></div>';
+}
 
 /** Shared page furniture: a back link, a title, and a subtitle line. */
 function detail_head(array $subject, string $title, string $sub): string
@@ -2457,6 +2578,19 @@ function render_session(Store $store, array $subject, array $x): string
     $body .= '<h2>What happened</h2><p>' . h((string) $x['summary']) . '</p>';
     if ($x['next_steps']) {
         $body .= '<h2>Planned next</h2><p>' . h((string) $x['next_steps']) . '</p>';
+    }
+    if (($x['unfinished'] ?? null) !== null) {
+        $body .= '<h2>Unfinished' . dash_unfinished_badge($x) . '</h2><p>' . h((string) $x['unfinished'])
+            . '</p>' . dash_unfinished_line($x);
+    }
+    $resolved = $store->sessionsClosedBy((int) $x['id']);
+    if ($resolved) {
+        $body .= '<h2>Resolved</h2><ul>';
+        foreach ($resolved as $r) {
+            $body .= '<li><a href="/s/' . h($slug) . '/session/' . (int) $r['id'] . '">Session '
+                . (int) $r['id'] . '</a> (' . h((string) $r['date']) . '): ' . h((string) $r['unfinished']) . '</li>';
+        }
+        $body .= '</ul>';
     }
 
     $changes = $store->changesForSession((int) $x['id']);
