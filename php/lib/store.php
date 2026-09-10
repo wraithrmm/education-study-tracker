@@ -1619,10 +1619,21 @@ final class Store
      */
     public function transaction(callable $fn): mixed
     {
-        if ($this->db->inTransaction()) {
-            return $fn();
+        // Nesting is tracked here rather than asked of PDO: before PHP 8.4,
+        // pdo_sqlite's inTransaction() reports only transactions opened with
+        // beginTransaction(), not one opened with BEGIN IMMEDIATE, so a
+        // nested call would try to open a second one and fail. PDO's own
+        // flag is still honoured for callers that used beginTransaction().
+        if ($this->txDepth > 0 || $this->db->inTransaction()) {
+            $this->txDepth++;
+            try {
+                return $fn();
+            } finally {
+                $this->txDepth--;
+            }
         }
         $this->db->exec('BEGIN IMMEDIATE');
+        $this->txDepth = 1;
         try {
             $out = $fn();
             $this->db->exec('COMMIT');
@@ -1630,8 +1641,13 @@ final class Store
         } catch (Throwable $e) {
             $this->db->exec('ROLLBACK');
             throw $e;
+        } finally {
+            $this->txDepth = 0;
         }
     }
+
+    /** How deep transaction() is nested; 0 outside one. */
+    private int $txDepth = 0;
 
     public function listChanges(string $slug, int $limit = 50): array
     {
