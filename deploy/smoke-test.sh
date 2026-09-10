@@ -273,7 +273,9 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_void_practice tracker_get_scoreboard tracker_set_scoreboard \
             tracker_retrieval_due tracker_save_lesson_review tracker_get_lesson_review \
             tracker_list_lesson_reviews tracker_signals tracker_update_signal \
-            tracker_review_audit_queue tracker_audit_stamp; do
+            tracker_review_audit_queue tracker_audit_stamp tracker_week_synthesis_inputs \
+            tracker_save_week_synthesis tracker_get_week_synthesis tracker_list_week_syntheses \
+            tracker_learner_model; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -284,10 +286,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 41 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 46 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 41 of 41)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 46 of 46)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }

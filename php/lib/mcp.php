@@ -32,6 +32,8 @@ final class McpError extends Exception
 // The lesson review's validation and write, shared by tracker_log_session
 // and tracker_save_lesson_review.
 require_once __DIR__ . '/mcp_review.php';
+// The weekly synthesis's validation and write, and the blocks other tools print from it.
+require_once __DIR__ . '/mcp_synthesis.php';
 
 function mcp_text(string $s): array
 {
@@ -572,16 +574,22 @@ function mcp_review_sections(Store $store, mixed $raw, string $monday): array
             throw new McpError("$at must be an object with kind, ref and decision.");
         }
         $kind = (string) ($d['kind'] ?? '');
-        if (!in_array($kind, ['day_off', 'excusal'], true)) {
-            throw new McpError("$at kind is '$kind'; it must be day_off or excusal.");
+        if (!in_array($kind, ['day_off', 'excusal', 'synthesis_verdict'], true)) {
+            throw new McpError("$at kind is '$kind'; it must be day_off, excusal or synthesis_verdict.");
         }
         $decision = (string) ($d['decision'] ?? '');
-        $allowed  = ['approved', 'declined', 'excused', 'not_excused', 'deferred'];
+        $allowed  = $kind === 'synthesis_verdict' ? SYNTH_VERDICTS : ['approved', 'declined', 'excused', 'not_excused', 'deferred'];
         if (!in_array($decision, $allowed, true)) {
             throw new McpError("$at decision is '$decision'; it must be one of: " . implode(', ', $allowed) . '.');
         }
         $ref = trim((string) ($d['ref'] ?? ''));
-        if ($kind === 'day_off') {
+        if ($kind === 'synthesis_verdict') {
+            // The parent's Friday answer to "did the changes work": ref is
+            // the signal key the test was on, or 'week' for the whole.
+            if ($ref !== 'week' && !$store->signalsByKeyAnySubject($ref)) {
+                throw new McpError("$at names \"$ref\", which is neither a signal key nor 'week'. Nothing was written.");
+            }
+        } elseif ($kind === 'day_off') {
             if (!ctype_digit($ref) || $store->getDayOff((int) $ref) === null) {
                 throw new McpError(
                     "$at names day off \"$ref\", and there is no such record. List them with "
@@ -1879,11 +1887,12 @@ function mcp_tools(): array
                                 'items' => [
                                     'type' => 'object',
                                     'properties' => [
-                                        'kind'     => ['type' => 'string', 'enum' => ['day_off', 'excusal']],
-                                        'ref'      => ['type' => 'string', 'minLength' => 1, 'maxLength' => 40,
-                                            'description' => "day_off: the id. excusal: 'YYYY-MM-DD#block_key'"],
+                                        'kind'     => ['type' => 'string', 'enum' => ['day_off', 'excusal', 'synthesis_verdict']],
+                                        'ref'      => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64,
+                                            'description' => "day_off: the id. excusal: 'YYYY-MM-DD#block_key'. synthesis_verdict: the signal key the test was on, or 'week'"],
                                         'decision' => ['type' => 'string',
-                                            'enum' => ['approved', 'declined', 'excused', 'not_excused', 'deferred']],
+                                            'enum' => ['approved', 'declined', 'excused', 'not_excused', 'deferred',
+                                                       'change_worked', 'change_did_not_help', 'mixed', 'untested']],
                                         'note'     => ['type' => ['string', 'null'], 'maxLength' => 200],
                                     ],
                                     'required' => ['kind', 'ref', 'decision'],
@@ -2035,17 +2044,29 @@ function mcp_tools(): array
                 . "an open test, or the weekly review promotes a learning-process signal to cross-subject (that is a new "
                 . "signal with no subject; say so in its statement).\n\n"
                 . "DO NOT use it to raise a strength; write the evidence in a review's signals[] and let the count rule decide.\n\n"
-                . 'Args: id. Optional status (resolved|refuted, needs evidence), evidence, next_test (null clears), '
-                . 'session_id and direction (supports|contradicts) to add an evidence row.',
+                . 'Args: id. Optional status (resolved|refuted, needs evidence), evidence, next_test (null clears) with '
+                . 'test_design { how, collect[], supports, challenges } and test_week — set from chat, the test is the '
+                . "parent's and a routine synthesis will not overwrite it; session_id and direction (supports|contradicts) "
+                . 'to add an evidence row; promote: true to open a cross-subject twin of this key (refused unless the '
+                . "key's evidence sessions span two subjects).",
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
-                    'id'         => ['type' => 'integer', 'minimum' => 1],
-                    'status'     => ['type' => 'string', 'enum' => ['resolved', 'refuted', 'open']],
-                    'evidence'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
-                    'next_test'  => ['type' => ['string', 'null'], 'maxLength' => 300],
-                    'session_id' => ['type' => 'integer', 'minimum' => 1],
-                    'direction'  => ['type' => 'string', 'enum' => SIGNAL_DIRECTIONS],
+                    'id'          => ['type' => 'integer', 'minimum' => 1],
+                    'status'      => ['type' => 'string', 'enum' => ['resolved', 'refuted', 'open']],
+                    'evidence'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                    'next_test'   => ['type' => ['string', 'null'], 'maxLength' => 300],
+                    'test_design' => ['type' => 'object', 'properties' => [
+                        'how'        => ['type' => 'string', 'minLength' => 10, 'maxLength' => 800],
+                        'collect'    => ['type' => 'array', 'maxItems' => 8, 'items' => ['type' => 'string', 'maxLength' => 300]],
+                        'supports'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 800],
+                        'challenges' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 800],
+                    ], 'required' => ['how', 'collect', 'supports', 'challenges']],
+                    'test_week'   => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$',
+                        'description' => 'The ISO week the test is for; defaults to next week'],
+                    'session_id'  => ['type' => 'integer', 'minimum' => 1],
+                    'direction'   => ['type' => 'string', 'enum' => SIGNAL_DIRECTIONS],
+                    'promote'     => ['type' => 'boolean', 'default' => false],
                 ],
                 'required' => ['id'],
             ],
@@ -2089,6 +2110,118 @@ function mcp_tools(): array
                 'required' => ['subject', 'note'],
             ],
             'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_week_synthesis_inputs',
+            'title' => 'Everything the weekly learning synthesis reads, in one call',
+            'description' =>
+                "The opener for the weekly synthesis: the week's taught sessions and their reviews in full (audited or "
+                . "latest), the sessions still owed a review, every open signal with its trail and pending test, this "
+                . "week's signal movement, the tests that were due this week and whether a session answered them, the "
+                . "error rows grouped by type with counts, the retrieval rows touched and the topics at risk of being "
+                . "mistaken for secure, attempts with blanks and marks lost, topic movement, the learner model, the "
+                . "previous synthesis's planner, priorities, hypotheses and observations, next week's timetable by "
+                . "subject, and the study-principle headings.\n\n"
+                . "USE WHEN: opening weekly-synthesis Mode A (the Saturday routine) or re-running a week on request. "
+                . "Read it once and write all twenty parts from what it returns; never fetch reviews one by one and "
+                . "never recount what the snapshot holds.\n\n"
+                . "DO NOT use it for the adherence review — that is tracker_week_report.\n\n"
+                . 'Args: optional week (ISO, defaults to the week that ended most recently). Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['week' => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$']],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_save_week_synthesis',
+            'title' => 'Save the weekly learning synthesis and write its decisions back',
+            'description' =>
+                "Stores the twenty-part synthesis as a new version against the week and, in the same transaction, "
+                . "writes its decisions where next week's sessions are fed them: Part 14 becomes the week plans the "
+                . "review queue prints as this_week; Part 10 becomes test designs on the named signals (a test the "
+                . "parent set is left in place and reported); Part 12 is applied to the learner model as deltas under "
+                . "the status rule; Part 17 opens watch signals; Part 3 opens or promotes cross-subject signals when "
+                . "the cited sessions span two subjects. The snapshot is the server's.\n\n"
+                . "USE WHEN: weekly-synthesis Mode A has written the parts from tracker_week_synthesis_inputs "
+                . "(stage draft, written_by routine), or the parent has corrected one in chat (stage parent, "
+                . "written_by chat, with a note).\n\n"
+                . "Refused, naming the part and field: a Part 2 entry missing for a taught subject; a cross-subject claim "
+                . "cited from one subject; a recurring error with fewer than two rows; a learner_voice quote no review "
+                . "recorded; a grade with no graded paper; a retention verdict with no retrieval record; a Part 14 plan "
+                . "missing for a subject taught next week; Part 20 when no previous synthesis exists, or absent when "
+                . "one does. A draft cannot be saved over a parent version.\n\n"
+                . 'Args: week, stage (draft|parent), written_by (routine|chat), sections (the twenty parts), optional note '
+                . '(required from version 2).',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week'       => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$'],
+                    'stage'      => ['type' => 'string', 'enum' => SYNTH_STAGES],
+                    'written_by' => ['type' => 'string', 'enum' => SYNTH_WRITTEN_BY],
+                    'sections'   => ['type' => 'object',
+                        'description' => 'The twenty parts as fields; docs/weekly-synthesis.md §4 is the shape'],
+                    'note'       => ['type' => 'string', 'maxLength' => 600],
+                ],
+                'required' => ['week', 'stage', 'written_by', 'sections'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_get_week_synthesis',
+            'title' => 'Read a weekly learning synthesis',
+            'description' =>
+                "One week's synthesis rendered in the twenty-part layout, its snapshot, and the drift: which tests it "
+                . "set have since been answered, which week plans the queue has printed, and how the learner model has "
+                . "moved since.\n\n"
+                . "USE WHEN: the parent asks what the synthesis said, why something is a priority, or what was decided; "
+                . "or before saving a parent version — read what is there first.\n\n"
+                . 'planner_only: true returns Part 19 and the header.\n\n'
+                . 'Args: week. Optional version (defaults to the latest), planner_only. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'week'         => ['type' => 'string', 'pattern' => '^\\d{4}-W\\d{2}$'],
+                    'version'      => ['type' => 'integer', 'minimum' => 1],
+                    'planner_only' => ['type' => 'boolean', 'default' => false],
+                ],
+                'required' => ['week'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_list_week_syntheses',
+            'title' => 'List the weekly syntheses',
+            'description' =>
+                "One line per week that has a synthesis, newest first: week, versions, stage, the most-important "
+                . "sentence, and how many of the tests it set were answered.\n\n"
+                . "USE WHEN: finding which weeks have been synthesised, or a week to read with tracker_get_week_synthesis.\n\n"
+                . 'Args: optional limit (default 12). Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 52, 'default' => 12]],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_learner_model',
+            'title' => 'The learner model — how she learns, at the weekly grain',
+            'description' =>
+                "The evolving model the syntheses maintain: each statement with its status (hypothesis, supported, "
+                . "established, weakened, disproved), the signals it rests on with their strengths, and its history "
+                . "week by week. A row's status never exceeds what its signals support.\n\n"
+                . "USE WHEN: the parent asks how she learns, planning how to teach rather than what, or before writing "
+                . "Part 12 of a synthesis — it is written as deltas to these rows, never from scratch.\n\n"
+                . "DO NOT show it in a student chat.\n\n"
+                . 'Args: optional status filter. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['status' => ['type' => 'string', 'enum' => SYNTH_MODEL_STATUSES]],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
         ],
         [
             'name'  => 'tracker_retrieval_due',
@@ -2775,6 +2908,39 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     . implode('; ', $stale) . '.';
             }
 
+            // The synthesis of this week, and what last week's decided for
+            // it: the planner and the tests, answered or not, so the Friday
+            // review can put "did it work" to the parent from data.
+            $syn = $store->weekSynthesis($week);
+            $lines[] = "\nSYNTHESIS";
+            $lines[] = $syn
+                ? '- saved: version ' . $syn['version'] . ' (' . $syn['stage'] . ', ' . synth_written_by((string) $syn['written_by'])
+                    . ', ' . mcp_review_when((string) $syn['written_at']) . ') — ' . ($syn['sections']['glance']['most_important'] ?? '')
+                : '- not saved yet; the Saturday routine writes it with tracker_save_week_synthesis.';
+            $prevSyn = $store->previousSynthesis($week);
+            $lines[] = "\nLAST WEEK'S DECISIONS";
+            if (!$prevSyn) {
+                $lines[] = '- no earlier synthesis, so nothing was decided for this week.';
+            } else {
+                $lines[] = '- from the synthesis of ' . $prevSyn['week'] . ' v' . $prevSyn['version'] . ':';
+                foreach (synth_planner_lines($prevSyn['sections']['planner'] ?? []) as $pl) {
+                    $lines[] = '  ' . $pl;
+                }
+                // Read from the previous synthesis's own Part 10, so a test
+                // re-set since does not erase whether this week answered it.
+                $due = $store->hypothesesAnswered($prevSyn['sections'], $week);
+                if (!$due) {
+                    $lines[] = '- no test was set for this week.';
+                }
+                foreach ($prevSyn['sections']['hypotheses'] ?? [] as $i => $h) {
+                    $t = $due[$i];
+                    $lines[] = '- test ' . $h['signal_key'] . ': ' . ($t['answered'] ? 'answered by session ' . $t['by_session'] : 'UNTESTED')
+                        . ' — ' . $h['how'] . ' (supports if ' . $h['supports'] . '; challenges if ' . $h['challenges'] . ')';
+                }
+                $lines[] = '- ask the parent: did the changes work? Record the answer in the weekly review\'s decisions '
+                    . "(kind synthesis_verdict, ref the signal key or 'week').";
+            }
+
             $review    = $store->weeklyReview($week);
             $lastTimed = $snap['timed']['this_week']
                 ? $snap['timed']['this_week'][count($snap['timed']['this_week']) - 1]
@@ -3060,6 +3226,16 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             foreach ($store->lessonReviewDrift($row)['lines'] as $l) {
                 $lines[] = '  ' . $l;
             }
+            // Whether this session answered a test the synthesis set for its week.
+            $weekOf = tt_iso_week((string) $session['date']);
+            foreach ($store->testsDue($weekOf) as $t) {
+                if (($t['signal']['test_set_by'] ?? null) !== 'synthesis') {
+                    continue;
+                }
+                $lines[] = '  Synthesis test #' . $t['signal']['id'] . ' ' . $t['signal']['key'] . ' due ' . $weekOf . ': '
+                    . ($t['answered'] && $t['by_session'] === $id ? 'answered by this session'
+                        : ($t['answered'] ? 'answered by session ' . $t['by_session'] : 'not answered by this session')) . '.';
+            }
             return mcp_text(implode("\n", $lines));
         }
 
@@ -3141,7 +3317,11 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     $group   = $head;
                     $lines[] = "\n### $head";
                 }
-                $lines[] = '- ' . signal_line($g);
+                $lines[] = '- ' . signal_line($g)
+                    . ($g['opened_by'] !== 'review' ? ' · opened by ' . $g['opened_by'] . ($g['opened_week'] ? ' in ' . $g['opened_week'] : '') : '');
+                foreach (mcp_signal_test_lines($g) as $tl) {
+                    $lines[] = $tl;
+                }
                 $ev = $store->signalEvidence($g['id']);
                 foreach (array_slice($ev, -3) as $e) {
                     $lines[] = '    ' . ($e['direction'] === 'supports' ? '+' : '−') . ' session ' . $e['session_id']
@@ -3197,13 +3377,50 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 $changes['status'] = $status;
                 $changes['evidence'] = $evidence;
             }
+            $design = null;
+            if (isset($a['test_design']) && $a['test_design'] !== null) {
+                $d = mcp_rv_object($a['test_design'], 'test_design');
+                $design = ['how' => mcp_rv_text($d, 'how', 'test_design', true, 10, 800),
+                           'collect' => mcp_rv_strings($d, 'collect', 'test_design', 8, 3, 300),
+                           'supports' => mcp_rv_text($d, 'supports', 'test_design', true, 10, 800),
+                           'challenges' => mcp_rv_text($d, 'challenges', 'test_design', true, 10, 800)];
+                if (!array_key_exists('next_test', $a) || $a['next_test'] === null) {
+                    $a['next_test'] = $design['how'];
+                }
+            }
+            $testWeek = mcp_str($a, 'test_week', false, 8, 8);
+            if ($testWeek !== null && tt_week_monday($testWeek) === null) {
+                throw new McpError("test_week must look like '2026-W37'.");
+            }
             if (array_key_exists('next_test', $a)) {
                 $changes['next_test'] = $a['next_test'] === null ? null : mcp_str($a, 'next_test', false, 10, 300);
             }
-            if (!$changes && $sid === null) {
-                throw new McpError('Give status, next_test, or session_id with evidence to change something.');
+            $promote = !empty($a['promote']);
+            if (!$changes && $sid === null && !$promote) {
+                throw new McpError('Give status, next_test, test_design, promote, or session_id with evidence to change something.');
             }
-            $store->transaction(function () use ($store, $id, $sid, $dir, $evidence, $changes, $g, $status, &$what): void {
+            $promoted = null;
+            $store->transaction(function () use ($store, $id, $sid, $dir, $evidence, $changes, $g, $status, $design, $testWeek, $promote, &$what, &$promoted): void {
+                if ($promote) {
+                    if ($g['subject_slug'] === null) {
+                        throw new McpError("Signal $id is already cross-subject. Nothing was written.");
+                    }
+                    try {
+                        $promoted = $store->promoteSignal((string) $g['key'], 'parent', tt_iso_week(tt_today()));
+                    } catch (InvalidArgumentException $e) {
+                        throw new McpError($e->getMessage() . ' Nothing was written.');
+                    }
+                    $what[] = 'promoted to cross-subject #' . $promoted['signal']['id'] . ' from #' . implode(', #', $promoted['from'])
+                        . ' (' . implode(', ', $promoted['subjects']) . ')';
+                }
+                if (isset($changes['next_test']) && $changes['next_test'] !== null) {
+                    // From chat the test is the parent's: a routine synthesis
+                    // will report it and leave it in place.
+                    $week = $testWeek ?? tt_iso_week(tt_add_days(tt_monday(tt_today()), 7));
+                    $store->setSignalTest($id, $changes['next_test'], $design, 'parent', $week);
+                    $what[] = 'test set by the parent for ' . $week . ($design ? ' with a design' : '');
+                    unset($changes['next_test']);
+                }
                 if ($sid !== null) {
                     $res = $store->addSignalEvidence($id, $sid, $dir, $evidence);
                     $what[] = "evidence row added from session $sid ($dir)";
@@ -3293,6 +3510,316 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 . 'Still owed a review: ' . count($q['missing']) . ' session' . (count($q['missing']) === 1 ? '' : 's')
                 . ' (carried over to the next audit); ' . count($q['flags']) . ' signal flag'
                 . (count($q['flags']) === 1 ? '' : 's') . ' still standing.');
+        }
+
+        case 'tracker_week_synthesis_inputs': {
+            $week = mcp_str($a, 'week', false, 8, 8);
+            if ($week === null) {
+                // The week that ended most recently: last week, until Sunday
+                // has passed.
+                $week = tt_iso_week(tt_add_days(tt_monday(tt_today()), -7));
+            } elseif (tt_week_monday($week) === null) {
+                throw new McpError("week must look like '2026-W37'.");
+            }
+            $in    = $store->synthesisInputs($week);
+            $lines = ['**Weekly synthesis inputs — ' . $week . '** (' . tt_pretty($in['monday']) . ' to ' . tt_pretty($in['sunday'])
+                . ') · plans for ' . $in['next_week']];
+            if ($in['existing']) {
+                $lines[] = 'A synthesis already exists for ' . $week . ': version ' . $in['existing']['version'] . ' (' . $in['existing']['stage']
+                    . ')' . ($in['existing']['stage'] === 'parent'
+                        ? '. The parent has reviewed it; a routine draft cannot be saved over it.' : '. A new version needs a note.');
+            }
+
+            $lines[] = "\n### 1. Sessions taught";
+            if (!$in['sessions']) {
+                $lines[] = '- none this week.';
+            }
+            foreach ($in['sessions'] as $x) {
+                $rv = $in['reviews'][(int) $x['id']] ?? null;
+                $lines[] = '- session ' . $x['id'] . ' · ' . $x['subject_slug'] . ' · ' . $x['date'] . ' · block '
+                    . ($x['block_key'] === null ? 'extra' : $x['block_key']) . ($x['duration_minutes'] !== null ? ' · ' . $x['duration_minutes'] . ' min' : '')
+                    . ' · ' . ($rv ? 'review v' . $rv['version'] . ' ' . $rv['stage'] : 'REVIEW MISSING');
+            }
+
+            $lines[] = "\n### 2. Lesson reviews, in full";
+            foreach ($in['sessions'] as $x) {
+                $rv = $in['reviews'][(int) $x['id']] ?? null;
+                if (!$rv) {
+                    continue;
+                }
+                $lines[] = '';
+                foreach (review_render_text($rv['sections'], $rv['snapshot']) as $l) {
+                    $lines[] = $l;
+                }
+            }
+
+            $lines[] = "\n### 3. Signals (open)";
+            foreach ($in['signals'] as $g) {
+                $lines[] = '- ' . signal_line($g) . ($g['opened_by'] !== 'review' ? ' · opened by ' . $g['opened_by'] : '');
+                foreach (mcp_signal_test_lines($g) as $tl) {
+                    $lines[] = $tl;
+                }
+                foreach ($g['evidence_rows'] as $e) {
+                    $lines[] = '    ' . ($e['direction'] === 'supports' ? '+' : '−') . ' session ' . $e['session_id'] . ' (' . $e['date'] . '): ' . $e['evidence'];
+                }
+            }
+            if (!$in['signals']) {
+                $lines[] = '- none open.';
+            }
+            $lines[] = 'Movement this week: ' . ($in['events'] ? implode('; ', array_map(
+                static fn(array $ev): string => $ev['key'] . ' ' . $ev['change'] . ($ev['to_value'] ? ' → ' . $ev['to_value'] : ''), $in['events']
+            )) : 'none') . '.';
+
+            $lines[] = "\n### 4. Tests due this week";
+            if (!$in['tests_due']) {
+                $lines[] = '- none were set for ' . $week . '.';
+            }
+            foreach ($in['tests_due'] as $t) {
+                $lines[] = '- #' . $t['signal']['id'] . ' ' . $t['signal']['key'] . ' (set by ' . ($t['signal']['test_set_by'] ?? 'review') . '): '
+                    . $t['signal']['next_test'] . ' — ' . ($t['answered'] ? 'answered by session ' . $t['by_session'] : 'UNTESTED');
+            }
+
+            $lines[] = "\n### 5. Errors this week, by type";
+            if (!$in['errors']) {
+                $lines[] = '- none recorded.';
+            }
+            foreach ($in['errors'] as $type => $rows) {
+                $lines[] = '- ' . $type . ' × ' . count($rows) . ': ' . implode('; ', array_map(
+                    static fn(array $e): string => $e['subject_slug'] . ' ' . $e['ref'] . ' (session ' . $e['session_id'] . ') ' . $e['what'], $rows
+                ));
+            }
+
+            $lines[] = "\n### 6. Retention";
+            if (!$in['retrieval']) {
+                $lines[] = '- no retrieval row touched this week.';
+            }
+            foreach ($in['retrieval'] as $r) {
+                $lines[] = '- ' . $r['subject_slug'] . ' ' . $r['grain'] . ' ' . $r['key'] . ': next due ' . ($r['next_due'] ?? '—')
+                    . ', consecutive wrong ' . $r['consecutive_wrong'] . ', history ' . implode(' ', array_map(
+                        static fn(array $h): string => $h['d'] . ':' . $h['o'], $r['history']));
+            }
+            if ($in['false_secure']) {
+                $lines[] = 'At risk of being mistaken for secure (marked secure, last retrieval retry or incorrect): ' . implode('; ', array_map(
+                    static fn(array $c): string => $c['subject_slug'] . ' ' . $c['ref'] . ' (last asked ' . $c['last_asked'] . ')', $in['false_secure']
+                )) . '.';
+            }
+
+            $lines[] = "\n### 7. Attempts";
+            if (!$in['attempts']) {
+                $lines[] = '- none sat this week; no grade may be named in Part 18.';
+            }
+            foreach ($in['attempts'] as $x) {
+                $lines[] = '- ' . $x['subject_slug'] . ' ' . $x['name'] . ' (' . $x['kind'] . ', ' . $x['date'] . ') ' . num($x['score']) . '/' . num($x['max'])
+                    . ($x['blanks'] === null ? '' : ' · ' . $x['blanks'] . ' blanks');
+                foreach ($store->attemptTopicBreakdown((string) $x['subject_slug'], (int) $x['attempt_id']) as $b) {
+                    $lost = (float) $b['max'] - (float) $b['score'];
+                    if ($lost > 0) {
+                        $lines[] = '    ' . $b['ref'] . ' lost ' . num($lost) . ' of ' . num($b['max']);
+                    }
+                }
+            }
+
+            $lines[] = "\n### 8. Topic movement";
+            if (!$in['changes']) {
+                $lines[] = '- none.';
+            }
+            foreach ($in['changes'] as $c) {
+                $lines[] = '- ' . $c['subject_slug'] . ' ' . $c['ref'] . ' ' . ($c['from_status'] ?? '—') . ' → ' . $c['to_status'] . ' — ' . $c['evidence'];
+            }
+
+            $lines[] = "\n### 9. Learner model";
+            if (!$in['model']) {
+                $lines[] = '- empty; Part 12 opens rows with change: new.';
+            }
+            foreach ($in['model'] as $m) {
+                $last = $m['history'] ? $m['history'][count($m['history']) - 1] : null;
+                $lines[] = '- ' . $m['key'] . ' [' . $m['status'] . '] ' . $m['statement'] . ' — signals ' . implode(', ', array_map(
+                    static fn(array $g): string => $g['key'] . ' (' . $g['strength'] . ')', $m['signals']
+                )) . ($last ? ' — last change ' . $last['week'] . ' ' . $last['change'] : '');
+            }
+
+            $lines[] = "\n### 10. Previous synthesis";
+            $prev = $in['previous'];
+            if (!$prev) {
+                $lines[] = '- none; Part 20 must be omitted.';
+            } else {
+                $ps = $prev['sections'];
+                $lines[] = '- ' . $prev['week'] . ' v' . $prev['version'] . ' (' . $prev['stage'] . '). Part 20 is required.';
+                $lines[] = '  PLANNER';
+                foreach (synth_planner_lines($ps['planner'] ?? []) as $pl) {
+                    $lines[] = '  ' . $pl;
+                }
+                foreach ($ps['priorities'] ?? [] as $p) {
+                    $lines[] = '  priority ' . $p['rank'] . ': ' . $p['priority'] . ' → ' . $p['action'];
+                }
+                foreach ($ps['hypotheses'] ?? [] as $h) {
+                    $lines[] = '  hypothesis ' . $h['signal_key'] . ': ' . $h['hypothesis'] . ' — supports if ' . $h['supports'] . '; challenges if ' . $h['challenges'];
+                }
+                foreach ($ps['observe'] ?? [] as $o) {
+                    $lines[] = '  observe ' . $o['key'] . ': ' . $o['look_for'];
+                }
+            }
+
+            $lines[] = "\n### 11. Next week's timetable (" . $in['next_week'] . ')';
+            if (!$in['next_blocks']) {
+                $lines[] = '- no timetable in force; no week plan can be required.';
+            }
+            foreach ($in['next_blocks'] as $slug => $blocks) {
+                $taught = array_filter($blocks, static fn(array $b): bool => $b['taught']);
+                $lines[] = '- ' . $slug . ': ' . implode(', ', array_map(
+                    static fn(array $b): string => substr(TIMETABLE_DAYS[$b['weekday']], 0, 3) . ' #' . $b['block_key'] . ' ' . $b['kind'], $blocks
+                )) . ($taught ? ' — taught block' . (count($taught) === 1 ? '' : 's') . ', a Part 14 plan is required' : ' — no taught block');
+            }
+
+            $lines[] = "\n### 12. Study principles (name one per Part 15 stage)";
+            $lines[] = '- ' . implode('; ', $in['principles']);
+            $lines[] = '';
+            $lines[] = 'Write all twenty parts from this and nothing else, then save once with tracker_save_week_synthesis.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_save_week_synthesis': {
+            $week = mcp_str($a, 'week', true, 8, 8);
+            if (tt_week_monday($week) === null) {
+                throw new McpError("week must look like '2026-W37'.");
+            }
+            $stage = mcp_str($a, 'stage', true, 1, 20);
+            if (!in_array($stage, SYNTH_STAGES, true)) {
+                throw new McpError('stage must be one of: ' . implode(', ', SYNTH_STAGES) . '.');
+            }
+            $by = mcp_str($a, 'written_by', true, 1, 20);
+            if (!in_array($by, SYNTH_WRITTEN_BY, true)) {
+                throw new McpError('written_by must be one of: ' . implode(', ', SYNTH_WRITTEN_BY) . '.');
+            }
+            $note = mcp_str($a, 'note', false, 0, 600);
+            if (tt_week_monday($week) > tt_today()) {
+                throw new McpError("Week $week has not started. Nothing was written.");
+            }
+            $versions = $store->weekSynthesisVersions($week);
+            if ($stage === 'draft') {
+                foreach ($versions as $v) {
+                    if ($v['stage'] === 'parent') {
+                        throw new McpError("Week $week already has a parent version (version {$v['version']}, written "
+                            . mcp_review_when((string) $v['written_at']) . "). A draft cannot be saved over it; send stage 'parent' "
+                            . 'with a note. Nothing was written.');
+                    }
+                }
+            }
+            if ($versions && ($note === null || trim($note) === '')) {
+                throw new McpError("Week $week already has version " . count($versions) . '; a new version needs a note saying what changed. '
+                    . 'Nothing was written.');
+            }
+            $inputs   = $store->synthesisInputs($week);
+            $sections = mcp_synth_sections($store, $week, $a['sections'] ?? null, $inputs);
+            $out      = mcp_apply_synthesis($store, $week, $sections, $stage, $by, $note, $inputs);
+            $row      = $out['row'];
+            $when     = mcp_review_when((string) $row['written_at']);
+            $head     = $out['status'] === 'duplicate'
+                ? "Version {$row['version']} ({$row['stage']}) for $week already says exactly this, written $when — no version was added."
+                : "Saved version {$row['version']} ({$row['stage']}) for $week, written $when.";
+            $lines = array_merge([$head], $out['lines']);
+            $lines[] = "Read it with tracker_get_week_synthesis or at /week/$week. Monday's tracker_review_queue prints the plans as this_week.";
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_get_week_synthesis': {
+            $week = mcp_str($a, 'week', true, 8, 8);
+            if (tt_week_monday($week) === null) {
+                throw new McpError("week must look like '2026-W37'.");
+            }
+            $version  = isset($a['version']) ? (int) mcp_num($a, 'version', false, 1, 999) : null;
+            $versions = $store->weekSynthesisVersions($week);
+            if (!$versions) {
+                return mcp_text("No synthesis has been written for $week. The Saturday routine writes it with tracker_save_week_synthesis "
+                    . 'after tracker_week_synthesis_inputs.');
+            }
+            $row = $store->weekSynthesis($week, $version);
+            if (!$row) {
+                return mcp_text("There is no version $version for $week. Versions that exist: "
+                    . implode(', ', array_map(static fn($v) => $v['version'] . ' (' . $v['stage'] . ')', $versions)) . '.');
+            }
+            $last  = $versions[count($versions) - 1]['version'];
+            $lines = ["Weekly synthesis — $week · version {$row['version']} of $last · {$row['stage']} · "
+                . synth_written_by((string) $row['written_by']) . ' · ' . mcp_review_when((string) $row['written_at'])];
+            if ($row['note']) {
+                $lines[] = 'Note on the save: ' . $row['note'];
+            }
+            if (count($versions) > 1) {
+                $lines[] = 'Versions: ' . implode(', ', array_map(
+                    static fn($v) => $v['version'] . ' ' . $v['stage'] . ' (' . mcp_review_when((string) $v['written_at']) . ')' . ($v['note'] ? ' — ' . $v['note'] : ''),
+                    $versions
+                ));
+            }
+            $lines[] = '';
+            if (!empty($a['planner_only'])) {
+                $lines[] = 'PLANNER';
+                foreach (synth_planner_lines($row['sections']['planner'] ?? []) as $l) {
+                    $lines[] = $l;
+                }
+                $lines[] = 'Most important: ' . ($row['sections']['glance']['most_important'] ?? '');
+                return mcp_text(implode("\n", $lines));
+            }
+            foreach (synth_render_text($row['sections'], $row['snapshot']) as $l) {
+                $lines[] = $l;
+            }
+            $snap = $row['snapshot'];
+            $lines[] = '';
+            $lines[] = 'SNAPSHOT (what it knew, ' . mcp_review_when((string) ($snap['captured_at'] ?? $row['written_at'])) . ')';
+            $lines[] = '  signals then: ' . count($snap['signals'] ?? []) . ' (' . implode(', ', array_map(
+                static fn(array $g): string => $g['key'] . ' ' . $g['strength'], array_slice($snap['signals'] ?? [], 0, 12)
+            )) . (count($snap['signals'] ?? []) > 12 ? ', …' : '') . ')';
+            foreach ($snap['statuses'] ?? [] as $slug => $refs) {
+                $lines[] = '  ' . $slug . ' statuses then: ' . implode(', ', array_map(
+                    static fn($r, $st) => $r . ' ' . ($st ?? '—'), array_keys($refs), $refs
+                ));
+            }
+            $lines[] = '  previous synthesis: ' . ($snap['previous'] ? $snap['previous']['week'] . ' v' . $snap['previous']['version'] : 'none');
+            $lines[] = '';
+            $lines[] = 'DRIFT';
+            foreach ($store->synthesisDrift($row)['lines'] as $l) {
+                $lines[] = '  ' . $l;
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_list_week_syntheses': {
+            $limit = (int) mcp_num($a, 'limit', false, 1, 52, 12);
+            $rows  = $store->listWeekSyntheses($limit);
+            if (!$rows) {
+                return mcp_text('No weekly synthesis has been written yet.');
+            }
+            $lines = ['Weekly syntheses, newest first'];
+            foreach ($rows as $syn) {
+                $due      = $store->hypothesesAnswered($syn['sections'], (string) ($syn['snapshot']['plans_for'] ?? ''));
+                $answered = count(array_filter($due, static fn(array $t): bool => $t['answered']));
+                $lines[] = '- ' . $syn['week'] . ' · v' . $syn['version'] . ' ' . $syn['stage'] . ' · tests ' . $answered . '/' . count($due)
+                    . ' answered — ' . ($syn['sections']['glance']['most_important'] ?? '');
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_learner_model': {
+            $status = mcp_str($a, 'status', false, 1, 20);
+            if ($status !== null && !in_array($status, SYNTH_MODEL_STATUSES, true)) {
+                throw new McpError('status must be one of: ' . implode(', ', SYNTH_MODEL_STATUSES) . '.');
+            }
+            $rows = $store->learnerModel($status);
+            if (!$rows) {
+                return mcp_text('The learner model is empty' . ($status ? " at status $status" : '') . '. Weekly syntheses write it (Part 12).');
+            }
+            $lines = ['**Learner model**' . ($status ? " · $status" : '') . ' — statements are hedged claims resting on signals; a status never exceeds its signals.'];
+            foreach ($rows as $m) {
+                $lines[] = '';
+                $lines[] = '- [' . $m['status'] . '] ' . $m['key'] . ': ' . $m['statement'];
+                $lines[] = '    rests on: ' . implode('; ', array_map(
+                    static fn(array $g): string => $g['key'] . ' (' . $g['strength'] . ', ' . $g['supporting'] . ' session' . ($g['supporting'] === 1 ? '' : 's')
+                        . ($g['contradicting'] ? ', ' . $g['contradicting'] . ' contradicting' : '') . ')', $m['signals']
+                ));
+                foreach ($m['history'] as $h) {
+                    $lines[] = '    ' . $h['week'] . ' ' . $h['change'] . ' → ' . $h['status'] . (!empty($h['note']) ? ' — ' . $h['note'] : '');
+                }
+            }
+            return mcp_text(implode("\n", $lines));
         }
 
         case 'tracker_retrieval_due': {
@@ -3467,6 +3994,13 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $reviewLines = mcp_last_review_lines($store, $slug);
             if ($reviewLines) {
                 $parts[] = "\n" . implode("\n", $reviewLines);
+            }
+            // The week's plan for this subject and the test set for it,
+            // from the synthesis: the session opens on it unless
+            // last_review or the queue has overtaken it.
+            $weekLines = mcp_this_week_lines($store, $slug);
+            if ($weekLines) {
+                $parts[] = "\n" . implode("\n", $weekLines);
             }
             if ($queue['unfinished']) {
                 $parts[] = "\n### UNFINISHED (open — finish these before starting something new)\n"
