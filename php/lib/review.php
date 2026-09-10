@@ -63,7 +63,9 @@ const REVIEW_METHODS = [
 const REVIEW_EFFECTS    = ['helpful', 'difficulty', 'neutral'];
 const REVIEW_READINESS  = ['progress', 'progress_with_retrieval', 'consolidate', 'partial_reteach', 'significant_reteach'];
 const REVIEW_NEXT_WHAT  = ['opening_retrieval', 'reteach', 'consolidate', 'new', 'misconception_check', 'challenge'];
-const REVIEW_STAGE_KEYS = ['start', 'teach', 'check', 'practise_scaffolded', 'practise_independent', 'review', 'finish'];
+/** Lesson stages: the reviews' next_how and the synthesis's Part 15 architecture share this one enum. */
+const REVIEW_STAGE_KEYS = ['start', 'orientate', 'teach', 'model', 'check', 'practise_scaffolded',
+                           'practise_independent', 'review', 'exit', 'finish'];
 const REVIEW_PLANNER    = ['priority', 'start_with', 'teach_using', 'avoid', 'check_whether', 'success'];
 /** Retention lists and the retrieval_outcome each one must be backed by. */
 const REVIEW_RETENTION  = ['retrieved' => 'correct', 'prompted' => 'retry', 'not_retrieved' => 'incorrect'];

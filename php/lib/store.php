@@ -19,6 +19,7 @@ require_once __DIR__ . '/practice.php';
 require_once __DIR__ . '/shape.php';
 require_once __DIR__ . '/retrieval.php';
 require_once __DIR__ . '/review.php';
+require_once __DIR__ . '/synthesis.php';
 
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
@@ -490,7 +491,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 12;
+    private const SCHEMA_VERSION = 13;
 
     private function migrate(): void
     {
@@ -789,6 +790,178 @@ final class Store
             $this->rulesCache = null;
             return;
         }
+
+        if ($v === 13) {
+            // The weekly learning synthesis: the learning half of a week
+            // beside the weekly review's adherence half. Three tables, and
+            // review_signals gains the columns a test design and a
+            // synthesis-opened signal need. opened_session becomes nullable
+            // — a signal the synthesis opens has no session behind it — and
+            // SQLite cannot drop NOT NULL in place, so the table is rebuilt
+            // around the new shape with every row and id carried across.
+            $this->createSynthesisTables();
+            $this->rebuildSignalsTable();
+            return;
+        }
+    }
+
+    /**
+     * The synthesis tables: the versioned document, the week plans the
+     * queue prints, and the learner model that evolves by deltas.
+     */
+    private function createSynthesisTables(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS weekly_syntheses (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               week           TEXT    NOT NULL,
+               version        INTEGER NOT NULL,
+               stage          TEXT    NOT NULL CHECK (stage IN ('draft','parent')),
+               written_by     TEXT    NOT NULL CHECK (written_by IN ('routine','chat')),
+               written_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+               snapshot_json  TEXT    NOT NULL,
+               sections_json  TEXT    NOT NULL,
+               note           TEXT,
+               UNIQUE (week, version)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_weekly_syntheses_week ON weekly_syntheses(week, version DESC)'
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS week_plans (
+               id              INTEGER PRIMARY KEY AUTOINCREMENT,
+               synthesis_id    INTEGER NOT NULL REFERENCES weekly_syntheses(id),
+               week            TEXT    NOT NULL,
+               subject_slug    TEXT    NOT NULL,
+               next_content    TEXT    NOT NULL,
+               retrieve_first  TEXT    NOT NULL,
+               reteach_if      TEXT,
+               approach        TEXT    NOT NULL,
+               scaffolding     TEXT    NOT NULL,
+               independent     TEXT    NOT NULL,
+               check_for       TEXT    NOT NULL,
+               exit_check      TEXT    NOT NULL,
+               watch_for       TEXT    NOT NULL,
+               refs_json       TEXT    NOT NULL DEFAULT '[]',
+               read_at         TEXT,
+               UNIQUE (synthesis_id, subject_slug)
+             )"
+        );
+        $this->db->exec('CREATE INDEX IF NOT EXISTS idx_week_plans_week ON week_plans(week, subject_slug)');
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS learner_model (
+               id            INTEGER PRIMARY KEY AUTOINCREMENT,
+               key           TEXT    NOT NULL UNIQUE,
+               statement     TEXT    NOT NULL,
+               status        TEXT    NOT NULL CHECK (status IN ('hypothesis','supported','established','weakened','disproved')),
+               signal_ids    TEXT    NOT NULL DEFAULT '[]',
+               opened_week   TEXT    NOT NULL,
+               updated_week  TEXT    NOT NULL,
+               history_json  TEXT    NOT NULL DEFAULT '[]'
+             )"
+        );
+    }
+
+    /**
+     * review_signals with the synthesis columns and a nullable
+     * opened_session. With foreign keys on, renaming a parent table rewrites
+     * every child's REFERENCES to the temporary name, so the two children
+     * (evidence, events) are rebuilt after it and every reference ends on
+     * the new table. Every row keeps its id.
+     */
+    private function rebuildSignalsTable(): void
+    {
+        if ($this->hasColumn('review_signals', 'test_design_json')) {
+            return;
+        }
+        $this->db->exec('DROP INDEX IF EXISTS idx_signals_key');
+        $this->db->exec('DROP INDEX IF EXISTS idx_signal_events_at');
+        $this->db->exec('ALTER TABLE review_signals RENAME TO review_signals_old');
+        $this->createSignalsTable();
+        $this->db->exec(
+            'INSERT INTO review_signals
+               (id, subject_slug, kind, key, statement, strength, status, next_test, opened_session, updated_at)
+             SELECT id, subject_slug, kind, key, statement, strength, status, next_test, opened_session, updated_at
+             FROM review_signals_old'
+        );
+        // Tests already on rows were set by lesson reviews.
+        $this->db->exec("UPDATE review_signals SET test_set_by = 'review' WHERE next_test IS NOT NULL");
+
+        $this->db->exec('ALTER TABLE review_signal_evidence RENAME TO review_signal_evidence_old');
+        $this->db->exec('ALTER TABLE review_signal_events RENAME TO review_signal_events_old');
+        $this->createSignalChildTables();
+        $this->db->exec(
+            'INSERT INTO review_signal_evidence (signal_id, session_id, direction, evidence)
+             SELECT signal_id, session_id, direction, evidence FROM review_signal_evidence_old'
+        );
+        $this->db->exec(
+            'INSERT INTO review_signal_events (id, signal_id, session_id, at, change, from_value, to_value, detail)
+             SELECT id, signal_id, session_id, at, change, from_value, to_value, detail FROM review_signal_events_old'
+        );
+        $this->db->exec('DROP TABLE review_signal_evidence_old');
+        $this->db->exec('DROP TABLE review_signal_events_old');
+        $this->db->exec('DROP TABLE review_signals_old');
+    }
+
+    /** The evidence rows and the event ledger, both referencing review_signals by name. */
+    private function createSignalChildTables(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signal_evidence (
+               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
+               session_id  INTEGER NOT NULL REFERENCES sessions(id),
+               direction   TEXT NOT NULL CHECK (direction IN ('supports','contradicts')),
+               evidence    TEXT NOT NULL,
+               PRIMARY KEY (signal_id, session_id)
+             )"
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signal_events (
+               id          INTEGER PRIMARY KEY AUTOINCREMENT,
+               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
+               session_id  INTEGER,
+               at          TEXT NOT NULL DEFAULT (datetime('now')),
+               change      TEXT NOT NULL CHECK (change IN ('opened','strength','status','next_test','evidence')),
+               from_value  TEXT,
+               to_value    TEXT,
+               detail      TEXT
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_signal_events_at ON review_signal_events(at, id)'
+        );
+    }
+
+    /** The signals table in its current shape; step 12's shape is rebuilt into this by step 13. */
+    private function createSignalsTable(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signals (
+               id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+               subject_slug       TEXT,
+               kind               TEXT NOT NULL CHECK (kind IN
+                                    ('learning_process','teaching_method','misconception',
+                                     'confidence','retention','watch')),
+               key                TEXT NOT NULL,
+               statement          TEXT NOT NULL,
+               strength           TEXT NOT NULL CHECK (strength IN ('one_off','emerging','established')),
+               status             TEXT NOT NULL DEFAULT 'open'
+                                    CHECK (status IN ('open','resolved','refuted')),
+               next_test          TEXT,
+               test_design_json   TEXT,
+               test_set_by        TEXT CHECK (test_set_by IN ('review','synthesis','parent')),
+               test_week          TEXT,
+               opened_session     INTEGER REFERENCES sessions(id),
+               opened_by          TEXT NOT NULL DEFAULT 'review' CHECK (opened_by IN ('review','synthesis','parent')),
+               opened_week        TEXT,
+               promoted_from_json TEXT,
+               updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+        $this->db->exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_key ON review_signals(COALESCE(subject_slug, ''), key)"
+        );
     }
 
     /**
@@ -847,30 +1020,7 @@ final class Store
         $this->db->exec(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_key ON review_signals(COALESCE(subject_slug, ''), key)"
         );
-        $this->db->exec(
-            "CREATE TABLE IF NOT EXISTS review_signal_evidence (
-               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
-               session_id  INTEGER NOT NULL REFERENCES sessions(id),
-               direction   TEXT NOT NULL CHECK (direction IN ('supports','contradicts')),
-               evidence    TEXT NOT NULL,
-               PRIMARY KEY (signal_id, session_id)
-             )"
-        );
-        $this->db->exec(
-            "CREATE TABLE IF NOT EXISTS review_signal_events (
-               id          INTEGER PRIMARY KEY AUTOINCREMENT,
-               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
-               session_id  INTEGER,
-               at          TEXT NOT NULL DEFAULT (datetime('now')),
-               change      TEXT NOT NULL CHECK (change IN ('opened','strength','status','next_test','evidence')),
-               from_value  TEXT,
-               to_value    TEXT,
-               detail      TEXT
-             )"
-        );
-        $this->db->exec(
-            'CREATE INDEX IF NOT EXISTS idx_signal_events_at ON review_signal_events(at, id)'
-        );
+        $this->createSignalChildTables();
 
         $this->db->exec(
             "CREATE TABLE IF NOT EXISTS review_errors (
@@ -4587,11 +4737,13 @@ final class Store
             if ($row === null) {
                 $st = $this->db->prepare(
                     'INSERT INTO review_signals
-                       (subject_slug, kind, key, statement, strength, status, next_test, opened_session)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                       (subject_slug, kind, key, statement, strength, status, next_test, opened_session,
+                        opened_by, test_set_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 );
                 $st->execute([$slug, $g['kind'], $key, $g['statement'], 'one_off', 'open',
-                              $g['next_test'] ?? null, $sessionId]);
+                              $g['next_test'] ?? null, $sessionId, 'review',
+                              isset($g['next_test']) && $g['next_test'] !== null ? 'review' : null]);
                 $id = (int) $this->db->lastInsertId();
                 $this->writeSignalEvidence($id, $sessionId, $direction, (string) $g['evidence']);
                 $this->signalEvent($id, $sessionId, 'opened', null, 'one_off', $g['statement']);
@@ -4614,8 +4766,13 @@ final class Store
                 $sets['strength'] = $to;
                 $this->signalEvent($id, $sessionId, 'strength', $from, $to, null);
             }
-            if (array_key_exists('next_test', $g) && $g['next_test'] !== null && $g['next_test'] !== $row['next_test']) {
-                $sets['next_test'] = $g['next_test'];
+            // A review may set or replace its own test; it never overwrites
+            // one the synthesis or the parent set — those are answered by
+            // citing the key, not rewritten.
+            if (array_key_exists('next_test', $g) && $g['next_test'] !== null && $g['next_test'] !== $row['next_test']
+                && !in_array($row['test_set_by'] ?? null, ['synthesis', 'parent'], true)) {
+                $sets['next_test']   = $g['next_test'];
+                $sets['test_set_by'] = 'review';
                 $this->signalEvent($id, $sessionId, 'next_test', $row['next_test'], $g['next_test'], null);
             }
             // The statement is the claim in evidence language; a later
@@ -4810,8 +4967,16 @@ final class Store
     private function hydrateSignal(array $r): array
     {
         $r['id']             = (int) $r['id'];
-        $r['opened_session'] = (int) $r['opened_session'];
+        $r['opened_session'] = $r['opened_session'] === null ? null : (int) $r['opened_session'];
         $r['subject_slug']   = $r['subject_slug'] === null || $r['subject_slug'] === '' ? null : (string) $r['subject_slug'];
+        $r['test_design']    = isset($r['test_design_json']) && $r['test_design_json'] !== null
+            ? (json_decode((string) $r['test_design_json'], true) ?: null) : null;
+        $r['promoted_from']  = isset($r['promoted_from_json']) && $r['promoted_from_json'] !== null
+            ? array_map('intval', json_decode((string) $r['promoted_from_json'], true) ?: []) : [];
+        $r['test_set_by']  ??= null;
+        $r['test_week']    ??= null;
+        $r['opened_by']    ??= 'review';
+        $r['opened_week']  ??= null;
         $counts = $this->one(
             "SELECT SUM(CASE WHEN direction = 'supports' THEN 1 ELSE 0 END) AS supporting,
                     SUM(CASE WHEN direction = 'contradicts' THEN 1 ELSE 0 END) AS contradicting,
@@ -5024,11 +5189,28 @@ final class Store
         foreach ($this->signals(['subject' => $slug, 'status' => 'open', 'include_cross' => true]) as $g) {
             $ev   = $this->signalEvidence($g['id']);
             $last = $ev ? $ev[count($ev) - 1] : null;
-            if ($g['next_test'] !== null && $g['next_test'] !== '' && $last !== null) {
-                $n = $this->sessionsSince($slug, (string) $last['date'], (int) $last['session_id']);
-                if ($n >= REVIEW_TEST_STALE_SESSIONS) {
-                    $flag('test_untested', "signal #{$g['id']} {$g['key']}: next_test '{$g['next_test']}' has been open "
-                        . "for $n sessions with no evidence either way", null, $g['id']);
+            if ($g['next_test'] !== null && $g['next_test'] !== '') {
+                $setBy = $g['test_set_by'] ?? 'review';
+                $week  = $g['test_week'] ?? null;
+                // A synthesis-set test has a week; unanswered once that week
+                // has ended, it is the weekly review's to raise, so it is a
+                // flag of its own rather than the per-session count.
+                if ($setBy === 'synthesis' && $week !== null && $week < tt_iso_week(tt_today())) {
+                    $due = $this->testsDue($week);
+                    foreach ($due as $t) {
+                        if ($t['signal']['id'] === $g['id'] && !$t['answered']) {
+                            $flag('synthesis_test_unanswered', "signal #{$g['id']} {$g['key']}: the test the synthesis set for "
+                                . "$week ('{$g['next_test']}') was not answered by any session that week — for the weekly review",
+                                null, $g['id']);
+                        }
+                    }
+                } elseif ($last !== null) {
+                    $n = $this->sessionsSince($slug, (string) $last['date'], (int) $last['session_id']);
+                    if ($n >= REVIEW_TEST_STALE_SESSIONS) {
+                        $flag('test_untested', "signal #{$g['id']} {$g['key']}: next_test '{$g['next_test']}' (set by $setBy"
+                            . ($week ? " for $week" : '') . ") has been open for $n sessions with no evidence either way",
+                            null, $g['id']);
+                    }
                 }
             }
             if ($g['kind'] === 'watch' && count($ev) <= 1 && $last !== null) {
@@ -5066,6 +5248,738 @@ final class Store
             }
         }
         return $out;
+    }
+
+    // ---- the weekly learning synthesis ---------------------------------------
+    //
+    // The learning half of a week, beside the weekly review's adherence half.
+    // Versioned like the other two written artefacts; the snapshot is the
+    // server's; and its decisions are rows, not prose — week plans the queue
+    // prints, tests on signals, deltas to the learner model.
+
+    /**
+     * Append one version of a week's synthesis. Same conventions as the
+     * weekly review: version allocated under the write lock, identical
+     * re-save adds no row.
+     *
+     * @param array{week:string,stage:string,written_by:string,snapshot:array,sections:array,note?:?string} $r
+     * @return array{status:'stored'|'duplicate',row:array<string,mixed>}
+     */
+    public function addWeekSynthesis(array $r): array
+    {
+        $week     = (string) $r['week'];
+        $sections = self::reviewJson($r['sections']);
+        $snapshot = self::reviewJson($r['snapshot']);
+        return $this->transaction(function () use ($week, $sections, $snapshot, $r): array {
+            $latest = $this->one(
+                'SELECT * FROM weekly_syntheses WHERE week = ? ORDER BY version DESC LIMIT 1', [$week]
+            );
+            if (
+                $latest !== null
+                && (string) $latest['stage'] === (string) $r['stage']
+                && (string) $latest['written_by'] === (string) $r['written_by']
+                && (string) $latest['sections_json'] === $sections
+            ) {
+                return ['status' => 'duplicate', 'row' => $this->hydrateSynthesis($latest)];
+            }
+            $version = $latest === null ? 1 : (int) $latest['version'] + 1;
+            $st = $this->db->prepare(
+                'INSERT INTO weekly_syntheses (week, version, stage, written_by, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([$week, $version, $r['stage'], $r['written_by'], $snapshot, $sections, $r['note'] ?? null]);
+            $id = (int) $this->db->lastInsertId();
+            return ['status' => 'stored',
+                    'row' => $this->hydrateSynthesis($this->one('SELECT * FROM weekly_syntheses WHERE id = ?', [$id]))];
+        });
+    }
+
+    public function weekSynthesisById(int $id): ?array
+    {
+        $row = $this->one('SELECT * FROM weekly_syntheses WHERE id = ?', [$id]);
+        return $row === null ? null : $this->hydrateSynthesis($row);
+    }
+
+    public function weekSynthesis(string $week, ?int $version = null): ?array
+    {
+        $row = $version === null
+            ? $this->one('SELECT * FROM weekly_syntheses WHERE week = ? ORDER BY version DESC LIMIT 1', [$week])
+            : $this->one('SELECT * FROM weekly_syntheses WHERE week = ? AND version = ?', [$week, $version]);
+        return $row === null ? null : $this->hydrateSynthesis($row);
+    }
+
+    /** @return array<int,array{id:int,version:int,stage:string,written_at:string,written_by:string,note:?string}> */
+    public function weekSynthesisVersions(string $week): array
+    {
+        $rows = $this->all(
+            'SELECT id, version, stage, written_at, written_by, note FROM weekly_syntheses WHERE week = ? ORDER BY version',
+            [$week]
+        );
+        foreach ($rows as &$r) {
+            $r['id']      = (int) $r['id'];
+            $r['version'] = (int) $r['version'];
+        }
+        return $rows;
+    }
+
+    /** The latest version of each week that has one, newest week first. */
+    public function listWeekSyntheses(int $limit = 12): array
+    {
+        $out = [];
+        foreach ($this->all(
+            'SELECT * FROM weekly_syntheses ORDER BY week DESC, version DESC'
+        ) as $row) {
+            if (isset($out[(string) $row['week']])) {
+                continue;
+            }
+            $out[(string) $row['week']] = $this->hydrateSynthesis($row);
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+        return array_values($out);
+    }
+
+    /** The latest synthesis of the most recent week before $week, or null. */
+    public function previousSynthesis(string $week): ?array
+    {
+        $row = $this->one(
+            'SELECT * FROM weekly_syntheses WHERE week < ? ORDER BY week DESC, version DESC LIMIT 1', [$week]
+        );
+        return $row === null ? null : $this->hydrateSynthesis($row);
+    }
+
+    private function hydrateSynthesis(array $r): array
+    {
+        $r['id']       = (int) $r['id'];
+        $r['version']  = (int) $r['version'];
+        $r['snapshot'] = json_decode((string) $r['snapshot_json'], true) ?: [];
+        $r['sections'] = json_decode((string) $r['sections_json'], true) ?: [];
+        return $r;
+    }
+
+    // ---- week plans ------------------------------------------------------
+
+    /**
+     * Replace the plans for the week a synthesis plans, one row per subject.
+     * The latest synthesis version owns that week's plans, so an earlier
+     * version's rows go when a later one writes.
+     *
+     * @param array<int,array<string,mixed>> $plans
+     */
+    public function replaceWeekPlans(int $synthesisId, string $planWeek, array $plans): int
+    {
+        return $this->transaction(function () use ($synthesisId, $planWeek, $plans): int {
+            $st = $this->db->prepare('DELETE FROM week_plans WHERE week = ?');
+            $st->execute([$planWeek]);
+            $ins = $this->db->prepare(
+                'INSERT INTO week_plans
+                   (synthesis_id, week, subject_slug, next_content, retrieve_first, reteach_if, approach,
+                    scaffolding, independent, check_for, exit_check, watch_for, refs_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            foreach ($plans as $p) {
+                $ins->execute([
+                    $synthesisId, $planWeek, $p['subject_slug'], $p['next_content'], $p['retrieve_first'],
+                    $p['reteach_if'] ?? null, $p['approach'], $p['scaffolding'], $p['independent'],
+                    $p['check_for'], $p['exit_check'], $p['watch_for'],
+                    json_encode(array_values($p['refs'] ?? []), JSON_UNESCAPED_UNICODE),
+                ]);
+            }
+            return count($plans);
+        });
+    }
+
+    public function weekPlan(string $week, string $slug): ?array
+    {
+        $row = $this->one('SELECT * FROM week_plans WHERE week = ? AND subject_slug = ?', [$week, $slug]);
+        return $row === null ? null : $this->hydrateWeekPlan($row);
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    public function weekPlansFor(string $week): array
+    {
+        return array_map([$this, 'hydrateWeekPlan'],
+            $this->all('SELECT * FROM week_plans WHERE week = ? ORDER BY subject_slug', [$week]));
+    }
+
+    /**
+     * The plan the queue prints for a subject: this week's, or the latest
+     * earlier one flagged stale when the week has changed and no newer
+     * synthesis exists. Null when the subject has never had a plan.
+     */
+    public function weekPlanForQueue(string $slug, ?string $week = null): ?array
+    {
+        $week ??= tt_iso_week(tt_today());
+        $plan = $this->weekPlan($week, $slug);
+        if ($plan !== null) {
+            $plan['stale'] = false;
+            return $plan;
+        }
+        $row = $this->one(
+            'SELECT * FROM week_plans WHERE subject_slug = ? AND week < ? ORDER BY week DESC LIMIT 1', [$slug, $week]
+        );
+        if ($row === null) {
+            return null;
+        }
+        $plan = $this->hydrateWeekPlan($row);
+        $plan['stale'] = true;
+        return $plan;
+    }
+
+    /** Stamp the first time the queue printed a plan, so drift can say it was seen. */
+    public function markWeekPlanRead(int $planId): void
+    {
+        $st = $this->db->prepare('UPDATE week_plans SET read_at = ? WHERE id = ? AND read_at IS NULL');
+        $st->execute([tt_now_utc(), $planId]);
+    }
+
+    private function hydrateWeekPlan(array $r): array
+    {
+        $r['id']           = (int) $r['id'];
+        $r['synthesis_id'] = (int) $r['synthesis_id'];
+        $r['refs']         = self::decodeRefs($r['refs_json'] ?? null);
+        return $r;
+    }
+
+    // ---- the learner model ------------------------------------------------
+
+    /** @return array<int,array<string,mixed>> */
+    public function learnerModel(?string $status = null): array
+    {
+        $sql    = 'SELECT * FROM learner_model';
+        $params = [];
+        if ($status !== null) {
+            $sql .= ' WHERE status = ?';
+            $params[] = $status;
+        }
+        return array_map([$this, 'hydrateModelRow'], $this->all(
+            $sql . " ORDER BY CASE status WHEN 'established' THEN 0 WHEN 'supported' THEN 1 WHEN 'hypothesis' THEN 2
+                     WHEN 'weakened' THEN 3 ELSE 4 END, updated_week DESC, key",
+            $params
+        ));
+    }
+
+    public function learnerModelRow(string $key): ?array
+    {
+        $row = $this->one('SELECT * FROM learner_model WHERE key = ?', [$key]);
+        return $row === null ? null : $this->hydrateModelRow($row);
+    }
+
+    private function hydrateModelRow(array $r): array
+    {
+        $r['id']         = (int) $r['id'];
+        $r['signal_ids'] = array_map('intval', json_decode((string) $r['signal_ids'], true) ?: []);
+        $r['history']    = json_decode((string) $r['history_json'], true) ?: [];
+        $r['signals']    = [];
+        foreach ($r['signal_ids'] as $sid) {
+            $g = $this->signalById($sid);
+            if ($g) {
+                $r['signals'][] = $g;
+            }
+        }
+        return $r;
+    }
+
+    /**
+     * Apply Part 12 as deltas: a row not mentioned is unchanged. Each change
+     * resolves its signal keys, derives the status the change produces, and
+     * refuses when the signals do not support it.
+     *
+     * @param array<int,array{key:string,change:string,statement:string,signal_keys:array<int,string>,note?:?string}> $changes
+     * @return array<int,string> one line per row changed
+     */
+    public function applyModelChanges(string $week, array $changes): array
+    {
+        return $this->transaction(function () use ($week, $changes): array {
+            $lines = [];
+            foreach ($changes as $c) {
+                $signals = [];
+                foreach ($c['signal_keys'] as $key) {
+                    foreach ($this->signalsByKeyAnySubject($key) as $g) {
+                        $signals[$g['id']] = $g;
+                    }
+                }
+                $signals = array_values($signals);
+                if (!$signals) {
+                    throw new InvalidArgumentException("model row '{$c['key']}' names signal keys that do not exist: "
+                        . implode(', ', $c['signal_keys']));
+                }
+                $row    = $this->learnerModelRow($c['key']);
+                $status = learner_model_next_status($c['change'], $row['status'] ?? null, $signals);
+                $why    = learner_model_status_refusal($status, $signals);
+                if ($why !== null) {
+                    throw new InvalidArgumentException("model row '{$c['key']}' cannot be $status: $why");
+                }
+                if ($c['change'] === 'new' && $row !== null) {
+                    throw new InvalidArgumentException("model row '{$c['key']}' already exists (status {$row['status']}); "
+                        . 'use strengthened, weakened, disproved or uncertain');
+                }
+                if ($c['change'] !== 'new' && $row === null) {
+                    throw new InvalidArgumentException("model row '{$c['key']}' does not exist; open it with change: new");
+                }
+                $entry = ['week' => $week, 'change' => $c['change'], 'status' => $status,
+                          'statement' => $c['statement'], 'note' => $c['note'] ?? null];
+                $ids   = json_encode(array_map(static fn(array $g): int => $g['id'], $signals));
+                if ($row === null) {
+                    $st = $this->db->prepare(
+                        'INSERT INTO learner_model (key, statement, status, signal_ids, opened_week, updated_week, history_json)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $st->execute([$c['key'], $c['statement'], $status, $ids, $week, $week, json_encode([$entry], JSON_UNESCAPED_UNICODE)]);
+                    $lines[] = "model {$c['key']}: opened as $status";
+                } else {
+                    $history   = $row['history'];
+                    $history[] = $entry;
+                    $st = $this->db->prepare(
+                        'UPDATE learner_model SET statement = ?, status = ?, signal_ids = ?, updated_week = ?, history_json = ?
+                         WHERE key = ?'
+                    );
+                    $st->execute([$c['statement'], $status, $ids, $week, json_encode($history, JSON_UNESCAPED_UNICODE), $c['key']]);
+                    $lines[] = "model {$c['key']}: {$row['status']} → $status ({$c['change']})";
+                }
+            }
+            return $lines;
+        });
+    }
+
+    /** Every signal with a key, in any subject and cross-subject. */
+    public function signalsByKeyAnySubject(string $key): array
+    {
+        return array_map([$this, 'hydrateSignal'],
+            $this->all('SELECT * FROM review_signals WHERE key = ? ORDER BY subject_slug IS NULL, subject_slug', [$key]));
+    }
+
+    // ---- tests on signals -------------------------------------------------
+
+    /**
+     * Set a signal's test. A synthesis never overwrites a test the parent
+     * set: the call reports it and leaves the parent's in place.
+     *
+     * @return array{set:bool,reason:?string}
+     */
+    public function setSignalTest(int $signalId, string $nextTest, ?array $design, string $setBy, ?string $testWeek): array
+    {
+        $g = $this->signalById($signalId);
+        if (!$g) {
+            throw new InvalidArgumentException("No signal $signalId.");
+        }
+        if ($setBy === 'synthesis' && ($g['test_set_by'] ?? null) === 'parent' && !empty($g['next_test'])) {
+            return ['set' => false, 'reason' => "test on #{$signalId} {$g['key']} was set by the parent and is left in place"];
+        }
+        $this->transaction(function () use ($signalId, $nextTest, $design, $setBy, $testWeek, $g): void {
+            $st = $this->db->prepare(
+                'UPDATE review_signals SET next_test = ?, test_design_json = ?, test_set_by = ?, test_week = ?, updated_at = ?
+                 WHERE id = ?'
+            );
+            $st->execute([$nextTest, $design === null ? null : json_encode($design, JSON_UNESCAPED_UNICODE),
+                          $setBy, $testWeek, tt_now_utc(), $signalId]);
+            $this->signalEvent($signalId, null, 'next_test', $g['next_test'], $nextTest, "set by $setBy for $testWeek");
+        });
+        return ['set' => true, 'reason' => null];
+    }
+
+    /**
+     * Open a signal with no session behind it — a synthesis observation item
+     * or a cross-subject promotion. It starts at one_off with whatever
+     * evidence rows the caller supplies; the strength rule still holds.
+     *
+     * @param array<int,array{session_id:int,evidence:string}> $evidence
+     */
+    public function openSignalBy(
+        ?string $slug, string $key, string $kind, string $statement, string $openedBy, string $week,
+        ?string $nextTest = null, array $evidence = [], array $promotedFrom = []
+    ): array {
+        return $this->transaction(function () use ($slug, $key, $kind, $statement, $openedBy, $week, $nextTest, $evidence, $promotedFrom): array {
+            if ($this->signalByKey($slug, $key) !== null) {
+                throw new InvalidArgumentException("signal '$key' already exists" . ($slug ? " in $slug" : ' cross-subject'));
+            }
+            $st = $this->db->prepare(
+                'INSERT INTO review_signals
+                   (subject_slug, kind, key, statement, strength, status, next_test, opened_session, opened_by, opened_week,
+                    promoted_from_json, test_set_by, test_week)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([$slug, $kind, $key, $statement, 'one_off', 'open', $nextTest, $openedBy, $week,
+                          $promotedFrom ? json_encode(array_values($promotedFrom)) : null,
+                          $nextTest !== null ? $openedBy : null, $nextTest !== null ? $week : null]);
+            $id = (int) $this->db->lastInsertId();
+            foreach ($evidence as $e) {
+                $this->writeSignalEvidence($id, (int) $e['session_id'], $e['direction'] ?? 'supports', (string) $e['evidence']);
+            }
+            $allowed = signal_strength_allowed($this->signalEvidence($id));
+            if ($allowed !== 'one_off') {
+                $st = $this->db->prepare('UPDATE review_signals SET strength = ? WHERE id = ?');
+                $st->execute([$allowed, $id]);
+            }
+            $this->signalEvent($id, null, 'opened', null, $allowed, "opened by $openedBy in $week: $statement");
+            return $this->signalById($id);
+        });
+    }
+
+    /**
+     * Promote a key to cross-subject: every per-subject signal with that key
+     * lends its evidence rows to a new cross-subject twin. Refused unless the
+     * evidence sessions span at least two subjects.
+     *
+     * @return array{signal:array,from:array<int,int>,subjects:array<int,string>}
+     */
+    public function promoteSignal(string $key, string $by, string $week): array
+    {
+        $sources = array_values(array_filter(
+            $this->signalsByKeyAnySubject($key), static fn(array $g): bool => $g['subject_slug'] !== null
+        ));
+        if (!$sources) {
+            throw new InvalidArgumentException("No per-subject signal with key '$key' to promote.");
+        }
+        $evidence = [];
+        $subjects = [];
+        foreach ($sources as $g) {
+            foreach ($this->signalEvidence($g['id']) as $e) {
+                $s = $this->sessionById($e['session_id']);
+                if ($s) {
+                    $subjects[(string) $s['subject_slug']] = true;
+                    $evidence[$e['session_id']] = ['session_id' => $e['session_id'], 'direction' => $e['direction'],
+                                                   'evidence' => $e['evidence']];
+                }
+            }
+        }
+        if (count($subjects) < 2) {
+            throw new InvalidArgumentException("'$key' cannot be promoted to cross-subject: its evidence sessions are all in "
+                . (array_keys($subjects)[0] ?? 'one subject') . '. Cross-subject means sessions in at least two subjects.');
+        }
+        $first  = $sources[0];
+        $signal = $this->openSignalBy(null, $key, (string) $first['kind'], (string) $first['statement'], $by, $week,
+            $first['next_test'] ?? null, array_values($evidence), array_map(static fn(array $g): int => $g['id'], $sources));
+        return ['signal' => $signal, 'from' => array_map(static fn(array $g): int => $g['id'], $sources),
+                'subjects' => array_keys($subjects)];
+    }
+
+    /**
+     * Whether a signal key was cited by a session dated inside a week: the
+     * evidence row that answers a test set on it.
+     *
+     * @return ?int the answering session's id
+     */
+    public function keyAnsweredIn(string $key, string $week): ?int
+    {
+        $monday = tt_week_monday($week);
+        if ($monday === null) {
+            return null;
+        }
+        $hit = $this->one(
+            'SELECT e.session_id FROM review_signal_evidence e
+             JOIN sessions s ON s.id = e.session_id
+             JOIN review_signals g ON g.id = e.signal_id
+             WHERE g.key = ? AND s.date BETWEEN ? AND ? ORDER BY s.date, s.id LIMIT 1',
+            [$key, $monday, tt_add_days($monday, 6)]
+        );
+        return $hit ? (int) $hit['session_id'] : null;
+    }
+
+    /**
+     * The hypotheses a synthesis set (its Part 10), each with whether the
+     * week it planned answered it. Read from the sections, so a later
+     * synthesis re-setting the test does not erase the record.
+     *
+     * @return array<int,array{key:string,answered:bool,by_session:?int}>
+     */
+    public function hypothesesAnswered(array $sections, string $planWeek): array
+    {
+        $out = [];
+        foreach ($sections['hypotheses'] ?? [] as $h) {
+            $by    = $this->keyAnsweredIn((string) $h['signal_key'], $planWeek);
+            $out[] = ['key' => (string) $h['signal_key'], 'answered' => $by !== null, 'by_session' => $by];
+        }
+        return $out;
+    }
+
+    /**
+     * The tests due in a week and whether each was answered — an evidence
+     * row from a session dated inside the week.
+     *
+     * @return array<int,array{signal:array,answered:bool,by_session:?int}>
+     */
+    public function testsDue(string $week): array
+    {
+        $monday = tt_week_monday($week);
+        if ($monday === null) {
+            return [];
+        }
+        $sunday = tt_add_days($monday, 6);
+        $out    = [];
+        foreach ($this->all('SELECT * FROM review_signals WHERE test_week = ? ORDER BY id', [$week]) as $row) {
+            $g   = $this->hydrateSignal($row);
+            // A session answers a test by citing the key in its review, which
+            // lands on its own subject's signal; a cross-subject twin or a
+            // sibling in another subject counts that answer too.
+            $hit = $this->one(
+                'SELECT e.session_id FROM review_signal_evidence e
+                 JOIN sessions s ON s.id = e.session_id
+                 JOIN review_signals g ON g.id = e.signal_id
+                 WHERE g.key = ? AND s.date BETWEEN ? AND ? ORDER BY s.date, s.id LIMIT 1',
+                [$g['key'], $monday, $sunday]
+            );
+            $out[] = ['signal' => $g, 'answered' => $hit !== null, 'by_session' => $hit ? (int) $hit['session_id'] : null];
+        }
+        return $out;
+    }
+
+    // ---- inputs, snapshot, drift --------------------------------------------
+
+    /** Error rows of the week, grouped by type with refs and sessions. */
+    public function reviewErrorsBetween(string $from, string $to): array
+    {
+        $out = [];
+        foreach ($this->all(
+            'SELECT e.*, s.date FROM review_errors e JOIN sessions s ON s.id = e.session_id
+             WHERE s.date BETWEEN ? AND ? AND s.void_reason IS NULL ORDER BY e.error_type, s.date, e.id',
+            [$from, $to]
+        ) as $e) {
+            $out[(string) $e['error_type']][] = $e;
+        }
+        return $out;
+    }
+
+    /** retrieval_state rows asked inside a date range, at either grain. */
+    public function retrievalTouched(string $from, string $to): array
+    {
+        $rows = $this->all(
+            'SELECT * FROM retrieval_state WHERE last_asked BETWEEN ? AND ? ORDER BY subject_slug, grain, key', [$from, $to]
+        );
+        foreach ($rows as &$r) {
+            $r['history'] = json_decode((string) $r['history'], true) ?: [];
+        }
+        return $rows;
+    }
+
+    /**
+     * Topics marked secure or exam-ready whose last topic-grain retrieval
+     * was retry or incorrect: the server's own candidates for "at risk of
+     * being mistaken for secure".
+     */
+    public function falseSecureCandidates(): array
+    {
+        return $this->all(
+            "SELECT t.subject_slug, t.ref, t.name, t.status, r.last_asked, r.history, r.consecutive_wrong
+             FROM topics t JOIN retrieval_state r ON r.subject_slug = t.subject_slug AND r.grain = 'topic' AND r.key = t.ref
+             WHERE t.status IN ('secure','examready') AND r.history LIKE '%\"o\":\"retry\"}]' OR
+                   (t.status IN ('secure','examready') AND r.history LIKE '%\"o\":\"incorrect\"}]')
+             ORDER BY t.subject_slug, t.ref"
+        );
+    }
+
+    /** The attempts sat inside a week, public wrapper. */
+    public function attemptsInWeek(string $monday): array
+    {
+        return $this->attemptsSatBetween($monday, tt_add_days($monday, 6));
+    }
+
+    /**
+     * Next week's blocks grouped by subject: each block's kind and whether a
+     * session logged against it would require a review (a taught block).
+     *
+     * @return array<string,array<int,array{block_key:int,weekday:int,kind:string,label:string,taught:bool}>>
+     */
+    public function blocksBySubjectFor(string $monday): array
+    {
+        $rules = $this->blockKindRules();
+        $out   = [];
+        $cache = [];
+        for ($i = 0; $i < 7; $i++) {
+            $date = tt_add_days($monday, $i);
+            $v    = $this->timetableVersionOn($date);
+            if (!$v) {
+                continue;
+            }
+            $id = (int) $v['id'];
+            $cache[$id] ??= $this->timetableBlocks($id);
+            $weekday = (int) (new DateTimeImmutable($date, tt_zone()))->format('N');
+            foreach ($cache[$id] as $b) {
+                if ($b['weekday'] !== $weekday || $b['tracking'] !== 'evidence') {
+                    continue;
+                }
+                $rule = $rules[$b['kind']] ?? $rules['*'] ?? null;
+                foreach (tt_subjects_for($b, $date) as $slug) {
+                    $out[$slug][] = ['block_key' => $b['block_key'], 'weekday' => $weekday, 'date' => $date,
+                                     'kind' => $b['kind'], 'label' => $b['label'],
+                                     'taught' => $rule !== null && !empty($rule['review_required'])];
+                }
+            }
+        }
+        ksort($out);
+        return $out;
+    }
+
+    /** The study principles' headings: the meta override, else the default list. */
+    public function studyPrinciples(): array
+    {
+        $v = json_decode((string) ($this->meta('study_principles') ?? ''), true);
+        return is_array($v) && $v ? array_values(array_map('strval', $v)) : STUDY_PRINCIPLE_HEADINGS;
+    }
+
+    /**
+     * Everything the synthesis needs for a week, computed here so it is
+     * never told what to gather. The tool renders it; the snapshot freezes
+     * the ids and states it saw.
+     */
+    public function synthesisInputs(string $week): array
+    {
+        $monday = tt_week_monday($week);
+        if ($monday === null) {
+            throw new InvalidArgumentException("week must look like '2026-W37'.");
+        }
+        $sunday     = tt_add_days($monday, 6);
+        $nextMonday = tt_add_days($monday, 7);
+
+        $sessions = $this->all(
+            'SELECT * FROM sessions WHERE date BETWEEN ? AND ? AND void_reason IS NULL ORDER BY date, id', [$monday, $sunday]
+        );
+        $taught  = array_values(array_filter($sessions, static fn(array $s): bool => (int) ($s['review_required'] ?? 0) === 1
+            || $s['review_id'] !== null));
+        $reviews = $this->lessonReviewsForSessions(array_map(static fn($s) => (int) $s['id'], $taught));
+        $missing = array_values(array_filter($taught, static fn(array $s): bool => $s['review_id'] === null));
+
+        $signals = $this->signals(['status' => 'open']);
+        foreach ($signals as &$g) {
+            $g['evidence_rows'] = $this->signalEvidence($g['id']);
+        }
+        unset($g);
+
+        return [
+            'week'         => $week,
+            'monday'       => $monday,
+            'sunday'       => $sunday,
+            'next_week'    => tt_iso_week($nextMonday),
+            'next_monday'  => $nextMonday,
+            'sessions'     => $taught,
+            'reviews'      => $reviews,
+            'missing'      => $missing,
+            'signals'      => $signals,
+            'events'       => $this->signalEventsBetween($monday, $sunday),
+            'tests_due'    => $this->testsDue($week),
+            'errors'       => $this->reviewErrorsBetween($monday, $sunday),
+            'retrieval'    => $this->retrievalTouched($monday, $sunday),
+            'false_secure' => $this->falseSecureCandidates(),
+            'attempts'     => $this->attemptsInWeek($monday),
+            'changes'      => $this->changesBetween($monday, $sunday),
+            'model'        => $this->learnerModel(),
+            'previous'     => $this->previousSynthesis($week),
+            'existing'     => $this->weekSynthesis($week),
+            'next_blocks'  => $this->blocksBySubjectFor($nextMonday),
+            'principles'   => $this->studyPrinciples(),
+        ];
+    }
+
+    /**
+     * What the synthesis knew when it was saved: the reviews read, every
+     * signal's strength and status, the statuses of the refs mentioned, the
+     * retrieval rows cited, the attempts, next week's timetable and the
+     * previous synthesis compared against.
+     */
+    public function synthesisSnapshot(string $week, array $sections, array $inputs): array
+    {
+        $reviews = [];
+        foreach ($inputs['reviews'] as $sid => $rv) {
+            $s = $this->sessionById((int) $sid);
+            $reviews[] = ['session_id' => (int) $sid, 'subject_slug' => $s['subject_slug'] ?? '?', 'date' => $s['date'] ?? '?',
+                          'version' => $rv['version'], 'stage' => $rv['stage'], 'review_id' => $rv['id']];
+        }
+        $signals = [];
+        foreach ($this->signals([]) as $g) {
+            $signals[] = ['id' => $g['id'], 'key' => $g['key'], 'subject_slug' => $g['subject_slug'],
+                          'strength' => $g['strength'], 'status' => $g['status'], 'supporting' => $g['supporting'],
+                          'test_set_by' => $g['test_set_by'] ?? null, 'test_week' => $g['test_week'] ?? null];
+        }
+        $refs = [];
+        foreach ($sections['subjects'] ?? [] as $sub) {
+            foreach (['secure', 'developing', 'fragile', 'gaps'] as $k) {
+                foreach ($sub[$k] ?? [] as $x) {
+                    $refs[$sub['slug']][$x['ref']] = true;
+                }
+            }
+            foreach ($sub['topics'] ?? [] as $r) {
+                $refs[$sub['slug']][$r] = true;
+            }
+        }
+        foreach ($sections['retention'] ?? [] as $r) {
+            $refs[$r['subject']][$r['ref']] = true;
+        }
+        $statuses = [];
+        foreach ($refs as $slug => $set) {
+            foreach (array_keys($set) as $ref) {
+                $t = $this->getTopic((string) $slug, (string) $ref);
+                $statuses[$slug][$ref] = $t ? (string) $t['status'] : null;
+            }
+        }
+        $retrieval = [];
+        foreach ($sections['retention'] ?? [] as $r) {
+            $row = $this->one(
+                "SELECT * FROM retrieval_state WHERE subject_slug = ? AND grain = 'topic' AND key = ?", [$r['subject'], $r['ref']]
+            );
+            if ($row) {
+                $retrieval[] = ['subject_slug' => $r['subject'], 'ref' => $r['ref'], 'next_due' => $row['next_due'],
+                                'consecutive_wrong' => (int) $row['consecutive_wrong'],
+                                'history' => json_decode((string) $row['history'], true) ?: []];
+            }
+        }
+        $prev = $inputs['previous'];
+        return [
+            'schema'      => 1,
+            'captured_at' => gmdate('Y-m-d H:i:s'),
+            'week'        => $week,
+            'plans_for'   => $inputs['next_week'],
+            'reviews'     => $reviews,
+            'missing'     => array_map(static fn(array $s): array => ['id' => (int) $s['id'], 'subject_slug' => $s['subject_slug'], 'date' => $s['date']],
+                $inputs['missing']),
+            'signals'     => $signals,
+            'statuses'    => $statuses,
+            'retrieval'   => $retrieval,
+            'attempts'    => $inputs['attempts'],
+            'next_blocks' => $inputs['next_blocks'],
+            // The model as it stands once this synthesis's own deltas are
+            // applied, so drift measures what moved after it.
+            'model'       => array_map(static fn(array $m): array => ['key' => $m['key'], 'status' => $m['status']], $this->learnerModel()),
+            'previous'    => $prev ? ['id' => $prev['id'], 'week' => $prev['week'], 'version' => $prev['version']] : null,
+        ];
+    }
+
+    /**
+     * How the record has moved since a synthesis: which tests it set have
+     * been answered, which week plans were read, and how the learner model
+     * has moved.
+     *
+     * @return array{tests:array,plans:array,model:array,lines:array<int,string>}
+     */
+    public function synthesisDrift(array $syn): array
+    {
+        $planWeek = (string) ($syn['snapshot']['plans_for'] ?? '');
+        $tests    = $planWeek !== '' ? $this->hypothesesAnswered($syn['sections'], $planWeek) : [];
+        $plans    = $planWeek !== '' ? $this->weekPlansFor($planWeek) : [];
+        $lines    = [];
+        if ($tests) {
+            $answered = count(array_filter($tests, static fn(array $t): bool => $t['answered']));
+            $lines[]  = 'Tests set for ' . $planWeek . ': ' . $answered . ' of ' . count($tests) . ' answered ('
+                . implode('; ', array_map(static fn(array $t): string =>
+                    $t['key'] . ' ' . ($t['answered'] ? 'answered by session ' . $t['by_session'] : 'untested'), $tests)) . ').';
+        } else {
+            $lines[] = 'No tests were set on signals by this synthesis.';
+        }
+        if ($plans) {
+            $read = array_values(array_filter($plans, static fn(array $p): bool => $p['read_at'] !== null));
+            $lines[] = 'Week plans for ' . $planWeek . ': ' . count($read) . ' of ' . count($plans) . ' read by the queue ('
+                . implode(', ', array_map(static fn(array $p): string =>
+                    $p['subject_slug'] . ($p['read_at'] !== null ? ' read ' . tt_local((string) $p['read_at'])[0] : ' unread'), $plans)) . ').';
+        }
+        $moved = [];
+        foreach ($syn['snapshot']['model'] ?? [] as $m) {
+            $now = $this->learnerModelRow((string) $m['key']);
+            if ($now && $now['status'] !== $m['status']) {
+                $moved[] = $m['key'] . ' ' . $m['status'] . ' → ' . $now['status'];
+            }
+        }
+        $lines[] = $moved ? 'Learner model since: ' . implode('; ', $moved) . '.' : 'The learner model has not moved since.';
+        return ['tests' => $tests, 'plans' => $plans, 'model' => $moved, 'lines' => $lines];
     }
 }
 
