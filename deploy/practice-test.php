@@ -121,7 +121,7 @@ register_shutdown_function(static function () use ($dbPath) {
 echo "== schema ==\n";
 $counts = $store->counts();
 check('the practice tables exist and are counted by /healthz', isset($counts['practice_run']), true);
-check('a fresh database reaches the current schema version', $store->meta('schema_version'), '12');
+check('a fresh database reaches the current schema version', $store->meta('schema_version'), '13');
 $sources = array_column($store->listPracticeSources(), 'key');
 // Derived from the seed rather than restated here, so adding a source is one
 // edit rather than two that can disagree.

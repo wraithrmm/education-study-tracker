@@ -139,6 +139,7 @@ bash deploy/smoke-test.sh
 php deploy/practice-test.php
 php deploy/continuity-test.php
 php deploy/lesson-review-test.php
+php deploy/synthesis-test.php
 ```
 
 The first boots the service on PHP's built-in server against a throwaway
@@ -149,7 +150,9 @@ snapshots on purpose. The third covers last-session continuity, unfinished
 work, the block shape rules and retrieval scheduling, with the clock frozen.
 The fourth covers lesson reviews: the atomic log-plus-review write, the
 section validation, the signal strength rule, the audit queue and the parent
-gate on the pages. All four run in CI on every push. To poke at it by hand:
+gate on the pages. The fifth covers the weekly learning synthesis: the inputs
+opener, the §6 refusals, what a save writes back, and the queue's this_week block.
+All five run in CI on every push. To poke at it by hand:
 
 ```bash
 mkdir -p /tmp/tracker/tracker-shared/data

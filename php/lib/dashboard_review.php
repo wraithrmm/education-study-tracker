@@ -269,7 +269,7 @@ function render_signals(Store $store, bool $isParent): string
 {
     $body = '<header><div><p class="kicker"><a href="/">← Subjects</a></p><h1>How she learns</h1>'
         . '<p><small>Every signal the lesson reviews have raised, strongest first, with its evidence trail and the test '
-        . 'that would confirm or refute it.</small></p></div><div>' . tt_parent_line($store, $isParent, '/signals') . '</div></header>';
+        . 'that would confirm or refute it. <a href="/learner">The learner model</a> is the weekly grain.</small></p></div><div>' . tt_parent_line($store, $isParent, '/signals') . '</div></header>';
     if (!$isParent) {
         $body .= '<div class="flag">The signals page is for the parent. Sign in to read it.</div>';
         return dash_shell('Signals', $body);
@@ -298,7 +298,8 @@ function render_signals(Store $store, bool $isParent): string
                     . ' · ' . $g['supporting'] . ' supporting' . ($g['contradicting'] ? ', ' . $g['contradicting'] . ' contradicting' : '')
                     . ' · #' . (int) $g['id'] . '</small>'
                     . '<div>' . h($g['statement']) . '</div>'
-                    . ($g['next_test'] ? '<div><small><em>Next test: ' . h($g['next_test']) . '</em></small></div>' : '');
+                    . ($g['opened_by'] !== 'review' ? '<div><small>opened by ' . h($g['opened_by']) . ($g['opened_week'] ? ' in ' . h($g['opened_week']) : '') . '</small></div>' : '')
+                    . sy_signal_test_html($store, $g);
                 foreach ($ev as $e) {
                     $sess = $store->sessionById($e['session_id']);
                     $body .= '<div class="rv-ev">' . ($e['direction'] === 'supports' ? '+' : '−') . ' '

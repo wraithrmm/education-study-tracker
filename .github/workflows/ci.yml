@@ -44,3 +44,6 @@ jobs:
       # flags, the queue's last_review block and the parent-gated pages.
       - name: Lesson review acceptance tests
         run: php deploy/lesson-review-test.php
+
+      - name: Weekly synthesis acceptance tests
+        run: php deploy/synthesis-test.php
