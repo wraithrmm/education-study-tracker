@@ -271,7 +271,9 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_list_resources tracker_add_resource tracker_remove_resource \
             tracker_log_practice tracker_list_practice tracker_practice_stats \
             tracker_void_practice tracker_get_scoreboard tracker_set_scoreboard \
-            tracker_retrieval_due; do
+            tracker_retrieval_due tracker_save_lesson_review tracker_get_lesson_review \
+            tracker_list_lesson_reviews tracker_signals tracker_update_signal \
+            tracker_review_audit_queue tracker_audit_stamp; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -282,10 +284,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 34 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 41 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 34 of 34)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 41 of 41)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -846,6 +848,19 @@ contains "and lists the versions that exist" "$body" "Versions: 1 draft"
 body="$(call tracker_get_weekly_review '{"week":"2024-W36"}')"
 contains "a week with no review says so and names the tool that writes one" "$body" \
   "Write one with tracker_save_weekly_review"
+
+# Lesson reviews over the wire. The behaviour is covered by
+# deploy/lesson-review-test.php; this checks the tools answer and that a
+# session logged against a teach block without its review is owed one.
+body="$(call tracker_list_lesson_reviews '{"subject":"maths","missing":true}')"
+contains "tracker_list_lesson_reviews names the session owed a review" "$body" "Sessions that require a review and have none"
+body="$(call tracker_signals '{"subject":"maths"}')"
+contains "tracker_signals answers with no signals yet" "$body" "No signals match"
+body="$(call tracker_review_audit_queue '{"subject":"maths"}')"
+contains "tracker_review_audit_queue opens with everything in scope" "$body" "No audit has run for this subject yet"
+contains "and lists the session owed a review" "$body" "Sessions owed a review (1)"
+body="$(call tracker_get_lesson_review '{"subject":"maths","session_id":1}')"
+contains "tracker_get_lesson_review says when there is none" "$body" "has no lesson review"
 
 body="$(call tracker_week_report '{"week":"2024-W99"}')"
 contains "a malformed week is refused" "$body" "week must look like"
