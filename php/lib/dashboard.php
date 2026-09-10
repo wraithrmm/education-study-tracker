@@ -12,6 +12,8 @@ if (!defined('TRACKER')) {
 // The lesson review on the pages: parent-gated sections, two parent-only
 // pages, and the public "reviewed" tick.
 require_once __DIR__ . '/dashboard_review.php';
+// The weekly synthesis, the learner model and the week plans: parent-only.
+require_once __DIR__ . '/dashboard_synthesis.php';
 
 const STATUS_COLOUR = [
     'gap'        => '#ef4444',
@@ -438,7 +440,7 @@ const DASH_HAND_FONT = '<link rel="preconnect" href="https://fonts.googleapis.co
 function dash_shell(string $title, string $body, string $head = ''): string
 {
     $t   = h($title);
-    $css = DASH_CSS . "\n" . DASH_REVIEW_CSS;
+    $css = DASH_CSS . "\n" . DASH_REVIEW_CSS . "\n" . DASH_SYNTH_CSS;
     return "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\">\n"
         . "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
         . "<title>$t</title>$head<style>$css</style></head>\n"
@@ -1689,7 +1691,8 @@ function render_week_page(
     Store $store,
     string $iso,
     bool $isParent = false,
-    ?int $version = null
+    ?int $version = null,
+    ?int $synthVersion = null
 ): string
 {
     $monday = tt_week_monday($iso);
@@ -1747,6 +1750,8 @@ function render_week_page(
     // review: parent only, like the reviews themselves.
     if ($isParent) {
         $body .= rv_week_section($store, $monday);
+        // The learning half of the week, beneath the adherence half.
+        $body .= sy_week_section($store, $iso, $synthVersion);
     }
 
     $links = ['<a href="/weeks">All weeks</a>'];
@@ -2146,7 +2151,7 @@ function render_index(Store $store, bool $isParent = false): string
     );
 }
 
-function render_subject(Store $store, array $subject): string
+function render_subject(Store $store, array $subject, bool $isParent = false): string
 {
     $topics = $store->listTopics($subject['slug']);
     $pts    = 0;
@@ -2327,6 +2332,16 @@ function render_subject(Store $store, array $subject): string
 
     // Grouped by ISO week so the page reads as a timeline of what actually
     // happened, with the status changes each session produced underneath it.
+    // The week's plan for the subject, from the synthesis: parent only,
+    // above the sessions it is meant to shape.
+    $planCard = '';
+    if ($isParent) {
+        $plan = $store->weekPlanForQueue($subject['slug']);
+        if ($plan !== null) {
+            $planCard = sy_plan_card($plan, $store->weekSynthesisById($plan['synthesis_id']));
+        }
+    }
+
     $sessions    = $store->listSessions($subject['slug'], 40);
     $sessionHtml = '';
     if ($sessions) {
@@ -2433,7 +2448,7 @@ function render_subject(Store $store, array $subject): string
 
 <h2>Papers &amp; checks</h2>{$assessHtml}
 
-<h2>Sessions, by week</h2>{$sessionHtml}
+{$planCard}<h2>Sessions, by week</h2>{$sessionHtml}
 
 <footer>Generated live from the tracker database at {$when} UTC.
   {$notes}</footer>

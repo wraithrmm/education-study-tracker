@@ -451,7 +451,9 @@ if (preg_match('#^/week/(\d{4}-W\d{2})$#', $path, $m)) {
     // ?v= reads an earlier version of the week's written note; anything that
     // is not a version number is simply the latest one.
     $version = isset($_GET['v']) && ctype_digit((string) $_GET['v']) ? (int) $_GET['v'] : null;
-    send_html(render_week_page($store, $m[1], parent_signed_in($store, $password), $version));
+    // ?sv= does the same for the week's learning synthesis.
+    $synth = isset($_GET['sv']) && ctype_digit((string) $_GET['sv']) ? (int) $_GET['sv'] : null;
+    send_html(render_week_page($store, $m[1], parent_signed_in($store, $password), $version, $synth));
 }
 
 if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
@@ -460,7 +462,7 @@ if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
     if (!$subject) {
         send_html(render_index($store), 404);
     }
-    send_html(render_subject($store, $subject));
+    send_html(render_subject($store, $subject, parent_signed_in($store, $password)));
 }
 
 // The practice scoreboard: every panel the subject's configuration asks for,
@@ -521,6 +523,13 @@ if (preg_match('#^/s/([^/]+)/reviews$#', $path, $m)) {
 if ($path === '/signals') {
     $dashboardGuard();
     send_html(render_signals($store, parent_signed_in($store, $password)));
+}
+
+// The learner model: what the weekly syntheses hold about how she learns.
+if ($path === '/learner') {
+    $dashboardGuard();
+    $filter = isset($_GET['status']) && in_array($_GET['status'], SYNTH_MODEL_STATUSES, true) ? (string) $_GET['status'] : null;
+    send_html(render_learner($store, parent_signed_in($store, $password), $filter));
 }
 
 if (preg_match('#^/s/([^/]+)/t/([^/]+)$#', $path, $m)) {
