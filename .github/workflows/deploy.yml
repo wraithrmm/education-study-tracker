@@ -58,6 +58,9 @@ jobs:
       - name: Lesson review acceptance tests
         run: php deploy/lesson-review-test.php
 
+      - name: Weekly synthesis acceptance tests
+        run: php deploy/synthesis-test.php
+
       - name: Check required secrets are present
         env:
           SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}

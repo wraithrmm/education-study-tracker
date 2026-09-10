@@ -136,6 +136,11 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_update_signal` | Resolve or refute a signal, set its next test, or add an evidence row. Never a bare strength change. |
 | `tracker_review_audit_queue` | The auditor's opener: sessions owed a review, drafts to verify, consistency flags, the last audit's note. |
 | `tracker_audit_stamp` | Close an audit with a note. |
+| `tracker_week_synthesis_inputs` | Everything the weekly learning synthesis reads, in one call. |
+| `tracker_save_week_synthesis` | Save the twenty-part synthesis and write its decisions back: week plans, tests on signals, learner-model deltas, watch and cross-subject signals. |
+| `tracker_get_week_synthesis` | Read one back, with its snapshot and the drift since. |
+| `tracker_list_week_syntheses` | One line per synthesised week. |
+| `tracker_learner_model` | The evolving model of how she learns, each row resting on signals. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -374,6 +379,34 @@ On the pages the review is private by default: the session page, the topic
 page's error history, `/s/{slug}/reviews`, `/signals` and the week page's
 readiness chips render only for the signed-in parent. Everyone else sees a
 "reviewed" tick on the session and nothing more.
+
+## The weekly learning synthesis
+
+The week has a third written artefact beside the adherence review: the
+**learning synthesis**, the educator's twenty-part reading of how she learns
+and what that changes (`docs/weekly-synthesis.md` is the contract). It reads
+the week's audited lesson reviews, signals, errors, retrieval outcomes and
+attempts through one opener, `tracker_week_synthesis_inputs`, and interprets
+rather than recounts. Its decisions are rows, not prose. Part 14's per-subject
+instructions become **week plans** that `tracker_review_queue` prints as
+`this_week` on Monday morning, flagged stale once the week has moved on
+without a newer synthesis. Part 10's hypotheses become **test designs** on
+signals, with who set them and for which week; a session answers a test by
+citing the key in its review, and the week report, the audit queue and the
+synthesis's own drift all say whether it was answered. Part 12 is applied as
+**deltas to a learner model** whose rows can never claim more than their
+signals support. Part 17's observations open watch signals; Part 3's
+cross-subject claims are refused unless the cited sessions span two subjects.
+
+The same rules the lesson review taught the server hold here: a quote must
+match one a review recorded; a recurring error needs two rows of the type
+that week; no grade without a graded paper; a retention verdict needs a
+retrieval record, and `retaining` is refused when that record disagrees. A
+draft cannot land over a version the parent has saved, and a routine
+synthesis never overwrites a test the parent set. On the pages the synthesis
+sits beneath the weekly review, the learner model has its own page at
+`/learner`, the subject page carries the week's plan, and the signals page
+shows each test's setter and whether this week answered it — all parent-only.
 
 ## Practice
 
