@@ -26,6 +26,11 @@
  *   min_duration_fraction     a recorded duration ≥ this fraction of the block
  *   evidence_type             the record is of this type (session|attempt|practice)
  *
+ * A row also says whether a session logged against the kind needs a lesson
+ * review (review_required): the kinds a tutor skill owns do, retrieval,
+ * Spanish maintenance, movement and the review block do not, and a session
+ * with no block needs one when it ran REVIEW_EXTRA_MINUTES or longer.
+ *
  * A condition the evaluator does not know can never be met, and the reason
  * says so — a typo in a rule row surfaces on the board instead of quietly
  * passing everything.
@@ -44,23 +49,23 @@ const SHAPE_RULE_SEED = [
     ['kind' => 'retrieval', 'satisfied_by' => 'retrieval_practice',
      'shape' => [['min_items' => 5], ['min_updates' => 3]],
      'expects' => 'at least 5 items attempted, or a session with 3 or more topic updates'],
-    ['kind' => 'teach', 'satisfied_by' => 'any',
+    ['kind' => 'teach', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['min_updates_with_evidence' => 1]],
      'expects' => 'at least one topic update carrying evidence'],
-    ['kind' => 'practise', 'satisfied_by' => 'any',
+    ['kind' => 'practise', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['min_updates' => 1, 'min_distinct_topics' => 2]],
      'expects' => 'at least one topic update, and updates touching 2 or more distinct topics (interleaving)'],
-    ['kind' => 'consolidate', 'satisfied_by' => 'any',
+    ['kind' => 'consolidate', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['consolidates_nonempty' => true], ['recent_error_update_days' => 21]],
      'expects' => 'a consolidates list naming the errors re-worked, or an update on a topic that had '
         . 'a demotion, a blank or a prompted answer in the prior 21 days'],
     ['kind' => 'timed_handwritten', 'satisfied_by' => 'attempt',
      'shape' => [['evidence_type' => 'attempt'], ['min_duration_minutes' => 15]],
      'expects' => 'a marked attempt, or a session with 15 minutes or more recorded'],
-    ['kind' => 'coding', 'satisfied_by' => 'any',
+    ['kind' => 'coding', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['min_duration_fraction' => 0.5]],
      'expects' => 'a recorded duration of at least half the block'],
-    ['kind' => 'writing', 'satisfied_by' => 'any',
+    ['kind' => 'writing', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['min_duration_fraction' => 0.5]],
      'expects' => 'a recorded duration of at least half the block'],
     // The fallback for a kind with no row of its own: any record, always
