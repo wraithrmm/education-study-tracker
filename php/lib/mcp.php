@@ -29,6 +29,10 @@ final class McpError extends Exception
 {
 }
 
+// The lesson review's validation and write, shared by tracker_log_session
+// and tracker_save_lesson_review.
+require_once __DIR__ . '/mcp_review.php';
+
 function mcp_text(string $s): array
 {
     return ['content' => [['type' => 'text', 'text' => $s]]];
@@ -742,6 +746,116 @@ function mcp_tools(): array
     $statusEnum = ['type' => 'string', 'enum' => STATUS_ORDER];
     $isoDate    = ['type' => 'string', 'pattern' => '^\\d{4}-\\d{2}-\\d{2}$', 'description' => 'YYYY-MM-DD'];
     $subjectArg = ['type' => 'string', 'minLength' => 1, 'description' => "Subject slug, e.g. 'maths'"];
+    $refList    = ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 40]];
+    $refEvidence = ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'object',
+        'properties' => ['ref' => ['type' => 'string'], 'evidence' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 300]],
+        'required' => ['ref', 'evidence']]];
+    $methodEntry = ['type' => 'object', 'properties' => [
+        'method'   => ['type' => 'string', 'enum' => REVIEW_METHODS],
+        'effect'   => ['type' => 'string', 'enum' => REVIEW_EFFECTS],
+        'evidence' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+    ], 'required' => ['method', 'evidence']];
+    // The lesson review, as the nineteen sections of the educator's prompt
+    // held as fields. Validated whole by mcp_lesson_sections(); the schema
+    // here is the shape, the validator is the rules.
+    $reviewArg = [
+        'type' => 'object',
+        'description' => 'The lesson review for this session: the 19 sections as fields. See the tool description.',
+        'properties' => [
+            'topic_refs' => $refList,
+            'objective'  => ['type' => 'string', 'maxLength' => 300],
+            'resources'  => ['type' => 'array', 'maxItems' => 20, 'items' => ['anyOf' => [
+                ['type' => 'string'],
+                ['type' => 'object', 'properties' => ['title' => ['type' => 'string'], 'unlisted' => ['type' => 'boolean']],
+                 'required' => ['title']],
+            ]], 'description' => 'Stored resource titles, or { title, unlisted: true } for one not stored'],
+            'one_sentence' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 200],
+            'progress' => ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'object', 'properties' => [
+                'ref'             => ['type' => 'string'],
+                'status_seen'     => $statusEnum,
+                'evidence'        => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'implication'     => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'proposed_status' => $statusEnum,
+            ], 'required' => ['ref', 'status_seen', 'evidence', 'implication']]],
+            'independent' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            'supported'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            'errors' => ['type' => 'array', 'maxItems' => 30, 'items' => ['type' => 'object', 'properties' => [
+                'ref'        => ['type' => 'string'],
+                'error_type' => ['type' => 'string', 'enum' => REVIEW_ERROR_TYPES],
+                'what'       => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'why_type'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'response'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            ], 'required' => ['ref', 'error_type', 'what', 'why_type', 'response']]],
+            'retention' => ['type' => 'object', 'properties' => [
+                'retrieved' => $refEvidence, 'prompted' => $refEvidence,
+                'not_retrieved' => $refEvidence, 'schedule' => $refEvidence,
+            ], 'description' => 'retrieved needs retrieval_outcome correct on the ref in updates[]; prompted retry; not_retrieved incorrect'],
+            'process' => ['type' => 'array', 'maxItems' => 30, 'items' => ['type' => 'object', 'properties' => [
+                'area'           => ['type' => 'string', 'enum' => REVIEW_PROCESS_AREAS],
+                'basis'          => ['type' => 'string', 'enum' => REVIEW_BASES],
+                'evidence'       => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600,
+                    'description' => 'Quote or cite the transcript; the avoidance entry states blanks against attempts as numbers'],
+                'interpretation' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'implication'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            ], 'required' => ['area', 'basis', 'evidence', 'interpretation', 'implication']]],
+            'helped'   => ['type' => 'array', 'maxItems' => 20, 'items' => $methodEntry],
+            'hindered' => ['type' => 'array', 'maxItems' => 20, 'items' => $methodEntry],
+            'confidence' => ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'object', 'properties' => [
+                'ref'         => ['type' => 'string'],
+                'confidence'  => ['type' => 'string', 'enum' => REVIEW_LEVELS],
+                'accuracy'    => ['type' => 'string', 'enum' => REVIEW_LEVELS],
+                'evidence'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'implication' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            ], 'required' => ['ref', 'confidence', 'accuracy', 'evidence', 'implication']],
+                'description' => 'Omit the key when there is no evidence; an empty list is the honest value'],
+            'signals' => ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'object', 'properties' => [
+                'key'       => ['type' => 'string', 'pattern' => '^[a-z0-9][a-z0-9-]{1,60}$',
+                    'description' => "Stable slug, e.g. 'model-then-immediate-practice'; reuse it to strengthen"],
+                'kind'      => ['type' => 'string', 'enum' => SIGNAL_KINDS],
+                'statement' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 300],
+                'strength'  => ['type' => 'string', 'enum' => SIGNAL_STRENGTHS,
+                    'description' => 'one_off: 1 session; emerging: 2 distinct; established: 3 and no newer contradiction'],
+                'direction' => ['type' => 'string', 'enum' => SIGNAL_DIRECTIONS, 'default' => 'supports'],
+                'evidence'  => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                'next_test' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 300,
+                    'description' => 'The teaching experiment that would confirm or refute it'],
+            ], 'required' => ['key', 'kind', 'statement', 'strength', 'evidence']]],
+            'big_picture' => ['type' => 'object', 'properties' => [
+                'readiness' => ['type' => 'string', 'enum' => REVIEW_READINESS],
+                'why'       => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+            ], 'required' => ['readiness', 'why']],
+            'next_what' => ['type' => 'object', 'properties' => [
+                'opening_retrieval' => $refList, 'reteach' => $refList, 'consolidate' => $refList,
+                'new' => $refList, 'misconception_check' => $refList, 'challenge' => $refList,
+            ]],
+            'next_how' => ['type' => 'object', 'properties' => ['stages' => ['type' => 'array', 'maxItems' => 12,
+                'items' => ['type' => 'object', 'properties' => [
+                    'stage'  => ['type' => 'string', 'enum' => REVIEW_STAGE_KEYS],
+                    'method' => ['type' => 'string', 'enum' => REVIEW_METHODS],
+                    'why'    => ['type' => 'string', 'minLength' => 5, 'maxLength' => 300],
+                ], 'required' => ['stage', 'method', 'why']]]]],
+            'do_differently' => ['type' => 'array', 'maxItems' => 3, 'items' => ['type' => 'string', 'maxLength' => 300]],
+            'continue'       => ['type' => 'array', 'maxItems' => 3, 'items' => ['type' => 'string', 'maxLength' => 300]],
+            'watch' => ['type' => 'array', 'maxItems' => 3, 'items' => ['type' => 'object', 'properties' => [
+                'key'             => ['type' => 'string', 'pattern' => '^[a-z0-9][a-z0-9-]{1,60}$'],
+                'what_to_observe' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 300],
+            ], 'required' => ['key', 'what_to_observe']]],
+            'learner_voice' => ['type' => 'array', 'maxItems' => 10, 'items' => ['type' => 'object', 'properties' => [
+                'quote'   => ['type' => 'string', 'minLength' => 2, 'maxLength' => 300, 'description' => 'Her exact words'],
+                'context' => ['type' => 'string', 'maxLength' => 300],
+            ], 'required' => ['quote']], 'description' => 'Exact quotes only; an empty list when nothing quotable was said'],
+            'planner' => ['type' => 'object', 'properties' => [
+                'priority'      => ['type' => 'string', 'maxLength' => 200],
+                'start_with'    => ['type' => 'string', 'maxLength' => 200],
+                'teach_using'   => ['type' => 'string', 'maxLength' => 200],
+                'avoid'         => ['type' => 'string', 'maxLength' => 200],
+                'check_whether' => ['type' => 'string', 'maxLength' => 200],
+                'success'       => ['type' => 'string', 'maxLength' => 200],
+            ], 'required' => REVIEW_PLANNER],
+            'missing_evidence' => ['type' => 'array', 'maxItems' => 20, 'items' => ['type' => 'string', 'maxLength' => 300]],
+        ],
+        'required' => ['one_sentence', 'independent', 'supported', 'big_picture', 'planner', 'missing_evidence'],
+    ];
 
     return [
         [
@@ -764,7 +878,8 @@ function mcp_tools(): array
                 . "\"what do we know\", \"what's left\", \"how is she doing\", \"is X secure yet\". "
                 . "Consult it BEFORE teaching so you neither reteach secure material nor teach a topic whose prerequisite is still a gap. "
                 . "Do not rely on memory or on what was said earlier in the conversation; this tool is the source of truth.\n\n"
-                . "Args: subject (slug). Optional status (array) and strand to filter.\n"
+                . "Args: subject (slug). Optional status (array) and strand to filter; ref for one topic, "
+                . "which also reports the error-type tally its lesson reviews have built.\n"
                 . 'Read-only.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -773,6 +888,8 @@ function mcp_tools(): array
                     'status'  => ['type' => 'array', 'items' => $statusEnum,
                         'description' => 'Only these statuses, e.g. ["gap","developing"]'],
                     'strand'  => ['type' => 'string', 'description' => "Only this strand key, e.g. 'A' for Algebra"],
+                    'ref'     => ['type' => 'string', 'maxLength' => 40,
+                        'description' => 'One topic only, with its error-type tally from lesson reviews'],
                 ],
                 'required'   => ['subject'],
             ],
@@ -952,8 +1069,17 @@ function mcp_tools(): array
                 . "a status rise counts as correct and a demotion as incorrect without it. A consolidation block should pass "
                 . "consolidates: [{ ref, error_session_id? }] naming the errors it re-worked.\n\n"
                 . "Pass block_key from tracker_today when the work ran against a timetable block; the date must be the day the work was actually done.\n\n"
+                . "LESSON REVIEW: a taught session (a block whose kind requires one, or an extra of 30+ minutes) closes with a review "
+                . "in the same call — pass `review`, the object the lesson-review skill produces (one_sentence, progress[], independent, "
+                . "supported, errors[], retention, process[], helped[], hindered[], confidence[]?, signals[], big_picture, next_what, "
+                . "next_how, do_differently[], continue[], watch[], learner_voice[], planner, missing_evidence[]). The session, its "
+                . "updates, its retrieval outcomes and the review are written in one transaction; a review that fails validation refuses "
+                . "the whole call naming the field. A review never moves a status — statuses move only through updates[]; "
+                . "progress[].proposed_status is a proposal for adjudication. Every retention entry needs the matching retrieval_outcome "
+                . "on that ref in updates[]. If a review is required and none is sent the session still logs, and the reply says so; "
+                . "save one later with tracker_save_lesson_review. The student sees only your one-line 'logged'; never print the review in her chat.\n\n"
                 . 'Args: subject, summary. Optional date (defaults today), next_steps, block_key, duration_minutes, '
-                . 'unfinished, unfinished_refs[], resolves[], consolidates[], updates[] of { ref, status?, evidence, watch?, retrieval_outcome? }.',
+                . 'unfinished, unfinished_refs[], resolves[], consolidates[], updates[] of { ref, status?, evidence, watch?, retrieval_outcome? }, review.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
@@ -1005,6 +1131,7 @@ function mcp_tools(): array
                             'required'   => ['ref', 'evidence'],
                         ],
                     ],
+                    'review'     => $reviewArg,
                 ],
                 'required'   => ['subject', 'summary'],
             ],
@@ -1794,6 +1921,176 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
         [
+            'name'  => 'tracker_save_lesson_review',
+            'title' => 'Save or re-version a lesson review',
+            'description' =>
+                "Stores a lesson review against a session already logged, as a new version. The normal path is the "
+                . "`review` argument of tracker_log_session; this tool is for the two other cases — a session that was "
+                . "logged without its review, and the audit or the parent re-versioning one.\n\n"
+                . "USE WHEN: the audit (lesson-review Mode B) writes a review for a session that has none, or has re-derived "
+                . "a draft from the transcript and is saving the verified version (stage 'audited', note listing the "
+                . "corrections); or the parent corrects a review in chat (stage 'parent').\n\n"
+                . "DO NOT use it to change a topic status — the review proposes, tracker_update_topic adjudicates, with "
+                . "evidence saying the audit found the bar unmet. A draft cannot be saved over an audited or parent version. "
+                . "An identical re-save adds no version. The snapshot is the server's; there is no argument for it. "
+                . "note is required from version 2 on and must say what changed.\n\n"
+                . 'Args: subject, session_id, stage (draft|audited|parent), written_by (session|audit|chat), sections '
+                . '(the review object, as tracker_log_session\'s `review`), optional note.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'subject'    => $subjectArg,
+                    'session_id' => ['type' => 'integer', 'minimum' => 1],
+                    'stage'      => ['type' => 'string', 'enum' => REVIEW_STAGES],
+                    'written_by' => ['type' => 'string', 'enum' => REVIEW_WRITTEN_BY],
+                    'sections'   => $reviewArg,
+                    'note'       => ['type' => 'string', 'maxLength' => 600,
+                        'description' => 'What this version changed and why. Required from version 2.'],
+                ],
+                'required' => ['subject', 'session_id', 'stage', 'written_by', 'sections'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_get_lesson_review',
+            'title' => 'Read a lesson review',
+            'description' =>
+                "One session's review, rendered in the standard layout so every reader sees the same thing: the nineteen "
+                . "sections, the snapshot of the record it was written against, and the drift — how the mentioned topics' "
+                . "statuses have moved since, whether each watch signal has been observed, and whether the following "
+                . "session's review answered the planner's check_whether.\n\n"
+                . "USE WHEN: the parent asks what a lesson's review said (\"review today's maths\"), the audit re-reads a "
+                . "draft before verifying it, or a session wants more than the planner block tracker_review_queue already "
+                . "carries.\n\n"
+                . "DO NOT call it at the start of every session — the queue's last_review block is the opener. "
+                . 'planner_only: true returns just the planner and the snapshot header.\n\n'
+                . 'Args: subject, session_id. Optional version (defaults to the latest), planner_only. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'subject'      => $subjectArg,
+                    'session_id'   => ['type' => 'integer', 'minimum' => 1],
+                    'version'      => ['type' => 'integer', 'minimum' => 1],
+                    'planner_only' => ['type' => 'boolean', 'default' => false],
+                ],
+                'required' => ['subject', 'session_id'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_list_lesson_reviews',
+            'title' => 'List lesson reviews, or the sessions still owed one',
+            'description' =>
+                "One line per reviewed session, newest first: session id, date, block, stage, readiness and the one-sentence "
+                . "summary. With missing: true, instead the sessions that require a review and have none.\n\n"
+                . "USE WHEN: the parent asks how recent lessons went, the audit wants the backlog, or you need a session id "
+                . "for tracker_get_lesson_review.\n\n"
+                . 'Args: subject. Optional since (YYYY-MM-DD), limit (default 10), stage, missing. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'since'   => $isoDate,
+                    'limit'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 10],
+                    'stage'   => ['type' => 'string', 'enum' => REVIEW_STAGES],
+                    'missing' => ['type' => 'boolean', 'default' => false],
+                ],
+                'required' => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_signals',
+            'title' => 'Read the signals — how she learns, what lands',
+            'description' =>
+                "The longitudinal spine: every observation the lesson reviews have made about how the learner learns and "
+                . "how teaching methods land, each with its strength (one_off, emerging, established — derived from the "
+                . "count of distinct sessions citing it), its status, its evidence trail and its pending test.\n\n"
+                . "USE WHEN: planning how to teach rather than what (the established signals are the ones to trust), the "
+                . "parent asks \"how does she learn\", the weekly review rolls up patterns, or before writing a signal in a "
+                . "review — reuse an existing key rather than coining a near-duplicate.\n\n"
+                . "DO NOT treat a one_off as a pattern: one occurrence is an observation, and the strength says so.\n\n"
+                . 'Args: all optional — subject (its signals, then the cross-subject ones), kind, status (default open), '
+                . 'min_strength. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'subject'      => $subjectArg,
+                    'kind'         => ['type' => 'string', 'enum' => SIGNAL_KINDS],
+                    'status'       => ['type' => 'string', 'enum' => array_merge(SIGNAL_STATUSES, ['any']), 'default' => 'open'],
+                    'min_strength' => ['type' => 'string', 'enum' => SIGNAL_STRENGTHS],
+                ],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_update_signal',
+            'title' => 'Move a signal: resolve, refute, set its test, add evidence',
+            'description' =>
+                "Changes one signal's status (resolved or refuted, with the evidence that decided it), sets or clears its "
+                . "next_test, or adds an evidence row from a session outside a review. Strength is never an argument — it is "
+                . "derived from the evidence rows, and a contradiction can lower it.\n\n"
+                . "USE WHEN: a watch has been answered, a test has been run and the signal held or fell, the parent decides "
+                . "an open test, or the weekly review promotes a learning-process signal to cross-subject (that is a new "
+                . "signal with no subject; say so in its statement).\n\n"
+                . "DO NOT use it to raise a strength; write the evidence in a review's signals[] and let the count rule decide.\n\n"
+                . 'Args: id. Optional status (resolved|refuted, needs evidence), evidence, next_test (null clears), '
+                . 'session_id and direction (supports|contradicts) to add an evidence row.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'id'         => ['type' => 'integer', 'minimum' => 1],
+                    'status'     => ['type' => 'string', 'enum' => ['resolved', 'refuted', 'open']],
+                    'evidence'   => ['type' => 'string', 'minLength' => 10, 'maxLength' => 600],
+                    'next_test'  => ['type' => ['string', 'null'], 'maxLength' => 300],
+                    'session_id' => ['type' => 'integer', 'minimum' => 1],
+                    'direction'  => ['type' => 'string', 'enum' => SIGNAL_DIRECTIONS],
+                ],
+                'required' => ['id'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_review_audit_queue',
+            'title' => 'The auditor\'s opener: what to verify since the last audit',
+            'description' =>
+                "Everything the scheduled review audit needs, computed here so it is never told what to look for: sessions "
+                . "since the last audit stamp that require a review and have none, reviews still at draft, the consistency "
+                . "flags (a secure seen without a proposal, a promotion with no number in its evidence, a two-level rise, a "
+                . "retention entry with no outcome, a test untested for 3+ sessions, a watch unreferenced for 5+, a quote that "
+                . "also appears in the session summary), and the previous audit's note.\n\n"
+                . "USE WHEN: opening the audit (lesson-review Mode B). Work the queue — locate each session's chat, write or "
+                . "re-derive its review with tracker_save_lesson_review, correct statuses through tracker_update_topic with "
+                . "evidence, move signals with tracker_update_signal — then close with tracker_audit_stamp.\n\n"
+                . 'Args: subject. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => ['subject' => $subjectArg],
+                'required' => ['subject'],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
+            'name'  => 'tracker_audit_stamp',
+            'title' => 'Close an audit',
+            'description' =>
+                "Sets the audit stamp for a subject and stores the audit's note — what it verified, what it corrected, which "
+                . "sessions' chats could not be found. The queue is then empty until new sessions arrive.\n\n"
+                . "USE WHEN: the audit has worked through tracker_review_audit_queue. Stamp even when nothing needed "
+                . "correcting; the note says so.\n\n"
+                . 'Args: subject, note (10-1000 chars).',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'subject' => $subjectArg,
+                    'note'    => ['type' => 'string', 'minLength' => 10, 'maxLength' => 1000],
+                ],
+                'required' => ['subject', 'note'],
+            ],
+            'annotations' => $write,
+        ],
+        [
             'name'  => 'tracker_retrieval_due',
             'title' => 'What to ask in a retrieval block, in order',
             'description' =>
@@ -1878,7 +2175,16 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $lines[] = '';
             $lines[] = 'Blocks:';
             foreach ($judged as $b) {
-                $lines[] = '  ' . mcp_block_line($b);
+                // reviewed / review missing / — : whether the session that
+                // did the block has its lesson review, when one is required.
+                $tag = '';
+                foreach ($b['evidence'] ?? [] as $e) {
+                    if ($e['type'] === 'session') {
+                        $word = mcp_review_word($store->sessionById((int) $e['id']));
+                        $tag  = $word === '' ? '' : '  · ' . $word;
+                    }
+                }
+                $lines[] = '  ' . mcp_block_line($b) . $tag;
             }
             $missed = array_values(array_filter($judged, static fn($b) => $b['status'] === 'missed'));
             if ($missed) {
@@ -2412,6 +2718,63 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 }
             }
 
+            // What each taught session's review concluded, and how the
+            // signals moved, so parent-weekly-review rolls patterns up
+            // without re-deriving them from prose.
+            $sunday = tt_add_days($monday, 6);
+            $lines[] = "\nREVIEWS THIS WEEK";
+            $pairs   = $store->lessonReviewsBetween($monday, $sunday);
+            if (!$pairs) {
+                $lines[] = '- no lesson review saved for a session this week.';
+            }
+            foreach ($pairs as $pair) {
+                $x  = $pair['session'];
+                $rv = $pair['review'];
+                $lines[] = '- ' . $x['date'] . ' ' . $x['subject_slug'] . ' session ' . $x['id'] . ' · '
+                    . ($rv['sections']['big_picture']['readiness'] ?? '?') . ' (' . $rv['stage'] . ') — '
+                    . ($rv['sections']['one_sentence'] ?? '');
+            }
+            $owed = [];
+            foreach ($names as $slug => $_) {
+                foreach ($store->sessionsMissingReview($slug, $monday) as $x) {
+                    if ($x['date'] <= $sunday) {
+                        $owed[] = $x['subject_slug'] . ' session ' . $x['id'] . ' (' . $x['date'] . ')';
+                    }
+                }
+            }
+            if ($owed) {
+                $lines[] = '- REVIEW MISSING: ' . implode(', ', $owed) . '.';
+            }
+            $lines[] = "\nSIGNAL MOVEMENT";
+            $events = $store->signalEventsBetween($monday, $sunday);
+            if (!$events) {
+                $lines[] = '- no signal opened, strengthened, resolved or refuted this week.';
+            }
+            foreach ($events as $ev) {
+                $who = ($ev['subject_slug'] ?? 'cross-subject') . ' ' . $ev['key'];
+                $lines[] = '- ' . match ((string) $ev['change']) {
+                    'opened'   => "$who opened (one_off): " . $ev['statement'],
+                    'strength' => "$who {$ev['from_value']} → {$ev['to_value']}"
+                        . ($ev['to_value'] === 'established' ? ' — ESTABLISHED, name it to the parent with its trail' : ''),
+                    default    => "$who {$ev['from_value']} → {$ev['to_value']}" . ($ev['detail'] ? ' — ' . $ev['detail'] : ''),
+                } . ($ev['session_id'] ? ' (session ' . $ev['session_id'] . ')' : '');
+            }
+            $stale = [];
+            foreach ($store->signals(['status' => 'open']) as $g) {
+                if ($g['next_test'] === null || $g['next_test'] === '' || $g['last_session'] === null) {
+                    continue;
+                }
+                $lastEv = $store->sessionById((int) $g['last_session']);
+                if ($lastEv && $store->sessionsSince((string) $lastEv['subject_slug'], (string) $lastEv['date'], (int) $lastEv['id'])
+                    >= REVIEW_TEST_STALE_SESSIONS) {
+                    $stale[] = '#' . $g['id'] . ' ' . $g['key'] . ': ' . $g['next_test'];
+                }
+            }
+            if ($stale) {
+                $lines[] = '- tests open ' . REVIEW_TEST_STALE_SESSIONS . '+ sessions, to put to the parent as decisions: '
+                    . implode('; ', $stale) . '.';
+            }
+
             $review    = $store->weeklyReview($week);
             $lastTimed = $snap['timed']['this_week']
                 ? $snap['timed']['this_week'][count($snap['timed']['this_week']) - 1]
@@ -2570,6 +2933,368 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             return mcp_text(implode("\n", $lines));
         }
 
+        case 'tracker_save_lesson_review': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $id   = (int) mcp_num($a, 'session_id', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $session = $store->getSession($slug, $id);
+            if (!$session) {
+                return mcp_text("No session $id in $slug. Call tracker_list_lesson_reviews(missing: true) or tracker_history for the ids.");
+            }
+            if ($session['void_reason'] !== null) {
+                throw new McpError("Session $id is void ({$session['void_reason']}); a void session is not reviewed. Nothing was written.");
+            }
+            $stage = mcp_str($a, 'stage', true, 1, 20);
+            if (!in_array($stage, REVIEW_STAGES, true)) {
+                throw new McpError('stage must be one of: ' . implode(', ', REVIEW_STAGES) . '.');
+            }
+            $by = mcp_str($a, 'written_by', true, 1, 20);
+            if (!in_array($by, REVIEW_WRITTEN_BY, true)) {
+                throw new McpError('written_by must be one of: ' . implode(', ', REVIEW_WRITTEN_BY) . '.');
+            }
+            $note     = mcp_str($a, 'note', false, 0, 600);
+            $versions = $store->lessonReviewVersions($id);
+            // The late-routine guard: a draft cannot land over a version the
+            // audit or the parent has already written.
+            if ($stage === 'draft') {
+                foreach ($versions as $v) {
+                    if ($v['stage'] !== 'draft') {
+                        throw new McpError("Session $id already has a {$v['stage']} review (version {$v['version']}, written "
+                            . mcp_review_when((string) $v['written_at']) . "). Send stage '{$v['stage']}' or later, carrying "
+                            . 'its sections forward with whatever changed. Nothing was written.');
+                    }
+                }
+            }
+            if ($versions && ($note === null || trim($note) === '')) {
+                throw new McpError("Session $id already has version " . count($versions) . '; a new version needs a note '
+                    . 'saying what changed and why. Nothing was written.');
+            }
+            $ctx      = mcp_review_context_for_session($store, $slug, $id);
+            $sections = mcp_lesson_sections($a['sections'] ?? null, $ctx);
+            $out      = $store->transaction(static fn(): array =>
+                mcp_apply_review($store, $slug, $id, $sections, $stage, $by, $note));
+            $row  = $out['row'];
+            $when = mcp_review_when((string) $row['written_at']);
+            $head = $out['status'] === 'duplicate'
+                ? "Version {$row['version']} ({$row['stage']}) for session $id already says exactly this, written $when — no version was added."
+                : "Saved version {$row['version']} ({$row['stage']}) for session $id, written $when.";
+            $lines = array_merge([$head], $out['lines']);
+            $lines[] = "Read it with tracker_get_lesson_review or at /s/$slug/session/$id.";
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_get_lesson_review': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $id   = (int) mcp_num($a, 'session_id', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $session = $store->getSession($slug, $id);
+            if (!$session) {
+                return mcp_text("No session $id in $slug.");
+            }
+            $version  = isset($a['version']) ? (int) mcp_num($a, 'version', false, 1, 999) : null;
+            $versions = $store->lessonReviewVersions($id);
+            if (!$versions) {
+                return mcp_text("Session $id ($session[date]) has no lesson review"
+                    . ((int) ($session['review_required'] ?? 0) === 1 ? ' and requires one' : '')
+                    . '. Write one with tracker_save_lesson_review.');
+            }
+            $row = $store->lessonReview($id, $version);
+            if (!$row) {
+                return mcp_text("There is no version $version for session $id. Versions that exist: "
+                    . implode(', ', array_map(static fn($v) => $v['version'] . ' (' . $v['stage'] . ')', $versions)) . '.');
+            }
+            $last  = $versions[count($versions) - 1]['version'];
+            $lines = ["Lesson review — session $id, {$session['date']} · version {$row['version']} of $last · {$row['stage']} · "
+                . review_written_by((string) $row['written_by']) . ' · ' . mcp_review_when((string) $row['written_at'])];
+            if ($row['note']) {
+                $lines[] = 'Note on the save: ' . $row['note'];
+            }
+            if (count($versions) > 1) {
+                $lines[] = 'Versions: ' . implode(', ', array_map(
+                    static fn($v) => $v['version'] . ' ' . $v['stage'] . ' (' . mcp_review_when((string) $v['written_at']) . ')'
+                        . ($v['note'] ? ' — ' . $v['note'] : ''),
+                    $versions
+                ));
+            }
+            $lines[] = '';
+            if (!empty($a['planner_only'])) {
+                $lines[] = 'PLANNER';
+                foreach (review_planner_lines($row['sections']['planner'] ?? []) as $l) {
+                    $lines[] = $l;
+                }
+                $lines[] = 'READINESS: ' . ($row['sections']['big_picture']['readiness'] ?? '?');
+                return mcp_text(implode("\n", $lines));
+            }
+            foreach (review_render_text($row['sections'], $row['snapshot']) as $l) {
+                $lines[] = $l;
+            }
+            $snap = $row['snapshot'];
+            $lines[] = '';
+            $lines[] = 'SNAPSHOT (the record when this was written, ' . mcp_review_when((string) ($snap['captured_at'] ?? $row['written_at'])) . ')';
+            if (!empty($snap['block'])) {
+                $b = $snap['block'];
+                $lines[] = '  block ' . $b['block_key'] . ' ' . $b['label'] . ' (' . $b['kind'] . ') judged ' . $b['status']
+                    . (($b['shape'] ?? null) === 'unmet' ? ' — shape unmet: ' . $b['shape_reason'] : '');
+            }
+            foreach ($snap['statuses'] ?? [] as $ref => $st) {
+                $lines[] = '  ' . $ref . ': ' . ($st['before'] ?? '—') . ' → ' . ($st['after'] ?? '—')
+                    . (!empty($st['moved']) ? ' (moved by this session)' : '')
+                    . (isset($snap['outcomes'][$ref]) ? ' · retrieval ' . $snap['outcomes'][$ref] : '');
+            }
+            if (!empty($snap['practice'])) {
+                $lines[] = '  practice that day: ' . implode('; ', array_map(
+                    static fn(array $p): string => $p['source'] . ' ' . $p['correct'] . '/' . $p['attempted'], $snap['practice']
+                ));
+            }
+            if (!empty($snap['unfinished'])) {
+                $lines[] = '  unfinished at the time: ' . $snap['unfinished'];
+            }
+            $lines[] = '';
+            $lines[] = 'DRIFT (the record now against the snapshot)';
+            foreach ($store->lessonReviewDrift($row)['lines'] as $l) {
+                $lines[] = '  ' . $l;
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_list_lesson_reviews': {
+            $slug  = mcp_str($a, 'subject', true, 1);
+            $limit = (int) mcp_num($a, 'limit', false, 1, 100, 10);
+            $since = mcp_date($a, 'since');
+            $stage = mcp_str($a, 'stage', false, 1, 20);
+            if ($stage !== null && !in_array($stage, REVIEW_STAGES, true)) {
+                throw new McpError('stage must be one of: ' . implode(', ', REVIEW_STAGES) . '.');
+            }
+            $r = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            if (!empty($a['missing'])) {
+                $rows = $store->sessionsMissingReview($slug, $since);
+                if (!$rows) {
+                    return mcp_text('No session in ' . $r['subject']['name'] . ' is owed a review.');
+                }
+                $lines = ['Sessions that require a review and have none — ' . $r['subject']['name']];
+                foreach (array_slice($rows, 0, $limit) as $x) {
+                    $lines[] = '- session ' . $x['id'] . ' · ' . $x['date'] . ' · block '
+                        . ($x['block_key'] === null ? 'extra' : $x['block_key'])
+                        . ($x['duration_minutes'] !== null ? ' · ' . $x['duration_minutes'] . ' min' : '')
+                        . ' — ' . mb_substr((string) $x['summary'], 0, 100);
+                }
+                $lines[] = 'Save each with tracker_save_lesson_review(subject, session_id, stage, written_by, sections).';
+                return mcp_text(implode("\n", $lines));
+            }
+            $pairs = $store->listLessonReviews($slug, ['since' => $since, 'limit' => $limit, 'stage' => $stage]);
+            if (!$pairs) {
+                return mcp_text('No lesson reviews for ' . $r['subject']['name'] . ($since ? " since $since" : '') . ' yet.');
+            }
+            $lines = ['Lesson reviews — ' . $r['subject']['name'] . ', newest first'];
+            foreach ($pairs as $pair) {
+                $x  = $pair['session'];
+                $rv = $pair['review'];
+                $lines[] = '- session ' . $x['id'] . ' · ' . $x['date'] . ' · block '
+                    . ($x['block_key'] === null ? 'extra' : $x['block_key']) . ' · ' . $rv['stage'] . ' v' . $rv['version']
+                    . ' · ' . ($rv['sections']['big_picture']['readiness'] ?? '?') . ' — '
+                    . ($rv['sections']['one_sentence'] ?? '');
+            }
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_signals': {
+            $slug = mcp_str($a, 'subject', false, 1);
+            if ($slug !== null) {
+                $r = mcp_resolve($store, $slug);
+                if (isset($r['error'])) {
+                    return mcp_text($r['error']);
+                }
+            }
+            $kind = mcp_str($a, 'kind', false, 1, 30);
+            if ($kind !== null && !in_array($kind, SIGNAL_KINDS, true)) {
+                throw new McpError('kind must be one of: ' . implode(', ', SIGNAL_KINDS) . '.');
+            }
+            $status = mcp_str($a, 'status', false, 1, 20, 'open');
+            if (!in_array($status, array_merge(SIGNAL_STATUSES, ['any']), true)) {
+                throw new McpError('status must be one of: ' . implode(', ', SIGNAL_STATUSES) . ', any.');
+            }
+            $min = mcp_str($a, 'min_strength', false, 1, 20);
+            if ($min !== null && !in_array($min, SIGNAL_STRENGTHS, true)) {
+                throw new McpError('min_strength must be one of: ' . implode(', ', SIGNAL_STRENGTHS) . '.');
+            }
+            $rows = $store->signals([
+                'subject' => $slug, 'include_cross' => true, 'kind' => $kind,
+                'status' => $status === 'any' ? null : $status, 'min_strength' => $min,
+            ]);
+            if (!$rows) {
+                return mcp_text('No signals match' . ($slug ? " for $slug" : '') . '. They are written by lesson reviews (signals[] and watch[]).');
+            }
+            $lines = ['Signals' . ($slug ? " — $slug, then cross-subject" : ' — every subject') . " · status $status"];
+            $group = null;
+            foreach ($rows as $g) {
+                $head = ($g['subject_slug'] ?? 'cross-subject') . ' · ' . $g['strength'];
+                if ($head !== $group) {
+                    $group   = $head;
+                    $lines[] = "\n### $head";
+                }
+                $lines[] = '- ' . signal_line($g);
+                $ev = $store->signalEvidence($g['id']);
+                foreach (array_slice($ev, -3) as $e) {
+                    $lines[] = '    ' . ($e['direction'] === 'supports' ? '+' : '−') . ' session ' . $e['session_id']
+                        . ' (' . $e['date'] . '): ' . $e['evidence'];
+                }
+                if (count($ev) > 3) {
+                    $lines[] = '    …' . (count($ev) - 3) . ' earlier row' . (count($ev) - 3 === 1 ? '' : 's');
+                }
+            }
+            $lines[] = '';
+            $lines[] = 'Strength is derived: one_off 1 session, emerging 2 distinct, established 3 with no newer '
+                . 'contradiction. Move a signal with tracker_update_signal; strengthen it by citing it in a review.';
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_update_signal': {
+            $id = (int) mcp_num($a, 'id', true, 1);
+            $g  = $store->signalById($id);
+            if (!$g) {
+                return mcp_text("No signal $id. List them with tracker_signals.");
+            }
+            $status   = mcp_str($a, 'status', false, 1, 20);
+            $evidence = mcp_str($a, 'evidence', false, 10, 600);
+            $sid      = isset($a['session_id']) ? (int) mcp_num($a, 'session_id', false, 1) : null;
+            $dir      = mcp_str($a, 'direction', false, 1, 20);
+            $what     = [];
+            if ($status !== null) {
+                if (!in_array($status, SIGNAL_STATUSES, true)) {
+                    throw new McpError('status must be one of: ' . implode(', ', SIGNAL_STATUSES) . '.');
+                }
+                if ($status !== 'open' && $evidence === null) {
+                    throw new McpError("Marking a signal $status needs evidence (10-600 chars) saying what decided it. Nothing was written.");
+                }
+            }
+            if ($sid !== null) {
+                $row = $store->sessionById($sid);
+                if (!$row || ($g['subject_slug'] !== null && (string) $row['subject_slug'] !== $g['subject_slug'])) {
+                    throw new McpError("session_id $sid is not a session" . ($g['subject_slug'] ? " of {$g['subject_slug']}" : '')
+                        . '. Nothing was written.');
+                }
+                if ($evidence === null) {
+                    throw new McpError('Adding an evidence row needs evidence (10-600 chars). Nothing was written.');
+                }
+                $dir ??= $status === 'refuted' ? 'contradicts' : 'supports';
+                if (!in_array($dir, SIGNAL_DIRECTIONS, true)) {
+                    throw new McpError('direction must be supports or contradicts.');
+                }
+            } elseif ($dir !== null) {
+                throw new McpError('direction goes with session_id: an evidence row belongs to a session. Nothing was written.');
+            }
+            $changes = [];
+            if ($status !== null) {
+                $changes['status'] = $status;
+                $changes['evidence'] = $evidence;
+            }
+            if (array_key_exists('next_test', $a)) {
+                $changes['next_test'] = $a['next_test'] === null ? null : mcp_str($a, 'next_test', false, 10, 300);
+            }
+            if (!$changes && $sid === null) {
+                throw new McpError('Give status, next_test, or session_id with evidence to change something.');
+            }
+            $store->transaction(function () use ($store, $id, $sid, $dir, $evidence, $changes, $g, $status, &$what): void {
+                if ($sid !== null) {
+                    $res = $store->addSignalEvidence($id, $sid, $dir, $evidence);
+                    $what[] = "evidence row added from session $sid ($dir)";
+                    if ($res['strength_from'] !== $res['strength_to']) {
+                        $what[] = 'strength ' . $res['strength_from'] . ' → ' . $res['strength_to'] . ' (re-derived)';
+                    }
+                }
+                if ($changes) {
+                    $changes['session_id'] = $sid;
+                    $store->updateSignal($id, $changes);
+                    if ($status !== null && $status !== $g['status']) {
+                        $what[] = 'status ' . $g['status'] . ' → ' . $status;
+                    }
+                    if (array_key_exists('next_test', $changes) && $changes['next_test'] !== $g['next_test']) {
+                        $what[] = $changes['next_test'] === null ? 'next_test cleared' : 'next_test set';
+                    }
+                }
+            });
+            $now = $store->signalById($id);
+            return mcp_text("Signal $id {$g['key']}: " . ($what ? implode('; ', $what) : 'nothing changed') . ".\n"
+                . signal_line($now));
+        }
+
+        case 'tracker_review_audit_queue': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $q     = $store->reviewAuditQueue($slug);
+            $lines = ['**Review audit — ' . $r['subject']['name'] . '** · ' . tt_today()];
+            $lines[] = $q['stamp']['at'] === null
+                ? 'No audit has run for this subject yet; everything is in scope.'
+                : 'Last audit ' . mcp_review_when((string) $q['stamp']['at']) . '. Its note: ' . ($q['stamp']['note'] ?? '—');
+
+            $lines[] = "\n### Sessions owed a review (" . count($q['missing']) . ')';
+            if (!$q['missing']) {
+                $lines[] = '- none.';
+            }
+            foreach ($q['missing'] as $x) {
+                $lines[] = '- session ' . $x['id'] . ' · ' . $x['date'] . ' · block '
+                    . ($x['block_key'] === null ? 'extra' : $x['block_key'])
+                    . ($x['duration_minutes'] !== null ? ' · ' . $x['duration_minutes'] . ' min' : '')
+                    . ' — ' . mb_substr((string) $x['summary'], 0, 120)
+                    . (!empty($x['carried_over']) ? ' (carried over from before the last audit)' : '')
+                    . ' → find the chat by date and block, write the review with written_by audit.';
+            }
+
+            $lines[] = "\n### Drafts to verify (" . count($q['drafts']) . ')';
+            if (!$q['drafts']) {
+                $lines[] = '- none.';
+            }
+            foreach ($q['drafts'] as $pair) {
+                $x  = $pair['session'];
+                $rv = $pair['review'];
+                $lines[] = '- session ' . $x['id'] . ' · ' . $x['date'] . ' · v' . $rv['version'] . ' draft · '
+                    . ($rv['sections']['big_picture']['readiness'] ?? '?') . ' — ' . ($rv['sections']['one_sentence'] ?? '')
+                    . ' → re-derive from the transcript; save an audited version whose note lists the corrections.';
+            }
+
+            $lines[] = "\n### Consistency flags (" . count($q['flags']) . ')';
+            if (!$q['flags']) {
+                $lines[] = '- none.';
+            }
+            foreach ($q['flags'] as $f) {
+                $lines[] = '- [' . $f['code'] . '] ' . $f['text'];
+            }
+
+            $lines[] = '';
+            $lines[] = 'A draft is a claim to be tested, not a starting point to be polished. Status corrections go '
+                . 'through tracker_update_topic with evidence saying the audit found the bar unmet. Close with '
+                . "tracker_audit_stamp(subject: \"$slug\", note). If a session's chat cannot be found, say so in the note "
+                . "and save its review audited with note 'transcript unavailable; verified against record only'.";
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_audit_stamp': {
+            $slug = mcp_str($a, 'subject', true, 1);
+            $note = mcp_str($a, 'note', true, 10, 1000);
+            $r    = mcp_resolve($store, $slug);
+            if (isset($r['error'])) {
+                return mcp_text($r['error']);
+            }
+            $at = $store->setAuditStamp($slug, $note);
+            $q  = $store->reviewAuditQueue($slug);
+            return mcp_text("Audit stamped for $slug at " . mcp_review_when($at) . '. Note stored. '
+                . 'Still owed a review: ' . count($q['missing']) . ' session' . (count($q['missing']) === 1 ? '' : 's')
+                . ' (carried over to the next audit); ' . count($q['flags']) . ' signal flag'
+                . (count($q['flags']) === 1 ? '' : 's') . ' still standing.');
+        }
+
         case 'tracker_retrieval_due': {
             $limit    = (int) mcp_num($a, 'limit', false, 1, 60, 8);
             $retired  = !empty($a['include_retired']);
@@ -2685,9 +3410,13 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 }
                 $filter['status'] = $a['status'];
             }
+            $ref  = mcp_str($a, 'ref', false, 1, 40);
             $rows = $store->listTopics($slug, $filter);
+            if ($ref !== null) {
+                $rows = array_values(array_filter($rows, static fn(array $t): bool => (string) $t['ref'] === $ref));
+            }
             if (!$rows) {
-                return mcp_text('No topics match that filter.');
+                return mcp_text($ref !== null ? "No topic \"$ref\" in $slug." : 'No topics match that filter.');
             }
             $p       = progressFor($store, $slug);
             $summary = [];
@@ -2696,8 +3425,18 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             }
             $head = '**' . $s['name'] . '** (' . ($s['spec_code'] ?? 'no spec code')
                 . ($s['tier'] ? ', ' . $s['tier'] : '') . ') — ' . $p['pct'] . '% of the specification covered.';
+            $tail = '';
+            if ($ref !== null) {
+                // The error-type tally the lesson reviews have built for the
+                // topic: "three of the last four errors were procedure".
+                $tally = $store->errorTally($slug, $ref);
+                $tail  = "\n\nErrors recorded by lesson reviews on $ref: " . ($tally
+                    ? implode(', ', array_map(static fn($k, $n) => "$k $n", array_keys($tally), $tally))
+                        . ' — tracker_history(ref) lists them.'
+                    : 'none yet.');
+            }
             return mcp_text($head . "\n" . implode(' · ', $summary) . "\n\n" . TOPIC_HEADER . "\n"
-                . implode("\n", array_map('mcp_topic_line', $rows)));
+                . implode("\n", array_map('mcp_topic_line', $rows)) . $tail);
         }
 
         case 'tracker_review_queue': {
@@ -2722,6 +3461,13 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             // and then whatever was stopped before the end. Both come before
             // the three groups because both name work already begun.
             $parts[] = "\n" . mcp_last_session_text($store, $slug);
+            // The last review's planner, things to watch, open signals and
+            // errors: what the review decided, in the call the tutor already
+            // makes, so no skill has to know reviews exist to benefit.
+            $reviewLines = mcp_last_review_lines($store, $slug);
+            if ($reviewLines) {
+                $parts[] = "\n" . implode("\n", $reviewLines);
+            }
             if ($queue['unfinished']) {
                 $parts[] = "\n### UNFINISHED (open — finish these before starting something new)\n"
                     . implode("\n", mcp_unfinished_lines($queue['unfinished']))
@@ -2896,6 +3642,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 return mcp_text($r['error']);
             }
             $h = $store->history($slug, $weeks, $ref);
+            $reviews = $store->lessonReviewsForSessions(array_map(static fn($x) => (int) $x['id'], $h['sessions']));
 
             // Everything is bucketed by ISO week so the trail reads as a
             // timeline rather than a flat list of rows.
@@ -2925,7 +3672,10 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
                 foreach ($b['sessions'] ?? [] as $x) {
                     $void = $x['void_reason'] ?? null;
-                    $parts[] = '- **Session ' . $x['id'] . '** ' . $x['date']
+                    $rv   = $reviews[(int) $x['id']] ?? null;
+                    $tag  = $rv ? ' [review v' . $rv['version'] . ' ' . $rv['stage'] . ']'
+                        : ((int) ($x['review_required'] ?? 0) === 1 ? ' [review MISSING]' : '');
+                    $parts[] = '- **Session ' . $x['id'] . '** ' . $x['date'] . $tag
                         . ($void ? ' — VOID: ' . $void : '') . ' — ' . $x['summary'];
                     if ($x['next_steps']) {
                         $parts[] = '  - Planned next: ' . $x['next_steps'];
@@ -2946,6 +3696,20 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     $parts[] = '- ' . $c['ref'] . ($name ? ' ' . $name : '') . ': ' . $from . ' → ' . $to
                         . ($c['session_id'] ? ' (session ' . $c['session_id'] . ')' : ' (standalone update)')
                         . "\n  - " . $c['evidence'];
+                }
+            }
+            // In ref mode, the error history the reviews have built for the
+            // topic: what kind of error it keeps being, newest first.
+            if ($ref !== null) {
+                $errs = $store->reviewErrorsForRef($slug, $ref, 20);
+                if ($errs) {
+                    $tally = $store->errorTally($slug, $ref);
+                    $parts[] = "\n### Errors recorded by lesson reviews on $ref — "
+                        . implode(', ', array_map(static fn($k, $n) => "$k $n", array_keys($tally), $tally));
+                    foreach ($errs as $e) {
+                        $parts[] = '- ' . $e['date'] . ' (session ' . $e['session_id'] . ') ' . $e['error_type'] . ' — '
+                            . $e['what'] . ' → ' . $e['response'];
+                    }
                 }
             }
             $parts[] = '';
@@ -3130,66 +3894,99 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 $cleanUpdates[] = $cu;
             }
 
-            $sessionId = $store->addSession([
-                'subject_slug'     => $slug,
-                'date'             => $when,
-                'summary'          => $summary,
-                'topics_touched'   => null,
-                'next_steps'       => $next,
-                'block_key'        => $blockKey ?: null,
-                'duration_minutes' => $minutes,
-                'unfinished'       => $unfinished,
-                'unfinished_refs'  => $unfinishedRefs,
-                'consolidates'     => $consolidates['clean'],
-            ]);
+            // The review is validated whole before anything is written, against
+            // the record as it stands: which refs the updates will move, and
+            // which retrieval outcomes they carry. A review that fails names
+            // the field and the session is not logged either — never half.
+            $review = null;
+            $before = [];
+            $ctx    = null;
+            if (array_key_exists('review', $a) && $a['review'] !== null) {
+                $ctx    = mcp_review_context($store, $slug, $cleanUpdates);
+                $review = mcp_lesson_sections($a['review'], $ctx);
+                foreach ($cleanUpdates as $cu) {
+                    $before[$cu['ref']] = $ctx['topics'][$cu['ref']]['status'] ?? null;
+                }
+            }
+            $required = $store->reviewRequiredFor($blockKey ?: null, $when, $minutes);
 
+            $sessionId = 0;
             $scheduled = 0;
-            foreach ($cleanUpdates as $cu) {
-                $uref = $cu['ref'];
-                $refs[] = $uref;
-                $args = [
-                    'subject_slug' => $slug,
-                    'ref'          => $uref,
-                    'status'       => $cu['status'],
-                    'evidence'     => $cu['evidence'],
-                    'last_touched' => $when,
-                    'session_id'   => $sessionId,
-                ];
-                if (array_key_exists('watch', $cu)) {
-                    $args['watch'] = $cu['watch'];
-                }
-                $res = $store->updateTopicStatus($args);
-                if (!$res) {
-                    $missing[] = $uref;
-                    continue;
-                }
-                $applied[] = $res['previous'] === $res['current']
-                    ? "$uref (still " . STATUS_LABEL[$res['current']] . ')'
-                    : "$uref: " . STATUS_LABEL[$res['previous']] . ' → ' . STATUS_LABEL[$res['current']];
+            $closed    = [];
+            $reviewOut = null;
+            // One transaction: the session row, its topic changes, its
+            // retrieval outcomes, what it resolves, and its review.
+            $store->transaction(function () use (
+                $store, $slug, $when, $summary, $next, $blockKey, $minutes, $unfinished, $unfinishedRefs,
+                $consolidates, $cleanUpdates, $resolves, $required, $review, $before, $ctx,
+                &$sessionId, &$applied, &$missing, &$refs, &$scheduled, &$closed, &$reviewOut
+            ): void {
+                $sessionId = $store->addSession([
+                    'subject_slug'     => $slug,
+                    'date'             => $when,
+                    'summary'          => $summary,
+                    'topics_touched'   => null,
+                    'next_steps'       => $next,
+                    'block_key'        => $blockKey ?: null,
+                    'duration_minutes' => $minutes,
+                    'unfinished'       => $unfinished,
+                    'unfinished_refs'  => $unfinishedRefs,
+                    'consolidates'     => $consolidates['clean'],
+                ]);
+                $store->setReviewRequired($sessionId, $required['required']);
 
-                // Retrieval evidence at topic grain. An explicit outcome
-                // wins; otherwise only a rise or a fall says anything.
-                $outcome = $cu['outcome'] ?? retrieval_infer_outcome($res['previous'], $res['current']);
-                if ($outcome !== null) {
-                    retrieval_apply($store, $slug, 'topic', $uref, $uref, null, $outcome, $when);
-                    $scheduled++;
-                }
-                if (retrieval_infer_outcome($res['previous'], $res['current']) === 'incorrect') {
-                    // A demotion brings retired items on the topic back.
-                    retrieval_unretire_topic($store, $slug, $uref);
-                }
-            }
+                foreach ($cleanUpdates as $cu) {
+                    $uref = $cu['ref'];
+                    $refs[] = $uref;
+                    $args = [
+                        'subject_slug' => $slug,
+                        'ref'          => $uref,
+                        'status'       => $cu['status'],
+                        'evidence'     => $cu['evidence'],
+                        'last_touched' => $when,
+                        'session_id'   => $sessionId,
+                    ];
+                    if (array_key_exists('watch', $cu)) {
+                        $args['watch'] = $cu['watch'];
+                    }
+                    $res = $store->updateTopicStatus($args);
+                    if (!$res) {
+                        $missing[] = $uref;
+                        continue;
+                    }
+                    $applied[] = $res['previous'] === $res['current']
+                        ? "$uref (still " . STATUS_LABEL[$res['current']] . ')'
+                        : "$uref: " . STATUS_LABEL[$res['previous']] . ' → ' . STATUS_LABEL[$res['current']];
 
-            if ($refs) {
-                $store->setSessionTopics($sessionId, implode(', ', $refs));
-            }
-
-            $closed = [];
-            foreach ($resolves['close'] as $id) {
-                if ($store->closeUnfinished($id, $sessionId, "completed in session $sessionId")) {
-                    $closed[] = $id;
+                    // Retrieval evidence at topic grain. An explicit outcome
+                    // wins; otherwise only a rise or a fall says anything.
+                    $outcome = $cu['outcome'] ?? retrieval_infer_outcome($res['previous'], $res['current']);
+                    if ($outcome !== null) {
+                        retrieval_apply($store, $slug, 'topic', $uref, $uref, null, $outcome, $when);
+                        $scheduled++;
+                    }
+                    if (retrieval_infer_outcome($res['previous'], $res['current']) === 'incorrect') {
+                        // A demotion brings retired items on the topic back.
+                        retrieval_unretire_topic($store, $slug, $uref);
+                    }
                 }
-            }
+
+                if ($refs) {
+                    $store->setSessionTopics($sessionId, implode(', ', $refs));
+                }
+
+                foreach ($resolves['close'] as $id) {
+                    if ($store->closeUnfinished($id, $sessionId, "completed in session $sessionId")) {
+                        $closed[] = $id;
+                    }
+                }
+
+                if ($review !== null) {
+                    $reviewOut = mcp_apply_review(
+                        $store, $slug, $sessionId, $review, 'draft', 'session', null, $before, $ctx['outcomes']
+                    );
+                }
+            });
 
             $lines = ["Session $sessionId logged for " . $s['name'] . " on $when."];
             if ($applied) {
@@ -3228,12 +4025,33 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if ($scheduled) {
                 $lines[] = "Retrieval schedule updated for $scheduled topic" . ($scheduled === 1 ? '' : 's') . '.';
             }
+            if ($reviewOut !== null) {
+                $row = $reviewOut['row'];
+                $lines[] = "Lesson review saved: version {$row['version']} ({$row['stage']}), readiness "
+                    . ($review['big_picture']['readiness'] ?? '?') . '. Read it with tracker_get_lesson_review or at '
+                    . "/s/$slug/session/$sessionId.";
+                foreach ($reviewOut['lines'] as $l) {
+                    $lines[] = $l;
+                }
+                $proposals = array_values(array_filter($review['progress'], static fn(array $p): bool => isset($p['proposed_status'])));
+                if ($proposals) {
+                    $lines[] = 'Proposed for adjudication (not applied): ' . implode('; ', array_map(
+                        static fn(array $p): string => $p['ref'] . ' → ' . $p['proposed_status'], $proposals
+                    )) . '. gcse-progress-tracker decides against the promotion bar.';
+                }
+            }
             if ($unfinished === null && !$resolves['close'] && !$resolves['already']) {
                 $warning = mcp_unfinished_warning($store, $slug, $sessionId);
                 if ($warning !== null) {
                     $lines[] = '';
                     $lines[] = $warning;
                 }
+            }
+            if ($required['required'] && $reviewOut === null) {
+                $lines[] = '';
+                $lines[] = 'REVIEW REQUIRED and not written — the session is logged, the block is done, and this will '
+                    . 'appear in the audit queue until a review is saved with tracker_save_lesson_review '
+                    . "(subject: \"$slug\", session_id: $sessionId). Reason: {$required['reason']}.";
             }
             return mcp_text(implode("\n", $lines));
         }

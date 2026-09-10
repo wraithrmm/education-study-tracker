@@ -38,3 +38,9 @@ jobs:
       # spec, one check each.
       - name: Continuity, shape and retrieval acceptance tests
         run: php deploy/continuity-test.php
+
+      # Lesson reviews: the atomic log-plus-review write, the section
+      # validation refusals, the signal strength rule, the audit queue's
+      # flags, the queue's last_review block and the parent-gated pages.
+      - name: Lesson review acceptance tests
+        run: php deploy/lesson-review-test.php

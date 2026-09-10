@@ -138,6 +138,7 @@ the database has no subjects, so later deploys never touch real progress.
 bash deploy/smoke-test.sh
 php deploy/practice-test.php
 php deploy/continuity-test.php
+php deploy/lesson-review-test.php
 ```
 
 The first boots the service on PHP's built-in server against a throwaway
@@ -146,7 +147,9 @@ acceptance tests and diffs the scoreboard golden snapshots in `tests/golden`
 — run it after any change to a panel type, and `--update` to rewrite the
 snapshots on purpose. The third covers last-session continuity, unfinished
 work, the block shape rules and retrieval scheduling, with the clock frozen.
-All three run in CI on every push. To poke at it by hand:
+The fourth covers lesson reviews: the atomic log-plus-review write, the
+section validation, the signal strength rule, the audit queue and the parent
+gate on the pages. All four run in CI on every push. To poke at it by hand:
 
 ```bash
 mkdir -p /tmp/tracker/tracker-shared/data

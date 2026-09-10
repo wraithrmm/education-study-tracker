@@ -18,6 +18,7 @@ if (!defined('TRACKER')) {
 require_once __DIR__ . '/practice.php';
 require_once __DIR__ . '/shape.php';
 require_once __DIR__ . '/retrieval.php';
+require_once __DIR__ . '/review.php';
 
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
@@ -489,7 +490,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 11;
+    private const SCHEMA_VERSION = 12;
 
     private function migrate(): void
     {
@@ -756,6 +757,136 @@ final class Store
             }
             return;
         }
+
+        if ($v === 12) {
+            // Lesson reviews: the written half of one taught session, beside
+            // the weekly review's written half of one week. Three tables for
+            // the review, its signals and its error rows, one for the
+            // signal ledger, and two columns on sessions. Nothing existing
+            // changes shape. Whether a block's kind requires a review is a
+            // column on block_kind_rules, so the answer is a row and not a
+            // match statement — the same rule as the shape checks.
+            $this->createLessonReviewTables();
+            if (!$this->hasColumn('sessions', 'review_required')) {
+                $this->db->exec('ALTER TABLE sessions ADD COLUMN review_required INTEGER NOT NULL DEFAULT 0');
+            }
+            if (!$this->hasColumn('sessions', 'review_id')) {
+                $this->db->exec('ALTER TABLE sessions ADD COLUMN review_id INTEGER');
+            }
+            if (!$this->hasColumn('block_kind_rules', 'review_required')) {
+                $this->db->exec(
+                    'ALTER TABLE block_kind_rules ADD COLUMN review_required INTEGER NOT NULL DEFAULT 0'
+                );
+            }
+            // The seed's answer for each kind, on rows step 10 already wrote.
+            // A row someone has edited since keeps its other fields; only
+            // the new flag is set, and only from the seed.
+            $st = $this->db->prepare('UPDATE block_kind_rules SET review_required = ? WHERE kind = ?');
+            foreach (SHAPE_RULE_SEED as $rule) {
+                $st->execute([(int) !empty($rule['review_required']), $rule['kind']]);
+                $this->seedBlockKindRule($rule);
+            }
+            $this->rulesCache = null;
+            return;
+        }
+    }
+
+    /**
+     * The lesson review tables. Mirrors weekly_reviews: versioned, staged,
+     * signed, with a server-built snapshot beside validated sections.
+     *
+     * review_signals is the longitudinal spine — one row per observation
+     * about how she learns or how a method lands, strengthened or refuted
+     * over time and never rewritten. subject_slug NULL is cross-subject;
+     * the unique index coalesces it so two cross-subject rows cannot share
+     * a key the way NULLs otherwise would. review_signal_events is the
+     * ledger of what moved and when, which is what a week's SIGNAL MOVEMENT
+     * is read from.
+     */
+    private function createLessonReviewTables(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS lesson_reviews (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               session_id     INTEGER NOT NULL REFERENCES sessions(id),
+               subject_slug   TEXT    NOT NULL,
+               version        INTEGER NOT NULL,
+               stage          TEXT    NOT NULL CHECK (stage IN ('draft','audited','parent')),
+               written_by     TEXT    NOT NULL CHECK (written_by IN ('session','audit','chat')),
+               written_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+               snapshot_json  TEXT    NOT NULL,
+               sections_json  TEXT    NOT NULL,
+               note           TEXT,
+               UNIQUE (session_id, version)
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_lesson_reviews_session ON lesson_reviews(session_id, version DESC)'
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_lesson_reviews_subject ON lesson_reviews(subject_slug, written_at DESC)'
+        );
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signals (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               subject_slug   TEXT,
+               kind           TEXT NOT NULL CHECK (kind IN
+                                ('learning_process','teaching_method','misconception',
+                                 'confidence','retention','watch')),
+               key            TEXT NOT NULL,
+               statement      TEXT NOT NULL,
+               strength       TEXT NOT NULL CHECK (strength IN ('one_off','emerging','established')),
+               status         TEXT NOT NULL DEFAULT 'open'
+                                CHECK (status IN ('open','resolved','refuted')),
+               next_test      TEXT,
+               opened_session INTEGER NOT NULL REFERENCES sessions(id),
+               updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+        $this->db->exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_key ON review_signals(COALESCE(subject_slug, ''), key)"
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signal_evidence (
+               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
+               session_id  INTEGER NOT NULL REFERENCES sessions(id),
+               direction   TEXT NOT NULL CHECK (direction IN ('supports','contradicts')),
+               evidence    TEXT NOT NULL,
+               PRIMARY KEY (signal_id, session_id)
+             )"
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_signal_events (
+               id          INTEGER PRIMARY KEY AUTOINCREMENT,
+               signal_id   INTEGER NOT NULL REFERENCES review_signals(id),
+               session_id  INTEGER,
+               at          TEXT NOT NULL DEFAULT (datetime('now')),
+               change      TEXT NOT NULL CHECK (change IN ('opened','strength','status','next_test','evidence')),
+               from_value  TEXT,
+               to_value    TEXT,
+               detail      TEXT
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_signal_events_at ON review_signal_events(at, id)'
+        );
+
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS review_errors (
+               id           INTEGER PRIMARY KEY AUTOINCREMENT,
+               session_id   INTEGER NOT NULL REFERENCES sessions(id),
+               subject_slug TEXT NOT NULL,
+               ref          TEXT NOT NULL,
+               error_type   TEXT NOT NULL,
+               what         TEXT NOT NULL,
+               why_type     TEXT NOT NULL,
+               response     TEXT NOT NULL
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_review_errors_ref ON review_errors(subject_slug, ref)'
+        );
     }
 
     /**
@@ -782,6 +913,21 @@ final class Store
     /** Insert a seed rule unless a row for that kind already exists. */
     private function seedBlockKindRule(array $rule): void
     {
+        // Step 10 created the table without review_required; step 12 adds
+        // the column. The seed is written both ways so each step can call it.
+        if ($this->hasColumn('block_kind_rules', 'review_required')) {
+            $st = $this->db->prepare(
+                'INSERT OR IGNORE INTO block_kind_rules
+                   (kind, satisfied_by, shape_json, expects, note, review_required)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $rule['kind'], $rule['satisfied_by'] ?? 'any',
+                json_encode($rule['shape'] ?? [], JSON_UNESCAPED_SLASHES),
+                $rule['expects'] ?? null, $rule['note'] ?? null, (int) !empty($rule['review_required']),
+            ]);
+            return;
+        }
         $st = $this->db->prepare(
             'INSERT OR IGNORE INTO block_kind_rules (kind, satisfied_by, shape_json, expects, note)
              VALUES (?, ?, ?, ?, ?)'
@@ -866,6 +1012,7 @@ final class Store
                 'shape'        => is_array($shape) ? $shape : [],
                 'expects'      => $r['expects'] ?? null,
                 'note'         => $r['note'] ?? null,
+                'review_required' => (int) ($r['review_required'] ?? 0) === 1,
             ];
         }
         $this->rulesCache = $cache;
@@ -880,16 +1027,18 @@ final class Store
     {
         $this->rulesCache = null;
         $st = $this->db->prepare(
-            'INSERT INTO block_kind_rules (kind, satisfied_by, shape_json, expects, note, updated_at)
-             VALUES (?, ?, ?, ?, ?, datetime(\'now\'))
+            'INSERT INTO block_kind_rules
+               (kind, satisfied_by, shape_json, expects, note, review_required, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))
              ON CONFLICT(kind) DO UPDATE SET satisfied_by = excluded.satisfied_by,
                shape_json = excluded.shape_json, expects = excluded.expects,
-               note = excluded.note, updated_at = excluded.updated_at'
+               note = excluded.note, review_required = excluded.review_required,
+               updated_at = excluded.updated_at'
         );
         $st->execute([
             $rule['kind'], $rule['satisfied_by'] ?? 'any',
             json_encode($rule['shape'] ?? [], JSON_UNESCAPED_SLASHES),
-            $rule['expects'] ?? null, $rule['note'] ?? null,
+            $rule['expects'] ?? null, $rule['note'] ?? null, (int) !empty($rule['review_required']),
         ]);
     }
 
@@ -1440,8 +1589,7 @@ final class Store
         // A key that is absent leaves the note alone; an explicit null clears it.
         $watch = array_key_exists('watch', $args) ? $args['watch'] : $existing['watch'];
 
-        $this->db->beginTransaction();
-        try {
+        $this->transaction(function () use ($args, $next, $watch, $touched, $existing): void {
             $st = $this->db->prepare(
                 'UPDATE topics SET status = ?, evidence = ?, watch = ?, last_touched = ?, updated_at = datetime(\'now\')
                  WHERE subject_slug = ? AND ref = ?'
@@ -1456,14 +1604,50 @@ final class Store
                 $args['subject_slug'], $args['ref'], $existing['status'], $next,
                 $args['evidence'], $args['session_id'] ?? null,
             ]);
-            $this->db->commit();
-        } catch (Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        });
 
         return ['previous' => $existing['status'], 'current' => $next];
     }
+
+    /**
+     * Run a callable inside one write transaction, joining the transaction
+     * already open when there is one. tracker_log_session writes the session
+     * row, its topic changes, its retrieval outcomes and its review as one
+     * unit; the methods it calls each take a transaction of their own when
+     * called alone, and must not try to open a second one when called from
+     * inside it.
+     */
+    public function transaction(callable $fn): mixed
+    {
+        // Nesting is tracked here rather than asked of PDO: before PHP 8.4,
+        // pdo_sqlite's inTransaction() reports only transactions opened with
+        // beginTransaction(), not one opened with BEGIN IMMEDIATE, so a
+        // nested call would try to open a second one and fail. PDO's own
+        // flag is still honoured for callers that used beginTransaction().
+        if ($this->txDepth > 0 || $this->db->inTransaction()) {
+            $this->txDepth++;
+            try {
+                return $fn();
+            } finally {
+                $this->txDepth--;
+            }
+        }
+        $this->db->exec('BEGIN IMMEDIATE');
+        $this->txDepth = 1;
+        try {
+            $out = $fn();
+            $this->db->exec('COMMIT');
+            return $out;
+        } catch (Throwable $e) {
+            $this->db->exec('ROLLBACK');
+            throw $e;
+        } finally {
+            $this->txDepth = 0;
+        }
+    }
+
+    /** How deep transaction() is nested; 0 outside one. */
+    private int $txDepth = 0;
 
     public function listChanges(string $slug, int $limit = 50): array
     {
@@ -1488,7 +1672,7 @@ final class Store
         $out = [];
         foreach (['topics', 'attempts', 'attempt_papers', 'attempt_questions',
                   'sessions', 'topic_changes', 'resources', 'practice_run',
-                  'practice_item'] as $t) {
+                  'practice_item', 'lesson_reviews', 'review_signals'] as $t) {
             $row     = $this->one("SELECT COUNT(*) AS n FROM $t");
             $out[$t] = (int) ($row['n'] ?? 0);
         }
@@ -3925,6 +4109,964 @@ final class Store
         return $out;
     }
 
+
+    // ---- lesson reviews ------------------------------------------------------
+    //
+    // The written half of one taught session, beside the weekly review's
+    // written half of one week. Same rules: versions are appended and never
+    // edited, the snapshot is the server's, and a draft cannot be saved over
+    // a version the audit or the parent has already written. The review
+    // proposes; the record adjudicates — nothing here moves a topic status.
+
+    /**
+     * Whether a session needs a lesson review, and why.
+     *
+     * Decided from the block's kind when the session names a block (a
+     * block_kind_rules row, so the answer is configuration), and from the
+     * duration when it does not: an extra that ran REVIEW_EXTRA_MINUTES or
+     * longer was a taught session whatever the timetable said.
+     *
+     * @return array{required:bool,reason:string,kind:?string}
+     */
+    public function reviewRequiredFor(?int $blockKey, string $date, ?int $minutes): array
+    {
+        if ($blockKey !== null) {
+            $kind = null;
+            $v = $this->timetableVersionOn($date);
+            if ($v) {
+                $weekday = (int) (new DateTimeImmutable($date, tt_zone()))->format('N');
+                foreach ($this->timetableBlocks((int) $v['id']) as $b) {
+                    if ($b['block_key'] === $blockKey && $b['weekday'] === $weekday) {
+                        $kind = (string) $b['kind'];
+                        break;
+                    }
+                }
+            }
+            if ($kind !== null) {
+                $rules = $this->blockKindRules();
+                $rule  = $rules[$kind] ?? $rules['*'] ?? null;
+                $req   = $rule !== null && !empty($rule['review_required']);
+                return [
+                    'required' => $req,
+                    'reason'   => "block $blockKey is kind $kind, which " . ($req ? 'requires' : 'does not require')
+                        . ' a review',
+                    'kind'     => $kind,
+                ];
+            }
+        }
+        if ($minutes !== null && $minutes >= REVIEW_EXTRA_MINUTES) {
+            return ['required' => true, 'kind' => null,
+                    'reason' => "a session outside the timetable of $minutes minutes requires a review"];
+        }
+        return ['required' => false, 'kind' => null,
+                'reason' => 'no block kind requires one and the session ran under ' . REVIEW_EXTRA_MINUTES . ' minutes'];
+    }
+
+    /** Set the flag on a session row; called once at log time. */
+    public function setReviewRequired(int $sessionId, bool $required): void
+    {
+        $st = $this->db->prepare('UPDATE sessions SET review_required = ? WHERE id = ?');
+        $st->execute([(int) $required, $sessionId]);
+    }
+
+    /**
+     * The server's account of one session at the moment a review is saved.
+     *
+     * Frozen beside the review so it can never disagree with the record
+     * about the lesson it describes: the session row, the block it ran
+     * against and how the board judged it, the status of every ref the
+     * review mentions before and after the session's updates, the retrieval
+     * outcomes recorded, the practice runs logged that day for the subject,
+     * and the open unfinished item.
+     *
+     * `$before` and `$outcomes` are supplied by tracker_log_session, which
+     * has them in hand; a re-versioning derives them from the session's
+     * topic_changes and its previous snapshot instead.
+     *
+     * @param array<int,string>          $refs     every ref the review mentions
+     * @param ?array<string,?string>     $before   ref => status before the session's updates
+     * @param ?array<string,string>      $outcomes ref => retrieval_outcome recorded
+     */
+    public function lessonSnapshot(int $sessionId, array $refs, ?array $before = null, ?array $outcomes = null): array
+    {
+        $s = $this->sessionById($sessionId);
+        if (!$s) {
+            throw new InvalidArgumentException("No session $sessionId.");
+        }
+        $slug = (string) $s['subject_slug'];
+        $date = (string) $s['date'];
+
+        $block = null;
+        if ($s['block_key'] !== null) {
+            $key = (int) $s['block_key'];
+            foreach ($this->judgeDay($date)['blocks'] as $b) {
+                if ($b['block_key'] === $key) {
+                    $block = [
+                        'block_key' => $key, 'kind' => $b['kind'], 'label' => $b['label'],
+                        'status' => $b['status'], 'shape' => $b['shape'] ?? null,
+                        'shape_reason' => $b['shape_reason'] ?? null, 'length' => $b['length'],
+                    ];
+                    break;
+                }
+            }
+        }
+
+        $changes = $this->changesForSession($sessionId);
+        $first   = [];
+        $last    = [];
+        foreach ($changes as $c) {
+            $first[(string) $c['ref']] ??= $c;
+            $last[(string) $c['ref']]    = $c;
+        }
+        $statuses = [];
+        foreach (array_values(array_unique(array_merge($refs, array_keys($last)))) as $ref) {
+            $topic = $this->getTopic($slug, $ref);
+            $now   = $topic ? (string) $topic['status'] : null;
+            $statuses[$ref] = [
+                'before' => $before !== null && array_key_exists($ref, $before)
+                    ? $before[$ref]
+                    : (isset($first[$ref]) ? $first[$ref]['from_status'] : $now),
+                'after'  => isset($last[$ref]) ? (string) $last[$ref]['to_status'] : $now,
+                'moved'  => isset($last[$ref]) && (string) $first[$ref]['from_status'] !== (string) $last[$ref]['to_status'],
+                'watch'  => $topic ? ($topic['watch'] ?? null) : null,
+            ];
+        }
+
+        if ($outcomes === null) {
+            // The retrieval history is dated, not attributed to a session:
+            // an outcome recorded on the session's date at topic grain is
+            // the best the record can say.
+            $outcomes = [];
+            foreach (array_keys($statuses) as $ref) {
+                $row = $this->one(
+                    "SELECT history FROM retrieval_state WHERE subject_slug = ? AND grain = 'topic' AND key = ?",
+                    [$slug, $ref]
+                );
+                foreach (json_decode((string) ($row['history'] ?? '[]'), true) ?: [] as $h) {
+                    if (($h['d'] ?? null) === $date) {
+                        $outcomes[$ref] = (string) $h['o'];
+                    }
+                }
+            }
+        }
+
+        $practice = [];
+        foreach ($this->listPracticeRuns($slug, ['since' => $date, 'until' => $date]) as $r) {
+            $practice[] = [
+                'id' => (int) $r['id'], 'source' => $r['source'], 'label' => $r['label'],
+                'attempted' => (int) $r['attempted'], 'correct' => (int) $r['correct'],
+                'correct_after_retry' => (int) $r['correct_after_retry'], 'incorrect' => (int) $r['incorrect'],
+            ];
+        }
+
+        return [
+            'schema'      => 1,
+            'captured_at' => gmdate('Y-m-d H:i:s'),
+            'session'     => [
+                'id'               => $sessionId,
+                'subject_slug'     => $slug,
+                'date'             => $date,
+                'block_key'        => $s['block_key'] === null ? null : (int) $s['block_key'],
+                'block_kind'       => $block['kind'] ?? null,
+                'duration_minutes' => $s['duration_minutes'] === null ? null : (int) $s['duration_minutes'],
+                'review_required'  => (int) ($s['review_required'] ?? 0) === 1,
+                'summary'          => (string) $s['summary'],
+                'next_steps'       => $s['next_steps'],
+                'void_reason'      => $s['void_reason'],
+            ],
+            'block'       => $block,
+            'statuses'    => $statuses,
+            'changes'     => array_map(static fn(array $c): array => [
+                'ref' => $c['ref'], 'from' => $c['from_status'], 'to' => $c['to_status'], 'evidence' => $c['evidence'],
+            ], $changes),
+            'outcomes'    => $outcomes,
+            'practice'    => $practice,
+            'unfinished'  => $s['unfinished'] !== null && $s['unfinished_closed_at'] === null
+                ? (string) $s['unfinished'] : null,
+        ];
+    }
+
+    /**
+     * Append one version of a session's review and point the session at it.
+     *
+     * As addWeeklyReview: the version is allocated under the same write lock
+     * that inserts the row, and an identical re-save — same stage, same
+     * written_by, byte-identical sections — returns the version already
+     * there rather than growing the ledger.
+     *
+     * @param array{session_id:int,subject_slug:string,stage:string,written_by:string,
+     *              snapshot:array,sections:array,note?:?string} $r
+     * @return array{status:'stored'|'duplicate',row:array<string,mixed>}
+     */
+    public function addLessonReview(array $r): array
+    {
+        $sessionId = (int) $r['session_id'];
+        $sections  = self::reviewJson($r['sections']);
+        $snapshot  = self::reviewJson($r['snapshot']);
+
+        return $this->transaction(function () use ($sessionId, $sections, $snapshot, $r): array {
+            $latest = $this->one(
+                'SELECT * FROM lesson_reviews WHERE session_id = ? ORDER BY version DESC LIMIT 1',
+                [$sessionId]
+            );
+            if (
+                $latest !== null
+                && (string) $latest['stage'] === (string) $r['stage']
+                && (string) $latest['written_by'] === (string) $r['written_by']
+                && (string) $latest['sections_json'] === $sections
+            ) {
+                return ['status' => 'duplicate', 'row' => $this->hydrateLessonReview($latest)];
+            }
+            $version = $latest === null ? 1 : (int) $latest['version'] + 1;
+            $st = $this->db->prepare(
+                'INSERT INTO lesson_reviews
+                   (session_id, subject_slug, version, stage, written_by, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $sessionId, $r['subject_slug'], $version, $r['stage'], $r['written_by'],
+                $snapshot, $sections, $r['note'] ?? null,
+            ]);
+            $id = (int) $this->db->lastInsertId();
+            $st = $this->db->prepare('UPDATE sessions SET review_id = ? WHERE id = ?');
+            $st->execute([$id, $sessionId]);
+            return [
+                'status' => 'stored',
+                'row'    => $this->hydrateLessonReview($this->one('SELECT * FROM lesson_reviews WHERE id = ?', [$id])),
+            ];
+        });
+    }
+
+    /** The latest version for a session, or one named version. Null when unreviewed. */
+    public function lessonReview(int $sessionId, ?int $version = null): ?array
+    {
+        $row = $version === null
+            ? $this->one('SELECT * FROM lesson_reviews WHERE session_id = ? ORDER BY version DESC LIMIT 1', [$sessionId])
+            : $this->one('SELECT * FROM lesson_reviews WHERE session_id = ? AND version = ?', [$sessionId, $version]);
+        return $row === null ? null : $this->hydrateLessonReview($row);
+    }
+
+    /** @return array<int,array{id:int,version:int,stage:string,written_at:string,written_by:string,note:?string}> */
+    public function lessonReviewVersions(int $sessionId): array
+    {
+        $rows = $this->all(
+            'SELECT id, version, stage, written_at, written_by, note FROM lesson_reviews
+             WHERE session_id = ? ORDER BY version',
+            [$sessionId]
+        );
+        foreach ($rows as &$r) {
+            $r['id']      = (int) $r['id'];
+            $r['version'] = (int) $r['version'];
+        }
+        return $rows;
+    }
+
+    /**
+     * The latest review of each of several sessions, one query.
+     *
+     * @param  array<int,int> $sessionIds
+     * @return array<int,array<string,mixed>> session_id => latest row
+     */
+    public function lessonReviewsForSessions(array $sessionIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $sessionIds)));
+        if (!$ids) {
+            return [];
+        }
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $out = [];
+        foreach ($this->all(
+            "SELECT * FROM lesson_reviews WHERE session_id IN ($in) ORDER BY session_id, version", $ids
+        ) as $row) {
+            $out[(int) $row['session_id']] = $this->hydrateLessonReview($row);
+        }
+        return $out;
+    }
+
+    /**
+     * Reviews of a subject, newest session first, each with its session row.
+     *
+     * @param array{since?:string,limit?:int,stage?:string} $filter
+     * @return array<int,array{session:array,review:array}>
+     */
+    public function listLessonReviews(string $slug, array $filter = []): array
+    {
+        $sql    = 'SELECT s.* FROM sessions s
+                   WHERE s.subject_slug = ? AND s.review_id IS NOT NULL AND s.void_reason IS NULL';
+        $params = [$slug];
+        if (!empty($filter['since'])) {
+            $sql .= ' AND s.date >= ?';
+            $params[] = $filter['since'];
+        }
+        $sql .= ' ORDER BY s.date DESC, s.id DESC';
+        $rows  = $this->all($sql, $params);
+        $byId  = $this->lessonReviewsForSessions(array_map(static fn($s) => (int) $s['id'], $rows));
+        $out   = [];
+        $limit = (int) ($filter['limit'] ?? 10);
+        foreach ($rows as $s) {
+            $review = $byId[(int) $s['id']] ?? null;
+            if ($review === null) {
+                continue;
+            }
+            if (!empty($filter['stage']) && $review['stage'] !== $filter['stage']) {
+                continue;
+            }
+            $out[] = ['session' => $s, 'review' => $review];
+            if ($limit > 0 && count($out) >= $limit) {
+                break;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Sessions that need a review and have none, oldest first. Void sessions
+     * are skipped: a session logged in error is not owed a review.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function sessionsMissingReview(string $slug, ?string $since = null, ?string $createdAfter = null): array
+    {
+        $sql    = 'SELECT * FROM sessions WHERE subject_slug = ? AND review_required = 1 AND review_id IS NULL
+                   AND void_reason IS NULL';
+        $params = [$slug];
+        if ($since !== null) {
+            $sql .= ' AND date >= ?';
+            $params[] = $since;
+        }
+        if ($createdAfter !== null) {
+            $sql .= ' AND created_at > ?';
+            $params[] = $createdAfter;
+        }
+        return $this->all($sql . ' ORDER BY date, id', $params);
+    }
+
+    /** The most recent reviewed session of a subject, with its review: what the next session opens on. */
+    public function lastLessonReview(string $slug): ?array
+    {
+        $rows = $this->listLessonReviews($slug, ['limit' => 1]);
+        return $rows[0] ?? null;
+    }
+
+    /** The session that followed a given one in its subject, if any. */
+    public function sessionAfter(array $s): ?array
+    {
+        return $this->one(
+            'SELECT * FROM sessions WHERE subject_slug = ? AND void_reason IS NULL
+               AND (date > ? OR (date = ? AND id > ?))
+             ORDER BY date, id LIMIT 1',
+            [$s['subject_slug'], $s['date'], $s['date'], (int) $s['id']]
+        );
+    }
+
+    /** How many non-void sessions of a subject came after a given one. */
+    public function sessionsSince(string $slug, string $date, int $id): int
+    {
+        $row = $this->one(
+            'SELECT COUNT(*) AS n FROM sessions WHERE subject_slug = ? AND void_reason IS NULL
+               AND (date > ? OR (date = ? AND id > ?))',
+            [$slug, $date, $date, $id]
+        );
+        return (int) ($row['n'] ?? 0);
+    }
+
+    private function hydrateLessonReview(array $r): array
+    {
+        $r['id']         = (int) $r['id'];
+        $r['session_id'] = (int) $r['session_id'];
+        $r['version']    = (int) $r['version'];
+        $r['snapshot']   = json_decode((string) $r['snapshot_json'], true) ?: [];
+        $r['sections']   = json_decode((string) $r['sections_json'], true) ?: [];
+        return $r;
+    }
+
+    /**
+     * How the record has moved since a review was written: each mentioned
+     * ref's status now against the snapshot's `after`, whether each watch
+     * signal the review opened has been observed since, and whether a
+     * following session has a review of its own to answer `check_whether`.
+     *
+     * @return array{refs:array<int,array{ref:string,then:?string,now:?string,moved:bool}>,
+     *               watch:array<int,array{key:string,observed:bool,by_session:?int}>,
+     *               following:?array{session_id:int,date:string,reviewed:bool,one_sentence:?string},
+     *               lines:array<int,string>}
+     */
+    public function lessonReviewDrift(array $review): array
+    {
+        $snap = $review['snapshot'];
+        $slug = (string) ($snap['session']['subject_slug'] ?? $review['subject_slug']);
+        $sid  = (int) $review['session_id'];
+        $refs = [];
+        foreach ($snap['statuses'] ?? [] as $ref => $st) {
+            $topic = $this->getTopic($slug, (string) $ref);
+            $now   = $topic ? (string) $topic['status'] : null;
+            $refs[] = ['ref' => (string) $ref, 'then' => $st['after'] ?? null, 'now' => $now,
+                       'moved' => ($st['after'] ?? null) !== $now];
+        }
+        $watch = [];
+        foreach ($review['sections']['watch'] ?? [] as $w) {
+            $g = $this->signalByKey($slug, (string) $w['key']);
+            $observed = null;
+            if ($g) {
+                $observed = $this->one(
+                    'SELECT session_id FROM review_signal_evidence WHERE signal_id = ? AND session_id <> ?
+                     ORDER BY session_id LIMIT 1',
+                    [(int) $g['id'], $sid]
+                );
+            }
+            $watch[] = ['key' => (string) $w['key'], 'observed' => $observed !== null,
+                        'by_session' => $observed ? (int) $observed['session_id'] : null,
+                        'status' => $g['status'] ?? null];
+        }
+        $session   = $this->sessionById($sid);
+        $following = null;
+        if ($session) {
+            $next = $this->sessionAfter($session);
+            if ($next) {
+                $nr = $this->lessonReview((int) $next['id']);
+                $following = [
+                    'session_id'   => (int) $next['id'],
+                    'date'         => (string) $next['date'],
+                    'reviewed'     => $nr !== null,
+                    'one_sentence' => $nr['sections']['one_sentence'] ?? null,
+                ];
+            }
+        }
+
+        $lines = [];
+        $moved = array_values(array_filter($refs, static fn(array $r): bool => $r['moved']));
+        $lines[] = $moved
+            ? 'Statuses since: ' . implode('; ', array_map(
+                static fn(array $r): string => $r['ref'] . ' ' . ($r['then'] ?? '—') . ' → ' . ($r['now'] ?? '—'), $moved
+            )) . '.'
+            : 'No mentioned topic has changed status since.';
+        foreach ($watch as $w) {
+            $lines[] = 'Watch ' . $w['key'] . ': ' . ($w['observed']
+                ? 'observed in session ' . $w['by_session'] : 'not observed since')
+                . ($w['status'] !== null && $w['status'] !== 'open' ? ' (' . $w['status'] . ')' : '') . '.';
+        }
+        $check = $review['sections']['planner']['check_whether'] ?? null;
+        if ($following === null) {
+            $lines[] = 'No later session yet' . ($check ? ", so check_whether ('$check') is still open" : '') . '.';
+        } elseif (!$following['reviewed']) {
+            $lines[] = 'The following session (' . $following['session_id'] . ', ' . $following['date']
+                . ') has no review' . ($check ? ", so check_whether ('$check') is unanswered" : '') . '.';
+        } else {
+            $lines[] = 'The following session (' . $following['session_id'] . ', ' . $following['date']
+                . ') reviewed: "' . $following['one_sentence'] . '"'
+                . ($check ? " — read it against check_whether ('$check')" : '') . '.';
+        }
+        return ['refs' => $refs, 'watch' => $watch, 'following' => $following, 'lines' => $lines];
+    }
+
+    // ---- signals ---------------------------------------------------------
+
+    /**
+     * Create or strengthen one signal from a review.
+     *
+     * A new key opens the row at one_off with this session as its opening
+     * evidence. An existing key gains an evidence row for this session and
+     * the requested strength if the count rule allows it; a claim the rows
+     * do not support is reported back with the counts and the strength is
+     * left where it was — never raised past the evidence, never silently.
+     *
+     * @param array{subject_slug:?string,key:string,kind:string,statement:string,strength:string,
+     *              next_test?:?string,session_id:int,direction?:string,evidence:string} $g
+     * @return array{id:int,created:bool,strength_from:?string,strength_to:string,refused:?string}
+     */
+    public function upsertSignal(array $g): array
+    {
+        $slug      = $g['subject_slug'] ?? null;
+        $key       = (string) $g['key'];
+        $sessionId = (int) $g['session_id'];
+        $direction = (string) ($g['direction'] ?? 'supports');
+        $wanted    = (string) $g['strength'];
+
+        return $this->transaction(function () use ($slug, $key, $sessionId, $direction, $wanted, $g): array {
+            $row = $this->signalByKey($slug, $key);
+            if ($row === null) {
+                $st = $this->db->prepare(
+                    'INSERT INTO review_signals
+                       (subject_slug, kind, key, statement, strength, status, next_test, opened_session)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                );
+                $st->execute([$slug, $g['kind'], $key, $g['statement'], 'one_off', 'open',
+                              $g['next_test'] ?? null, $sessionId]);
+                $id = (int) $this->db->lastInsertId();
+                $this->writeSignalEvidence($id, $sessionId, $direction, (string) $g['evidence']);
+                $this->signalEvent($id, $sessionId, 'opened', null, 'one_off', $g['statement']);
+                $refused = null;
+                if ($wanted !== 'one_off') {
+                    $refused = signal_strength_refusal($wanted, $this->signalEvidence($id));
+                }
+                return ['id' => $id, 'created' => true, 'strength_from' => null, 'strength_to' => 'one_off',
+                        'refused' => $refused];
+            }
+
+            $id   = (int) $row['id'];
+            $from = (string) $row['strength'];
+            $this->writeSignalEvidence($id, $sessionId, $direction, (string) $g['evidence']);
+            $this->signalEvent($id, $sessionId, 'evidence', null, $direction, (string) $g['evidence']);
+            $refused = signal_strength_refusal($wanted, $this->signalEvidence($id));
+            $to      = $refused === null ? $wanted : $from;
+            $sets    = ['updated_at' => tt_now_utc()];
+            if ($to !== $from) {
+                $sets['strength'] = $to;
+                $this->signalEvent($id, $sessionId, 'strength', $from, $to, null);
+            }
+            if (array_key_exists('next_test', $g) && $g['next_test'] !== null && $g['next_test'] !== $row['next_test']) {
+                $sets['next_test'] = $g['next_test'];
+                $this->signalEvent($id, $sessionId, 'next_test', $row['next_test'], $g['next_test'], null);
+            }
+            // The statement is the claim in evidence language; a later
+            // review may sharpen it. The key is what stays stable.
+            if (!empty($g['statement']) && $g['statement'] !== $row['statement']) {
+                $sets['statement'] = $g['statement'];
+            }
+            $assign = implode(', ', array_map(static fn(string $k): string => "$k = ?", array_keys($sets)));
+            $st = $this->db->prepare("UPDATE review_signals SET $assign WHERE id = ?");
+            $st->execute(array_merge(array_values($sets), [$id]));
+            return ['id' => $id, 'created' => false, 'strength_from' => $from, 'strength_to' => $to,
+                    'refused' => $refused];
+        });
+    }
+
+    /** One evidence row per (signal, session); a second write from the same session replaces the first. */
+    private function writeSignalEvidence(int $signalId, int $sessionId, string $direction, string $evidence): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO review_signal_evidence (signal_id, session_id, direction, evidence) VALUES (?, ?, ?, ?)
+             ON CONFLICT(signal_id, session_id) DO UPDATE SET direction = excluded.direction,
+               evidence = excluded.evidence'
+        );
+        $st->execute([$signalId, $sessionId, $direction, $evidence]);
+    }
+
+    private function signalEvent(int $signalId, ?int $sessionId, string $change, ?string $from, ?string $to, ?string $detail): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO review_signal_events (signal_id, session_id, at, change, from_value, to_value, detail)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $st->execute([$signalId, $sessionId, tt_now_utc(), $change, $from, $to, $detail]);
+    }
+
+    /**
+     * Add an evidence row to an existing signal, outside a review. The
+     * strength is then re-derived downwards only: a contradiction can cost
+     * an established signal its standing; nothing here raises one.
+     *
+     * @return array{strength_from:string,strength_to:string}
+     */
+    public function addSignalEvidence(int $signalId, int $sessionId, string $direction, string $evidence): array
+    {
+        return $this->transaction(function () use ($signalId, $sessionId, $direction, $evidence): array {
+            $row = $this->signalById($signalId);
+            if (!$row) {
+                throw new InvalidArgumentException("No signal $signalId.");
+            }
+            $this->writeSignalEvidence($signalId, $sessionId, $direction, $evidence);
+            $this->signalEvent($signalId, $sessionId, 'evidence', null, $direction, $evidence);
+            $from    = (string) $row['strength'];
+            $allowed = signal_strength_allowed($this->signalEvidence($signalId));
+            $to      = review_status_rank_of_strength($allowed) < review_status_rank_of_strength($from) ? $allowed : $from;
+            $st = $this->db->prepare('UPDATE review_signals SET strength = ?, updated_at = ? WHERE id = ?');
+            $st->execute([$to, tt_now_utc(), $signalId]);
+            if ($to !== $from) {
+                $this->signalEvent($signalId, $sessionId, 'strength', $from, $to, 'contradicted');
+            }
+            return ['strength_from' => $from, 'strength_to' => $to];
+        });
+    }
+
+    /**
+     * Move a signal: resolve or refute it, or set its next test. Strength is
+     * never an argument here — it is derived from the evidence rows.
+     *
+     * @param array{status?:string,evidence?:string,next_test?:?string,session_id?:?int} $c
+     */
+    public function updateSignal(int $signalId, array $c): array
+    {
+        return $this->transaction(function () use ($signalId, $c): array {
+            $row = $this->signalById($signalId);
+            if (!$row) {
+                throw new InvalidArgumentException("No signal $signalId.");
+            }
+            $sets = ['updated_at' => tt_now_utc()];
+            $sid  = isset($c['session_id']) ? (int) $c['session_id'] : null;
+            if (isset($c['status']) && $c['status'] !== $row['status']) {
+                $sets['status'] = $c['status'];
+                $this->signalEvent($signalId, $sid, 'status', (string) $row['status'], (string) $c['status'],
+                    $c['evidence'] ?? null);
+            }
+            if (array_key_exists('next_test', $c) && $c['next_test'] !== $row['next_test']) {
+                $sets['next_test'] = $c['next_test'];
+                $this->signalEvent($signalId, $sid, 'next_test', $row['next_test'], $c['next_test'], null);
+            }
+            $assign = implode(', ', array_map(static fn(string $k): string => "$k = ?", array_keys($sets)));
+            $st = $this->db->prepare("UPDATE review_signals SET $assign WHERE id = ?");
+            $st->execute(array_merge(array_values($sets), [$signalId]));
+            return $this->signalById($signalId);
+        });
+    }
+
+    public function signalById(int $id): ?array
+    {
+        $row = $this->one('SELECT * FROM review_signals WHERE id = ?', [$id]);
+        return $row === null ? null : $this->hydrateSignal($row);
+    }
+
+    public function signalByKey(?string $slug, string $key): ?array
+    {
+        $row = $this->one(
+            "SELECT * FROM review_signals WHERE COALESCE(subject_slug, '') = ? AND key = ?",
+            [(string) $slug, $key]
+        );
+        return $row === null ? null : $this->hydrateSignal($row);
+    }
+
+    /**
+     * The evidence rows of a signal with each session's date, oldest first —
+     * the shape signal_strength_refusal() reads.
+     *
+     * @return array<int,array{signal_id:int,session_id:int,date:string,direction:string,evidence:string}>
+     */
+    public function signalEvidence(int $signalId): array
+    {
+        $rows = $this->all(
+            'SELECT e.*, s.date FROM review_signal_evidence e JOIN sessions s ON s.id = e.session_id
+             WHERE e.signal_id = ? ORDER BY s.date, e.session_id',
+            [$signalId]
+        );
+        foreach ($rows as &$r) {
+            $r['signal_id']  = (int) $r['signal_id'];
+            $r['session_id'] = (int) $r['session_id'];
+        }
+        return $rows;
+    }
+
+    /**
+     * The spine, filtered. A subject filter returns that subject's signals
+     * and then the cross-subject ones, which belong to the learner rather
+     * than to any subject.
+     *
+     * @param array{subject?:?string,kind?:string,status?:string,min_strength?:string,
+     *              include_cross?:bool} $filter
+     * @return array<int,array<string,mixed>>
+     */
+    public function signals(array $filter = []): array
+    {
+        $sql    = 'SELECT * FROM review_signals WHERE 1 = 1';
+        $params = [];
+        if (array_key_exists('subject', $filter) && $filter['subject'] !== null) {
+            if (!empty($filter['include_cross'])) {
+                $sql .= ' AND (subject_slug = ? OR subject_slug IS NULL)';
+            } else {
+                $sql .= ' AND subject_slug = ?';
+            }
+            $params[] = $filter['subject'];
+        }
+        if (!empty($filter['kind'])) {
+            $sql .= ' AND kind = ?';
+            $params[] = $filter['kind'];
+        }
+        if (!empty($filter['status'])) {
+            $sql .= ' AND status = ?';
+            $params[] = $filter['status'];
+        }
+        $rows = array_map([$this, 'hydrateSignal'], $this->all(
+            $sql . " ORDER BY CASE WHEN subject_slug IS NULL THEN 1 ELSE 0 END,
+                     CASE strength WHEN 'established' THEN 0 WHEN 'emerging' THEN 1 ELSE 2 END,
+                     kind, updated_at DESC, id DESC",
+            $params
+        ));
+        if (!empty($filter['min_strength'])) {
+            $min  = review_status_rank_of_strength((string) $filter['min_strength']);
+            $rows = array_values(array_filter(
+                $rows, static fn(array $g): bool => review_status_rank_of_strength($g['strength']) >= $min
+            ));
+        }
+        return $rows;
+    }
+
+    /** Signals with an evidence row from one session, with each row's direction. */
+    public function signalsTouchedBy(int $sessionId): array
+    {
+        $out = [];
+        foreach ($this->all(
+            'SELECT g.*, e.direction AS touched_direction, e.evidence AS touched_evidence
+             FROM review_signal_evidence e JOIN review_signals g ON g.id = e.signal_id
+             WHERE e.session_id = ? ORDER BY g.kind, g.key',
+            [$sessionId]
+        ) as $r) {
+            $g = $this->hydrateSignal($r);
+            $g['touched_direction'] = (string) $r['touched_direction'];
+            $g['touched_evidence']  = (string) $r['touched_evidence'];
+            $out[] = $g;
+        }
+        return $out;
+    }
+
+    private function hydrateSignal(array $r): array
+    {
+        $r['id']             = (int) $r['id'];
+        $r['opened_session'] = (int) $r['opened_session'];
+        $r['subject_slug']   = $r['subject_slug'] === null || $r['subject_slug'] === '' ? null : (string) $r['subject_slug'];
+        $counts = $this->one(
+            "SELECT SUM(CASE WHEN direction = 'supports' THEN 1 ELSE 0 END) AS supporting,
+                    SUM(CASE WHEN direction = 'contradicts' THEN 1 ELSE 0 END) AS contradicting,
+                    MAX(session_id) AS last_session
+             FROM review_signal_evidence WHERE signal_id = ?",
+            [$r['id']]
+        );
+        $r['supporting']    = (int) ($counts['supporting'] ?? 0);
+        $r['contradicting'] = (int) ($counts['contradicting'] ?? 0);
+        $r['last_session']  = $counts['last_session'] === null ? null : (int) $counts['last_session'];
+        return $r;
+    }
+
+    /**
+     * Signal movement inside a date range, oldest first: openings, strength
+     * changes, resolutions and refutations. Evidence rows and next_test
+     * edits are not movement and are left out.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function signalEventsBetween(string $from, string $to, ?string $slug = null): array
+    {
+        // A movement made by a session's review belongs to the session's
+        // date, not to the clock the review was written on: an audit that
+        // strengthens a Thursday signal on Monday still reports under the
+        // Thursday's week. Movement with no session (a parent's decision)
+        // takes its own stamp.
+        $sql    = "SELECT ev.*, g.key, g.kind, g.statement, g.subject_slug, COALESCE(s.date, date(ev.at)) AS on_date
+                   FROM review_signal_events ev JOIN review_signals g ON g.id = ev.signal_id
+                   LEFT JOIN sessions s ON s.id = ev.session_id
+                   WHERE ev.change IN ('opened','strength','status') AND COALESCE(s.date, date(ev.at)) BETWEEN ? AND ?";
+        $params = [$from, $to];
+        if ($slug !== null) {
+            $sql .= ' AND (g.subject_slug = ? OR g.subject_slug IS NULL)';
+            $params[] = $slug;
+        }
+        return $this->all($sql . ' ORDER BY on_date, ev.at, ev.id', $params);
+    }
+
+    // ---- error rows ------------------------------------------------------
+
+    /**
+     * Store a review's error analysis as rows, so a topic's page can say
+     * "three of the last four errors on A17 were procedure errors".
+     *
+     * @param array<int,array{ref:string,error_type:string,what:string,why_type:string,response:string}> $errors
+     */
+    public function addReviewErrors(int $sessionId, string $slug, array $errors): int
+    {
+        return $this->transaction(function () use ($sessionId, $slug, $errors): int {
+            // A re-versioned review replaces the session's error rows rather
+            // than doubling them: the latest version is the analysis.
+            $st = $this->db->prepare('DELETE FROM review_errors WHERE session_id = ?');
+            $st->execute([$sessionId]);
+            $ins = $this->db->prepare(
+                'INSERT INTO review_errors (session_id, subject_slug, ref, error_type, what, why_type, response)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+            );
+            foreach ($errors as $e) {
+                $ins->execute([$sessionId, $slug, $e['ref'], $e['error_type'], $e['what'], $e['why_type'], $e['response']]);
+            }
+            return count($errors);
+        });
+    }
+
+    /** Error rows for one topic, newest session first. */
+    public function reviewErrorsForRef(string $slug, string $ref, int $limit = 20): array
+    {
+        return $this->all(
+            'SELECT e.*, s.date FROM review_errors e JOIN sessions s ON s.id = e.session_id
+             WHERE e.subject_slug = ? AND e.ref = ? AND s.void_reason IS NULL
+             ORDER BY s.date DESC, e.session_id DESC, e.id DESC LIMIT ?',
+            [$slug, $ref, $limit]
+        );
+    }
+
+    /** Error rows a session's review recorded. */
+    public function reviewErrorsForSession(int $sessionId): array
+    {
+        return $this->all('SELECT * FROM review_errors WHERE session_id = ? ORDER BY id', [$sessionId]);
+    }
+
+    /** @return array<string,int> error_type => count, most common first */
+    public function errorTally(string $slug, string $ref): array
+    {
+        $out = [];
+        foreach ($this->all(
+            'SELECT e.error_type, COUNT(*) AS n FROM review_errors e JOIN sessions s ON s.id = e.session_id
+             WHERE e.subject_slug = ? AND e.ref = ? AND s.void_reason IS NULL
+             GROUP BY e.error_type ORDER BY n DESC, e.error_type',
+            [$slug, $ref]
+        ) as $r) {
+            $out[(string) $r['error_type']] = (int) $r['n'];
+        }
+        return $out;
+    }
+
+    // ---- the audit -------------------------------------------------------
+
+    /** @return array{at:?string,note:?string} */
+    public function auditStamp(string $slug): array
+    {
+        return ['at' => $this->meta("last_audit_$slug"), 'note' => $this->meta("last_audit_note_$slug")];
+    }
+
+    public function setAuditStamp(string $slug, string $note): string
+    {
+        $at = tt_now_utc();
+        $this->setMeta("last_audit_$slug", $at);
+        $this->setMeta("last_audit_note_$slug", $note);
+        return $at;
+    }
+
+    /**
+     * Everything the scheduled auditor needs, computed here so it is never
+     * told what to look for: sessions owed a review, drafts to verify, the
+     * consistency flags, and the previous audit's note.
+     *
+     * @return array{stamp:array{at:?string,note:?string},missing:array<int,array>,
+     *               drafts:array<int,array{session:array,review:array}>,
+     *               flags:array<int,array{code:string,text:string,session_id:?int,signal_id:?int}>}
+     */
+    public function reviewAuditQueue(string $slug): array
+    {
+        $stamp   = $this->auditStamp($slug);
+        $since   = $stamp['at'];
+        // Every session still owed a review is listed, whenever it was
+        // logged: an audit that stamped past one must not hide it. The ones
+        // from before the stamp are marked as carried over.
+        $missing = $this->sessionsMissingReview($slug);
+        foreach ($missing as &$m) {
+            $m['carried_over'] = $since !== null && (string) $m['created_at'] <= $since;
+        }
+        unset($m);
+
+        $drafts = [];
+        foreach ($this->listLessonReviews($slug, ['limit' => 0, 'stage' => 'draft']) as $pair) {
+            if ($since === null || (string) $pair['review']['written_at'] > $since) {
+                $drafts[] = $pair;
+            }
+        }
+
+        $flags = [];
+        $flag  = static function (string $code, string $text, ?int $sid = null, ?int $gid = null) use (&$flags): void {
+            $flags[] = ['code' => $code, 'text' => $text, 'session_id' => $sid, 'signal_id' => $gid];
+        };
+
+        // Review-versus-record checks, over every review written since the
+        // stamp — a draft or an audited version alike, since the record can
+        // move under either.
+        foreach ($this->listLessonReviews($slug, ['limit' => 0]) as $pair) {
+            $review = $pair['review'];
+            if ($since !== null && (string) $review['written_at'] <= $since) {
+                continue;
+            }
+            $sid      = (int) $review['session_id'];
+            $sections = $review['sections'];
+            $snap     = $review['snapshot'];
+            $statuses = $snap['statuses'] ?? [];
+            $byRef    = [];
+            foreach ($sections['progress'] ?? [] as $p) {
+                $byRef[(string) $p['ref']][] = $p;
+                if (($p['status_seen'] ?? '') === 'secure' && empty($p['proposed_status'])
+                    && empty($statuses[$p['ref']]['moved'])) {
+                    $flag('secure_seen_not_moved', "session $sid: progress says {$p['ref']} was seen secure, the "
+                        . 'status did not move and no proposed_status was given — either propose it or record what was seen',
+                        $sid);
+                }
+            }
+            foreach ($snap['changes'] ?? [] as $c) {
+                $fromRank = review_status_rank($c['from']);
+                $toRank   = review_status_rank($c['to']);
+                if ($toRank > $fromRank) {
+                    $numeric = false;
+                    foreach ($byRef[(string) $c['ref']] ?? [] as $p) {
+                        if (preg_match('/\d/', (string) $p['evidence'])) {
+                            $numeric = true;
+                        }
+                    }
+                    if (!$numeric) {
+                        $flag('promotion_without_number', "session $sid: {$c['ref']} was promoted {$c['from']} → {$c['to']} "
+                            . 'and the review\'s progress evidence carries no number — the bar cannot have been shown met',
+                            $sid);
+                    }
+                    if ($toRank - $fromRank >= 2) {
+                        $flag('two_level_promotion', "session $sid: {$c['ref']} rose two levels ({$c['from']} → {$c['to']}) "
+                            . 'in one session', $sid);
+                    }
+                }
+            }
+            foreach (REVIEW_RETENTION as $list => $want) {
+                foreach ($sections['retention'][$list] ?? [] as $x) {
+                    if (($snap['outcomes'][$x['ref']] ?? null) !== $want) {
+                        $flag('retention_without_outcome', "session $sid: retention lists {$x['ref']} as $list but the "
+                            . "record holds no $want retrieval_outcome for it", $sid);
+                    }
+                }
+            }
+            $summary = mb_strtolower((string) ($snap['session']['summary'] ?? ''));
+            foreach ($sections['learner_voice'] ?? [] as $v) {
+                $q = mb_strtolower(trim((string) ($v['quote'] ?? '')));
+                if ($q !== '' && mb_strlen($q) >= 12 && str_contains($summary, $q)) {
+                    $flag('voice_in_summary', "session $sid: learner_voice quote \"{$v['quote']}\" also appears in the "
+                        . 'session summary — check it is her words and not a paraphrase', $sid);
+                }
+            }
+        }
+
+        // Signal checks, over the subject's open signals and the cross-subject ones.
+        foreach ($this->signals(['subject' => $slug, 'status' => 'open', 'include_cross' => true]) as $g) {
+            $ev   = $this->signalEvidence($g['id']);
+            $last = $ev ? $ev[count($ev) - 1] : null;
+            if ($g['next_test'] !== null && $g['next_test'] !== '' && $last !== null) {
+                $n = $this->sessionsSince($slug, (string) $last['date'], (int) $last['session_id']);
+                if ($n >= REVIEW_TEST_STALE_SESSIONS) {
+                    $flag('test_untested', "signal #{$g['id']} {$g['key']}: next_test '{$g['next_test']}' has been open "
+                        . "for $n sessions with no evidence either way", null, $g['id']);
+                }
+            }
+            if ($g['kind'] === 'watch' && count($ev) <= 1 && $last !== null) {
+                $n = $this->sessionsSince($slug, (string) $last['date'], (int) $last['session_id']);
+                if ($n >= REVIEW_WATCH_STALE_SESSIONS) {
+                    $flag('watch_unreferenced', "signal #{$g['id']} watch {$g['key']} was opened $n sessions ago and "
+                        . 'has never been referenced since — resolve it or observe it', null, $g['id']);
+                }
+            }
+        }
+
+        return ['stamp' => $stamp, 'missing' => $missing, 'drafts' => $drafts, 'flags' => $flags];
+    }
+
+    /**
+     * Reviews of sessions dated inside a week, for the week report and the
+     * week page, oldest first.
+     *
+     * @return array<int,array{session:array,review:array}>
+     */
+    public function lessonReviewsBetween(string $from, string $to, ?string $slug = null): array
+    {
+        $sql    = 'SELECT * FROM sessions WHERE review_id IS NOT NULL AND void_reason IS NULL AND date BETWEEN ? AND ?';
+        $params = [$from, $to];
+        if ($slug !== null) {
+            $sql .= ' AND subject_slug = ?';
+            $params[] = $slug;
+        }
+        $rows = $this->all($sql . ' ORDER BY date, id', $params);
+        $byId = $this->lessonReviewsForSessions(array_map(static fn($s) => (int) $s['id'], $rows));
+        $out  = [];
+        foreach ($rows as $s) {
+            if (isset($byId[(int) $s['id']])) {
+                $out[] = ['session' => $s, 'review' => $byId[(int) $s['id']]];
+            }
+        }
+        return $out;
+    }
 }
 
 /** Convert a raw score to a grade using the subject's stored boundaries. */

@@ -501,7 +501,26 @@ if (preg_match('#^/s/([^/]+)/session/(\d+)$#', $path, $m)) {
     if (!$session) {
         send_html(render_subject($store, $subject), 404);
     }
-    send_html(render_session($store, $subject, $session));
+    // ?v= reads an earlier version of the session's lesson review; the
+    // review renders only for the parent.
+    $version = isset($_GET['v']) && ctype_digit((string) $_GET['v']) ? (int) $_GET['v'] : null;
+    send_html(render_session($store, $subject, $session, parent_signed_in($store, $password), $version));
+}
+
+// The lesson reviews of one subject, and the signals across every subject:
+// both parent-only, both read the record and write nothing to it.
+if (preg_match('#^/s/([^/]+)/reviews$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    send_html(render_lesson_reviews($store, $subject, parent_signed_in($store, $password)));
+}
+
+if ($path === '/signals') {
+    $dashboardGuard();
+    send_html(render_signals($store, parent_signed_in($store, $password)));
 }
 
 if (preg_match('#^/s/([^/]+)/t/([^/]+)$#', $path, $m)) {
@@ -514,7 +533,7 @@ if (preg_match('#^/s/([^/]+)/t/([^/]+)$#', $path, $m)) {
     if (!$topic) {
         send_html(render_subject($store, $subject), 404);
     }
-    send_html(render_topic_history($store, $subject, $topic));
+    send_html(render_topic_history($store, $subject, $topic, parent_signed_in($store, $password)));
 }
 
 send_json(['error' => 'not_found', 'error_description' => "No route for $path"], 404);
