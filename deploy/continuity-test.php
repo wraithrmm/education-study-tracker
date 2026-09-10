@@ -130,7 +130,7 @@ register_shutdown_function(static function () use ($dbPath) {
 });
 
 echo "== schema ==\n";
-check('a fresh database reaches the current schema version', $store->meta('schema_version'), '11');
+check('a fresh database reaches the current schema version', $store->meta('schema_version'), '12');
 foreach (['unfinished', 'unfinished_refs', 'unfinished_closed_at', 'unfinished_closed_by_session_id',
           'unfinished_closed_reason', 'consolidates'] as $col) {
     $cols = array_column($store->db->query('PRAGMA table_info(sessions)')->fetchAll(), 'name');

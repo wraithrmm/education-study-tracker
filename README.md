@@ -104,7 +104,7 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_history` | The audit trail week by week: sessions, and every change each one made. |
 | `tracker_export_markdown` | Renders the whole state as a markdown document. |
 | `tracker_update_topic` | Change one topic. Evidence is mandatory. |
-| `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. Carries `unfinished` and `resolves`. |
+| `tracker_log_session` | Log a session and apply its updates in one call. The normal way to close a session. Carries `unfinished`, `resolves` and, for a taught session, its `review`. |
 | `tracker_amend_session` | Correct or void a session already logged; set or clear its unfinished item. |
 | `tracker_log_attempt` | Record a sitting: its papers, and the questions, answers and marks behind them. |
 | `tracker_add_resource` | Attach materials — Bitesize, videos, worksheets, past papers — to a topic or the whole subject. |
@@ -129,6 +129,13 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_week_report` | Everything a week is judged on in one call: blocks, extras, hours against the timetable, movement, attempts, practice, queue tops, blocks done in the wrong shape, unfinished work. |
 | `tracker_save_weekly_review` | Save the written half of a week as a new version. The tracker attaches its own snapshot of the figures. |
 | `tracker_get_weekly_review` | Read a saved review back, with the snapshot it was written against and how the record has moved since. |
+| `tracker_save_lesson_review` | Save or re-version one session's lesson review. The normal path is the `review` argument of `tracker_log_session`; this is for the audit and the parent. |
+| `tracker_get_lesson_review` | One lesson review in the standard layout, with its snapshot and the drift since. |
+| `tracker_list_lesson_reviews` | Reviewed sessions one line each — or, with `missing: true`, the sessions still owed one. |
+| `tracker_signals` | The signals: how she learns and what lands, each with a derived strength and its evidence trail. |
+| `tracker_update_signal` | Resolve or refute a signal, set its next test, or add an evidence row. Never a bare strength change. |
+| `tracker_review_audit_queue` | The auditor's opener: sessions owed a review, drafts to verify, consistency flags, the last audit's note. |
+| `tracker_audit_stamp` | Close an audit with a note. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -309,6 +316,64 @@ actually planned for that week (the blocks that resolve to a single subject,
 alternating blocks by ISO week parity), not against the target split the skills
 quote: read against the split, English Language would be amber every week for
 ever, through nothing anyone did.
+
+## Lesson reviews
+
+Every taught session ends with a review, the way every week ends with one.
+A lesson review is the written half of one session — nineteen sections held
+as fields (`docs/lesson-review.md` has the contract): what was seen for each
+topic and what it implies, what she did unaided and with support, each error
+typed (`procedure`, `misconception`, `instruction_misread`, …) with the
+teaching response it requires, retention judged item by item, learning-process
+observations marked `observed`, `interpretation` or `unknown`, which methods
+helped and hindered, a readiness call, and a six-line **planner** the next
+session reads first. It arrives as the `review` argument of
+`tracker_log_session`: the session row, its topic changes, its retrieval
+outcomes and the review are written in one transaction, and a review that
+fails validation refuses the whole call naming the field, so a session never
+lands half-reviewed. If a block's kind requires a review (a column on
+`block_kind_rules`; extras of 30 minutes or more count too) and none is sent,
+the session still logs — the student's "logged" is never blocked — and the
+reply says so.
+
+Three rules are the server's, not the skill's. **The review proposes; the
+record adjudicates.** A review never moves a topic: `progress[].status_seen =
+secure` moves nothing, and `proposed_status` is a proposal for
+`gcse-progress-tracker` to test against the promotion bar. **One occurrence is
+not a pattern.** Observations about how she learns and how methods land are
+stored as *signals*, keyed by a stable slug and strengthened across sessions;
+a signal may not claim `emerging` without two distinct supporting sessions or
+`established` without three and no newer uncontradicted contradiction. A claim
+above the evidence is reported back with the counts and held where it was.
+**Retention is scheduled.** Every retention entry must be backed by a
+`retrieval_outcome` on that ref in `updates[]`, which is what feeds the spacing
+ladder.
+
+Nothing new is called at the start of a session. `tracker_review_queue` gains a
+`last_review` block — the planner, the things to watch, the open signals with
+their pending tests, last time's errors and the readiness call — in the call
+the tutor already makes. `tracker_today` marks each done block `reviewed` or
+`review missing`; `tracker_history` tags sessions with their review version and,
+in `ref` mode, lists the topic's error rows; `tracker_get_state` with `ref`
+tallies its error types; `tracker_week_report` adds `REVIEWS THIS WEEK` and
+`SIGNAL MOVEMENT` so the Friday review rolls patterns up without re-deriving
+them.
+
+Reviews are versioned like weekly reviews — `draft` from the session,
+`audited` from the scheduled auditor, `parent` from the parent's chat — with a
+server-built snapshot beside each: the block as the board judged it, every
+mentioned topic's status before and after, the outcomes recorded, the practice
+that day. `tracker_review_audit_queue` gives the auditor its list — sessions
+owed a review, drafts to re-derive from the transcript, and the consistency
+flags (a secure seen with no proposal and no move, a promotion whose evidence
+carries no number, a two-level rise, a test untested for three sessions, a
+watch unreferenced for five, a quote that also appears in the session summary)
+— and `tracker_audit_stamp` closes it.
+
+On the pages the review is private by default: the session page, the topic
+page's error history, `/s/{slug}/reviews`, `/signals` and the week page's
+readiness chips render only for the signed-in parent. Everyone else sees a
+"reviewed" tick on the session and nothing more.
 
 ## Practice
 
