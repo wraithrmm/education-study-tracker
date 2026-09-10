@@ -9,6 +9,10 @@ if (!defined('TRACKER')) {
     exit;
 }
 
+// The lesson review on the pages: parent-gated sections, two parent-only
+// pages, and the public "reviewed" tick.
+require_once __DIR__ . '/dashboard_review.php';
+
 const STATUS_COLOUR = [
     'gap'        => '#ef4444',
     'notstarted' => '#d6d3d1',
@@ -434,7 +438,7 @@ const DASH_HAND_FONT = '<link rel="preconnect" href="https://fonts.googleapis.co
 function dash_shell(string $title, string $body, string $head = ''): string
 {
     $t   = h($title);
-    $css = DASH_CSS;
+    $css = DASH_CSS . "\n" . DASH_REVIEW_CSS;
     return "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\">\n"
         . "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
         . "<title>$t</title>$head<style>$css</style></head>\n"
@@ -1739,6 +1743,11 @@ function render_week_page(
     }
 
     $body .= week_report_sections($store, $snap, $review, $versions, $iso);
+    // The week's readiness calls and signal movement, beside the weekly
+    // review: parent only, like the reviews themselves.
+    if ($isParent) {
+        $body .= rv_week_section($store, $monday);
+    }
 
     $links = ['<a href="/weeks">All weeks</a>'];
     foreach ($store->listSubjects() as $s) {
@@ -2346,6 +2355,7 @@ function render_subject(Store $store, array $subject): string
                     . h($subject['slug']) . '/session/' . (int) $x['id'] . '">' . h($x['date'])
                     . '</a></strong>'
                     . ($void ? ' <b style="color:#b91c1c">VOID</b>' : '')
+                    . rv_public_mark($x)
                     . dash_unfinished_badge($x)
                     . '<div><small>' . h($x['summary']) . '</small></div>'
                     . ($void ? '<div><small>Voided: ' . h($void) . '</small></div>' : '')
@@ -2561,14 +2571,15 @@ function render_attempt(Store $store, array $subject, array $x): string
     return dash_shell($x['name'] . ' — ' . $subject['name'], $body);
 }
 
-function render_session(Store $store, array $subject, array $x): string
+function render_session(Store $store, array $subject, array $x, bool $isParent = false, ?int $version = null): string
 {
     $slug = $subject['slug'];
     $void = $x['void_reason'] ?? null;
 
+    // The public surface gains one boolean per session and nothing else.
     $body = detail_head($subject, 'Session ' . $x['id'],
         h((string) $x['date']) . ' · ' . h(Store::weekOf((string) $x['date'])['label'])
-        . ($void ? ' · <b style="color:#b91c1c">VOID</b>' : ''));
+        . ($void ? ' · <b style="color:#b91c1c">VOID</b>' : '') . rv_public_mark($x));
 
     if ($void) {
         $body .= '<div class="flag">Voided: ' . h((string) $void)
@@ -2612,10 +2623,25 @@ function render_session(Store $store, array $subject, array $x): string
         $body .= '</tbody></table></div>';
     }
 
+    // The review itself, the drift and the signals: parent only. Everyone
+    // else has already seen the tick in the header, and that is all.
+    if ($isParent) {
+        $versions = $store->lessonReviewVersions((int) $x['id']);
+        if ($versions) {
+            $review = $store->lessonReview((int) $x['id'], $version) ?? $store->lessonReview((int) $x['id']);
+            $body  .= rv_review_html($store, $subject, $x, $review, $versions);
+        } elseif ((int) ($x['review_required'] ?? 0) === 1 && !$void) {
+            $body .= '<h2>Lesson review</h2><div class="flag">This session requires a review and has none yet. '
+                . 'The audit writes it, or save one with tracker_save_lesson_review.</div>';
+        }
+        $body .= '<p><small><a href="/s/' . h($slug) . '/reviews">All lesson reviews for ' . h($subject['name'])
+            . '</a> · <a href="/signals">Signals</a></small></p>';
+    }
+
     return dash_shell('Session ' . $x['id'] . ' — ' . $subject['name'], $body);
 }
 
-function render_topic_history(Store $store, array $subject, array $topic): string
+function render_topic_history(Store $store, array $subject, array $topic, bool $isParent = false): string
 {
     $slug = $subject['slug'];
     $ref  = (string) $topic['ref'];
@@ -2669,6 +2695,11 @@ function render_topic_history(Store $store, array $subject, array $topic): strin
                 . '<td><small>' . h((string) ($q['note'] ?? '')) . '</small></td></tr>';
         }
         $body .= '</tbody></table></div>';
+    }
+
+    // The error history the lesson reviews have built: parent only.
+    if ($isParent) {
+        $body .= rv_topic_errors_html($store, $slug, $ref);
     }
 
     $resources = $store->resourcesForTopic($slug, $ref);
