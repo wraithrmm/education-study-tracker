@@ -1135,6 +1135,66 @@ if [ "$REMOTE" = 0 ]; then
   contains "the public view shows what the parent recorded" "$anon" "marked done by Dad"
   check "but still offers no controls" "$(n_of "$anon" '<details class="blockctl"')" "0"
 
+  # ---- the timetable editor ----------------------------------------------
+  #
+  # A block moved by hand. The page is the parent's, the save is a new version
+  # from a Monday not yet gone, and it can move and resize but never add or
+  # drop: the whole shape of the week still goes through the tool.
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/tt/edit")"
+  check "signed out, the editor sends you to the login" "$code" "303"
+  editor="$("${CURL[@]}" -b "$JAR" "$BASE/tt/edit")"
+  contains "signed in, the editor renders" "$editor" 'id="ttedit"'
+  check "with one chip per block of the version in force" "$(n_of "$editor" '<div class="blk eblk')" "36"
+  contains "each with a grip to move it by" "$editor" 'class="ehandle"'
+  contains "and its length to change" "$editor" 'class="elen"'
+  contains "and the board links to it" "$auth" 'href="/tt/edit">edit the timetable'
+  lacks "but the public board does not" "$anon" 'href="/tt/edit"'
+
+  NEXT_MON="$(php -r 'define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    echo tt_add_days(tt_monday(tt_today()), 7);')"
+  post_edit() {
+    "${CURL[@]}" -b "$JAR" -w ' [%{http_code}]' -X POST "$BASE/tt/edit" \
+      -H 'content-type: application/json' -d "$1"
+  }
+  moves="$(jq -c '[.blocks[] | {block_key: .id, weekday, start, end}]' "$SEED")"
+
+  body="$(post_edit "{\"valid_from\":\"$NEXT_MON\",\"blocks\":$moves}")"
+  contains "a save without the CSRF token is refused" "$body" "[403]"
+  body="$(post_edit "{\"csrf\":\"$CSRF\",\"valid_from\":\"2024-09-02\",\"blocks\":$moves}")"
+  contains "a save from a Monday already gone is refused" "$body" "this week or later"
+  body="$(post_edit "{\"csrf\":\"$CSRF\",\"valid_from\":\"$NEXT_MON\",\"blocks\":$(printf '%s' "$moves" | jq -c 'map(select(.block_key != 5))')}")"
+  contains "a save that leaves a block out is refused" "$body" "Block 5 not sent"
+  contains "and nothing is written" "$body" "Nothing was written"
+  body="$(post_edit "{\"csrf\":\"$CSRF\",\"valid_from\":\"$NEXT_MON\",\"blocks\":$(printf '%s' "$moves" | jq -c '. + [{block_key:99,weekday:6,start:"09:00",end:"09:30"}]')}")"
+  contains "a save that adds a block is refused" "$body" "does not add them"
+  body="$(post_edit "{\"csrf\":\"$CSRF\",\"valid_from\":\"$NEXT_MON\",\"blocks\":$(printf '%s' "$moves" | jq -c 'map(if .block_key == 2 then .start = "09:15" else . end)')}")"
+  contains "an overlap is refused, both blocks named" "$body" "Blocks 1 (09:00–09:30) and 2 (09:15–09:45) overlap on Monday"
+
+  # The real move: Monday's Python block to the top of the morning, the day
+  # closing up behind it, every block the length it was.
+  moved="$(printf '%s' "$moves" | jq -c 'map(
+    if   .block_key == 7 then .start = "09:45" | .end = "10:45"
+    elif .block_key == 3 then .start = "10:45" | .end = "12:00"
+    elif .block_key == 4 then .start = "12:00" | .end = "12:15"
+    elif .block_key == 5 then .start = "12:15" | .end = "13:15"
+    elif .block_key == 6 then .start = "13:15" | .end = "14:15"
+    else . end)')"
+  body="$(post_edit "{\"csrf\":\"$CSRF\",\"valid_from\":\"$NEXT_MON\",\"blocks\":$moved}")"
+  contains "a move saves as a new version" "$body" '"ok":true'
+  contains "from the Monday asked for" "$body" "\"valid_from\":\"$NEXT_MON\""
+  contains "with the diff the tool would have echoed" "$body" \
+    "7 · Monday 13:15–14:15 Computer Science — Python: start 13:15 → 09:45; end 14:15 → 10:45"
+  saved="$(printf '%s' "$body" | sed 's/ \[200\]$//')"
+  check "and only the blocks that moved are in it" "$(printf '%s' "$saved" | jq '.diff.changed | length')" "5"
+  check "nothing added, nothing dropped" \
+    "$(printf '%s' "$saved" | jq '(.diff.added | length) + (.diff.removed | length)')" "0"
+  tt="$(call tracker_get_timetable "{\"valid_on\":\"$NEXT_MON\"}")"
+  contains "the tools read the moved block back" "$tt" "#7   09:45-10:45  Computer Science — Python"
+  contains "with the blocks behind it closed up" "$tt" "#3   10:45-12:00  Maths — new topic"
+  contains "and the version says where it came from" "$tt" "Edited on the board."
+  tt="$(call tracker_get_timetable '{}')"
+  contains "while the week in force is as it was" "$tt" "#7   13:15-14:15  Computer Science — Python"
+
   code="$("${CURL[@]}" -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/logout")"
   check "signing out works" "$code" "303"
   after="$("${CURL[@]}" -b "$JAR" "$BASE/")"

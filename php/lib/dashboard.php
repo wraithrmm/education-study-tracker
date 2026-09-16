@@ -2037,8 +2037,12 @@ function tt_parent_line(Store $store, bool $isParent, string $selfPath): string
         return '<p class="tt-signin"><small><a href="/login?next=' . h(rawurlencode($selfPath))
             . '">Sign in to edit</a></small></p>';
     }
+    // The editor is offered from every page but its own.
+    $edit = str_starts_with($selfPath, '/tt/edit')
+        ? ''
+        : '<a href="/tt/edit">edit the timetable</a> · ';
     return '<form class="tt-signin" method="post" action="/logout">'
-        . '<small>Signed in as Dad · <button type="submit">sign out</button></small></form>';
+        . '<small>Signed in as Dad · ' . $edit . '<button type="submit">sign out</button></small></form>';
 }
 
 /** The sign-in page. Deliberately plain: it is a door, not a feature. */
