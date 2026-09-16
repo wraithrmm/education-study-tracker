@@ -54,6 +54,24 @@ mark and its own line in the totals, because the board's whole claim is that a
 tick means work was logged. Evidence always wins — log the session and the
 assertion is superseded.
 
+Signed in, the header also offers **edit the timetable**, at `/tt/edit`. It
+is the board again, every block a chip that can be dragged to another slot or
+another day; the blocks after it close up behind it, from the time in the
+day's header, and every block keeps its length. A stepper on each chip
+changes its length by five minutes, or the minutes can be typed; the rest of
+the day moves to fit. The grip on each chip takes the arrow keys, and a day
+menu on each chip does the cross-day move on a phone. Nothing is written until
+**Save**, and the list under the board says exactly what the save will change,
+block by block, the way the tool echoes its diff.
+
+A save is a new timetable version from a Monday — this week's, which re-judges
+the days already gone against the new shape, or next week's, which leaves this
+week as it was. It moves and resizes only: every block keeps its key, kind,
+label, subjects and tracking, so excusals, ticks and logged work still resolve
+against it, and it can neither add nor drop a block. A new shape of the week —
+a block added, one removed, a label changed — still goes through
+`tracker_set_timetable` in the chat, where the whole shape is stated.
+
 Sign-in is a signed, httpOnly cookie carrying its own expiry; there is no
 session table. Changing `TRACKER_PASSWORD` signs every device out. Writes need
 both the cookie and a CSRF token.

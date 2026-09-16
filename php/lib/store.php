@@ -2882,6 +2882,65 @@ final class Store
         ];
     }
 
+    /**
+     * Re-time the timetable in force on $validFrom: the same blocks, moved.
+     *
+     * This is what the board's editor writes. It takes only a day and a pair
+     * of times per block and keeps everything else — kind, label, subjects,
+     * tracking, note — from the version being edited, so a drag on the board
+     * can never rename a block or change what it is judged by. Every block of
+     * that version has to be sent, and nothing that is not in it may be: the
+     * editor moves and resizes, it does not add or drop. Adding and dropping
+     * stay with tracker_set_timetable, where the whole shape is stated.
+     *
+     * @param  array<int,array{block_key:int,weekday:int,start:string,end:string}> $moves
+     * @return array{version_id:int,diff:array<string,array<int,string>>,blocks:int}
+     */
+    public function retimeTimetable(array $moves, string $validFrom, ?string $note = null): array
+    {
+        $base = $this->timetableVersionOn($validFrom);
+        if (!$base) {
+            throw new InvalidArgumentException("No timetable is in force on $validFrom to edit.");
+        }
+        $blocks = [];
+        foreach ($this->timetableBlocks((int) $base['id']) as $b) {
+            // Sort is recomputed from the new start, or a block dragged
+            // earlier in the day would still be listed where it used to be.
+            unset($b['sort'], $b['id'], $b['version_id'], $b['subjects_json'], $b['alternate_json']);
+            $blocks[$b['block_key']] = $b;
+        }
+
+        $seen = [];
+        foreach ($moves as $i => $m) {
+            if (!is_array($m)) {
+                throw new InvalidArgumentException("Block #$i must be an object.");
+            }
+            $key = (int) ($m['block_key'] ?? 0);
+            if (!isset($blocks[$key])) {
+                throw new InvalidArgumentException(
+                    "Block $key is not in the timetable in force on $validFrom. "
+                    . 'The board editor moves blocks; it does not add them.'
+                );
+            }
+            if (isset($seen[$key])) {
+                throw new InvalidArgumentException("Block $key was sent twice.");
+            }
+            $seen[$key] = true;
+            $blocks[$key]['weekday'] = (int) ($m['weekday'] ?? 0);
+            $blocks[$key]['start']   = (string) ($m['start'] ?? '');
+            $blocks[$key]['end']     = (string) ($m['end'] ?? '');
+        }
+        $missing = array_diff(array_keys($blocks), array_keys($seen));
+        if ($missing) {
+            sort($missing);
+            throw new InvalidArgumentException(
+                'Block' . (count($missing) === 1 ? ' ' : 's ') . implode(', ', $missing)
+                . ' not sent. Every block of the version has to be, so none is dropped by accident.'
+            );
+        }
+        return $this->setTimetable(array_values($blocks), $validFrom, $note);
+    }
+
     // ---- days off ---------------------------------------------------------
 
     /** @return array<int,array<string,mixed>> */

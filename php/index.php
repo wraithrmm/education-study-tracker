@@ -160,6 +160,7 @@ require_once __DIR__ . '/lib/oauth.php';
 require_once __DIR__ . '/lib/mcp.php';
 require_once __DIR__ . '/lib/parent.php';
 require_once __DIR__ . '/lib/dashboard.php';
+require_once __DIR__ . '/lib/timetable_edit.php';
 
 try {
     $store = new Store($dbPath);
@@ -425,6 +426,47 @@ if ($path === '/tt/block' && $method === 'POST') {
             send_json(['error' => 'bad_request', 'error_description' => 'unknown action'], 400);
     }
     parent_redirect(parent_safe_next($b['next'] ?? '/'));
+}
+
+// The timetable editor: the board's blocks dragged into a new order or given
+// a new length, saved as a new version from a Monday. The page is the
+// parent's, so signed out it goes to the login rather than a 403 — it is a
+// link a person follows, not a form a script posts.
+if ($path === '/tt/edit' && $method === 'GET') {
+    if (!parent_signed_in($store, $password)) {
+        parent_redirect('/login?next=' . rawurlencode('/tt/edit'));
+    }
+    send_html(render_timetable_editor($store, tt_edit_from($_GET['from'] ?? null)));
+}
+
+// The save. Only a day and two times per block; everything else about a
+// block is kept from the version being edited, and no block may be added or
+// dropped this way. The store refuses an overlap, a block that ends before it
+// starts, and a set of keys that is not exactly the version's.
+if ($path === '/tt/edit' && $method === 'POST') {
+    $requireParent();
+    $b    = body();
+    $from = tt_edit_from($b['valid_from'] ?? null);
+    if (!isset($b['valid_from']) || $b['valid_from'] !== $from) {
+        send_json(['error' => 'bad_request',
+            'error_description' => 'valid_from must be a Monday, this week or later.'], 400);
+    }
+    if (!is_array($b['blocks'] ?? null) || !$b['blocks']) {
+        send_json(['error' => 'bad_request', 'error_description' => 'blocks must be a non-empty list.'], 400);
+    }
+    try {
+        $res = $store->retimeTimetable($b['blocks'], $from, 'Edited on the board.');
+    } catch (InvalidArgumentException $e) {
+        send_json(['error' => 'bad_request', 'error_description' => $e->getMessage() . ' Nothing was written.'], 400);
+    }
+    send_json([
+        'ok'                => true,
+        'version_id'        => $res['version_id'],
+        'valid_from'        => $from,
+        'valid_from_pretty' => tt_pretty($from),
+        'blocks'            => $res['blocks'],
+        'diff'              => $res['diff'],
+    ]);
 }
 
 if ($path === '/') {
