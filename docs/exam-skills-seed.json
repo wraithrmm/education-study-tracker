@@ -1,0 +1,101 @@
+{
+  "slug": "exam-skills",
+  "name": "Exam Skills",
+  "spec_code": "AQA GCSE exam technique",
+  "tier": "Untiered",
+  "notes": "Exam technique across every subject, practised in the Wednesday timed paper. Never grade-converted: the marks of each sitting land on the real subjects as check attempts; this subject holds what the sitting showed about technique.",
+  "strands": {
+    "T": "Timing",
+    "R": "Reading the question",
+    "A": "Answering",
+    "S": "Stamina and pressure"
+  },
+  "topics": [
+    {
+      "ref": "T1",
+      "name": "Reading time: skim the whole paper before starting",
+      "strand": "T"
+    },
+    {
+      "ref": "T2",
+      "name": "Pacing by marks per minute",
+      "strand": "T"
+    },
+    {
+      "ref": "T3",
+      "name": "Moving on from a stuck question (flag and return)",
+      "strand": "T"
+    },
+    {
+      "ref": "T4",
+      "name": "Checking time at the end",
+      "strand": "T"
+    },
+    {
+      "ref": "R1",
+      "name": "Command words and what each demands",
+      "strand": "R"
+    },
+    {
+      "ref": "R2",
+      "name": "Mark allocation sets the length of the answer",
+      "strand": "R"
+    },
+    {
+      "ref": "R3",
+      "name": "Show your working: method marks",
+      "strand": "R"
+    },
+    {
+      "ref": "R4",
+      "name": "Answer line, units and rounding",
+      "strand": "R"
+    },
+    {
+      "ref": "R5",
+      "name": "Multi-part questions: using an earlier part",
+      "strand": "R"
+    },
+    {
+      "ref": "A1",
+      "name": "One-mark answers: the answer and nothing else",
+      "strand": "A"
+    },
+    {
+      "ref": "A2",
+      "name": "Method marks: a route the scheme can credit",
+      "strand": "A"
+    },
+    {
+      "ref": "A3",
+      "name": "Extended answers: hitting the level descriptors",
+      "strand": "A"
+    },
+    {
+      "ref": "A4",
+      "name": "SPaG on the AO4 questions",
+      "strand": "A"
+    },
+    {
+      "ref": "A5",
+      "name": "Never blank: a sensible attempt on every question",
+      "strand": "A"
+    },
+    {
+      "ref": "S1",
+      "name": "A 45-minute sitting without drift",
+      "strand": "S"
+    },
+    {
+      "ref": "S2",
+      "name": "A 60-minute sitting",
+      "strand": "S"
+    },
+    {
+      "ref": "S3",
+      "name": "A 90-minute sitting",
+      "strand": "S"
+    }
+  ],
+  "_note": "The tracker_create_subject payload for the Exam Skills subject. Every topic starts notstarted; statuses move only through sessions logged from her exam-practice project after each sitting. Re-running it adds topics without touching statuses."
+}

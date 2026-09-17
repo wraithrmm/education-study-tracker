@@ -20,6 +20,8 @@ require_once __DIR__ . '/shape.php';
 require_once __DIR__ . '/retrieval.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/synthesis.php';
+// The exam vocabulary: the status lists its CHECK constraints are built from.
+require_once __DIR__ . '/exam.php';
 
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
@@ -209,7 +211,7 @@ SQL;
  * looks for — when is lunch, when is she out — so the board labels them.
  */
 const TIMETABLE_KINDS = [
-    'movement', 'retrieval', 'teach', 'practise', 'timed_handwritten',
+    'movement', 'retrieval', 'teach', 'practise', 'timed_handwritten', 'exam_practice',
     'coding', 'writing', 'consolidate', 'spanish', 'review', 'break',
     'lunch', 'group',
 ];
@@ -491,7 +493,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 13;
+    private const SCHEMA_VERSION = 14;
 
     private function migrate(): void
     {
@@ -803,6 +805,118 @@ final class Store
             $this->rebuildSignalsTable();
             return;
         }
+
+        if ($v === 14) {
+            // Exam skills: `exam_practice` joins the timetable kinds, which
+            // means the blocks table is rebuilt around the wider CHECK as
+            // step 7 did; the four exam tables are created; and the shape
+            // rule for the new kind reaches a database step 10 already
+            // seeded. Every block row keeps its id.
+            $sql = (string) $this->db->query(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'timetable_blocks'"
+            )->fetchColumn();
+            if ($sql !== '' && !str_contains($sql, "'exam_practice'")) {
+                $this->db->exec('DROP INDEX IF EXISTS idx_blocks_version');
+                $this->db->exec('ALTER TABLE timetable_blocks RENAME TO timetable_blocks_old');
+                $this->createTimetableBlocksTable();
+                $this->db->exec(
+                    'INSERT INTO timetable_blocks
+                       (id, version_id, block_key, weekday, start, end, kind, label, note,
+                        subjects_json, alternate_json, tracking, sort)
+                     SELECT id, version_id, block_key, weekday, start, end, kind, label, note,
+                            subjects_json, alternate_json, tracking, sort
+                     FROM timetable_blocks_old'
+                );
+                $this->db->exec('DROP TABLE timetable_blocks_old');
+            }
+            $this->createExamTables();
+            foreach (SHAPE_RULE_SEED as $rule) {
+                $this->seedBlockKindRule($rule);
+            }
+            $this->rulesCache = null;
+            return;
+        }
+    }
+
+    /**
+     * The exam tables: the question bank, the tests built from it, the
+     * questions each test holds, and what she wrote against each.
+     */
+    private function createExamTables(): void
+    {
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS exam_questions (
+               id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+               client_key         TEXT    NOT NULL UNIQUE,
+               subject_slug       TEXT    NOT NULL REFERENCES subjects(slug),
+               topic_refs_json    TEXT    NOT NULL DEFAULT '[]',
+               paper_style        TEXT,
+               marks              INTEGER NOT NULL CHECK (marks > 0),
+               calculator         INTEGER NOT NULL DEFAULT 0,
+               command_word       TEXT,
+               question_md        TEXT    NOT NULL,
+               mark_scheme_md     TEXT    NOT NULL,
+               model_answer_md    TEXT,
+               time_guide_seconds INTEGER,
+               tags_json          TEXT    NOT NULL DEFAULT '[]',
+               source_note        TEXT,
+               status             TEXT    NOT NULL DEFAULT 'draft' " . exam_check_sql('status', EXAM_QUESTION_STATUSES) . ",
+               created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+               vetted_at          TEXT,
+               note               TEXT
+             )"
+        );
+        $this->db->exec(
+            'CREATE INDEX IF NOT EXISTS idx_exam_questions_subject ON exam_questions(subject_slug, status)'
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS exam_tests (
+               id               INTEGER PRIMARY KEY AUTOINCREMENT,
+               name             TEXT    NOT NULL,
+               scheduled_for    TEXT    NOT NULL,
+               block_key        INTEGER,
+               duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+               instructions     TEXT,
+               status           TEXT    NOT NULL DEFAULT 'ready' " . exam_check_sql('status', EXAM_TEST_STATUSES) . ",
+               started_at       TEXT,
+               deadline_at      TEXT,
+               closed_at        TEXT,
+               closed_by        TEXT    CHECK (closed_by IS NULL OR closed_by IN ('timer','student','parent')),
+               marked_at        TEXT,
+               sit_token        TEXT,
+               note             TEXT,
+               created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+             )"
+        );
+        $this->db->exec('CREATE INDEX IF NOT EXISTS idx_exam_tests_date ON exam_tests(scheduled_for)');
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS exam_test_questions (
+               test_id               INTEGER NOT NULL REFERENCES exam_tests(id) ON DELETE CASCADE,
+               question_id           INTEGER NOT NULL REFERENCES exam_questions(id),
+               section               TEXT    NOT NULL,
+               position              INTEGER NOT NULL,
+               label                 TEXT    NOT NULL,
+               section_minutes_guide INTEGER,
+               UNIQUE (test_id, question_id),
+               UNIQUE (question_id)
+             )"
+        );
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS exam_answers (
+               test_id             INTEGER NOT NULL REFERENCES exam_tests(id) ON DELETE CASCADE,
+               question_id         INTEGER NOT NULL REFERENCES exam_questions(id),
+               answer              TEXT,
+               working             TEXT,
+               flagged             INTEGER NOT NULL DEFAULT 0,
+               time_spent_seconds  INTEGER NOT NULL DEFAULT 0,
+               saved_at            TEXT    NOT NULL,
+               score               REAL,
+               marker_note         TEXT,
+               student_feedback    TEXT,
+               attempt_question_id INTEGER,
+               PRIMARY KEY (test_id, question_id)
+             )"
+        );
     }
 
     /**
@@ -1822,7 +1936,8 @@ final class Store
         $out = [];
         foreach (['topics', 'attempts', 'attempt_papers', 'attempt_questions',
                   'sessions', 'topic_changes', 'resources', 'practice_run',
-                  'practice_item', 'lesson_reviews', 'review_signals'] as $t) {
+                  'practice_item', 'lesson_reviews', 'review_signals',
+                  'exam_questions', 'exam_tests'] as $t) {
             $row     = $this->one("SELECT COUNT(*) AS n FROM $t");
             $out[$t] = (int) ($row['n'] ?? 0);
         }
@@ -1914,8 +2029,9 @@ final class Store
      */
     public function addAttempt(array $a): int
     {
-        $this->db->beginTransaction();
-        try {
+        // transaction() rather than beginTransaction(), so that marking an
+        // exam test can write its attempts inside one outer transaction.
+        return $this->transaction(function () use ($a): int {
             $st = $this->db->prepare(
                 'INSERT INTO attempts (subject_slug, date, name, kind, tier, note)
                  VALUES (?, ?, ?, ?, ?, ?)'
@@ -1952,12 +2068,8 @@ final class Store
                     ]);
                 }
             }
-            $this->db->commit();
-        } catch (Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
-        return $attemptId;
+            return $attemptId;
+        });
     }
 
     /**
@@ -3438,6 +3550,33 @@ final class Store
                 'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
                 'source' => (string) $r['source'],
                 'attempted' => (int) $r['attempted'],
+            ];
+        }
+
+        // A sat exam-practice test. Closed or marked counts; so does one still
+        // open past its deadline — the timer ended it whether or not anyone
+        // has loaded the page since — read as an inference, never a write.
+        // `at` is 00:00 on purpose: the sitting is the block's evidence and
+        // must bind before any session written about it on a later day,
+        // which the binding pass sorts at 00:00 too.
+        foreach ($this->all(
+            "SELECT id, name, block_key, started_at, deadline_at, closed_at, duration_minutes, status
+             FROM exam_tests
+             WHERE started_at IS NOT NULL
+               AND (status IN ('closed', 'marked') OR (status = 'open' AND deadline_at <= ?))
+               AND started_at BETWEEN ? AND ?",
+            [tt_now_utc(), tt_add_days($from, -1) . ' 00:00:00', tt_add_days($to, 1) . ' 23:59:59']
+        ) as $r) {
+            [$d] = tt_local((string) $r['started_at']);
+            if ($d < $from || $d > $to) {
+                continue;
+            }
+            $rows[] = [
+                'type' => 'exam', 'id' => (int) $r['id'], 'subject' => EXAM_SUBJECT,
+                'date' => $d, 'at' => '00:00', 'label' => (string) $r['name'],
+                'minutes' => exam_sat_minutes($r),
+                'block_key' => $r['block_key'] === null ? null : (int) $r['block_key'],
+                'source' => null,
             ];
         }
 
@@ -6039,6 +6178,423 @@ final class Store
         }
         $lines[] = $moved ? 'Learner model since: ' . implode('; ', $moved) . '.' : 'The learner model has not moved since.';
         return ['tests' => $tests, 'plans' => $plans, 'model' => $moved, 'lines' => $lines];
+    }
+
+    // ---- exam skills -------------------------------------------------------
+    //
+    // The question bank and the timed test. Questions are written by the
+    // parent's project, vetted, and used once. A test is a set of vetted
+    // questions in subject sections with one duration; the sitting runs from
+    // Start to a server-set deadline; marking turns it into one ordinary
+    // attempt per subject so every existing report reads it unchanged.
+
+    private function hydrateExamQuestion(array $r): array
+    {
+        $r['id']                 = (int) $r['id'];
+        $r['marks']              = (int) $r['marks'];
+        $r['calculator']         = (int) $r['calculator'] === 1;
+        $r['time_guide_seconds'] = $r['time_guide_seconds'] === null ? null : (int) $r['time_guide_seconds'];
+        $r['topic_refs']         = json_decode((string) $r['topic_refs_json'], true) ?: [];
+        $r['tags']               = json_decode((string) $r['tags_json'], true) ?: [];
+        unset($r['topic_refs_json'], $r['tags_json']);
+        return $r;
+    }
+
+    public function examQuestion(int $id): ?array
+    {
+        $r = $this->one('SELECT * FROM exam_questions WHERE id = ?', [$id]);
+        return $r ? $this->hydrateExamQuestion($r) : null;
+    }
+
+    public function examQuestionByClientKey(string $key): ?array
+    {
+        $r = $this->one('SELECT * FROM exam_questions WHERE client_key = ?', [$key]);
+        return $r ? $this->hydrateExamQuestion($r) : null;
+    }
+
+    /** @param array<string,mixed> $q validated by the tool */
+    public function addExamQuestion(array $q): int
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO exam_questions
+               (client_key, subject_slug, topic_refs_json, paper_style, marks, calculator, command_word,
+                question_md, mark_scheme_md, model_answer_md, time_guide_seconds, tags_json, source_note,
+                status, created_at, note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $st->execute([
+            $q['client_key'], $q['subject_slug'],
+            json_encode(array_values($q['topic_refs'] ?? []), JSON_UNESCAPED_UNICODE),
+            $q['paper_style'] ?? null, (int) $q['marks'], (int) !empty($q['calculator']),
+            $q['command_word'] ?? null, $q['question_md'], $q['mark_scheme_md'],
+            $q['model_answer_md'] ?? null, $q['time_guide_seconds'] ?? null,
+            json_encode(array_values($q['tags'] ?? []), JSON_UNESCAPED_UNICODE),
+            $q['source_note'] ?? null, 'draft', tt_now_utc(), $q['note'] ?? null,
+        ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    /**
+     * Change the columns named in $fields. topic_refs and tags arrive as
+     * arrays and are stored as JSON; everything else is stored as given.
+     *
+     * @param array<string,mixed> $fields
+     */
+    public function updateExamQuestion(int $id, array $fields): void
+    {
+        $sets = [];
+        $vals = [];
+        foreach ($fields as $col => $val) {
+            if ($col === 'topic_refs' || $col === 'tags') {
+                $col = $col . '_json';
+                $val = json_encode(array_values((array) $val), JSON_UNESCAPED_UNICODE);
+            } elseif ($col === 'calculator') {
+                $val = (int) !empty($val);
+            }
+            if (!preg_match('/^[a-z_]+$/', (string) $col)) {
+                throw new InvalidArgumentException("bad column $col");
+            }
+            $sets[] = "$col = ?";
+            $vals[] = $val;
+        }
+        if (!$sets) {
+            return;
+        }
+        $vals[] = $id;
+        $st = $this->db->prepare('UPDATE exam_questions SET ' . implode(', ', $sets) . ' WHERE id = ?');
+        $st->execute($vals);
+    }
+
+    /**
+     * @param  array{subject?:?string,status?:?string,tag?:?string,limit?:int,ids?:array<int,int>} $filter
+     * @return array<int,array>
+     */
+    public function listExamQuestions(array $filter = []): array
+    {
+        $where  = [];
+        $params = [];
+        if (!empty($filter['subject'])) {
+            $where[]  = 'subject_slug = ?';
+            $params[] = $filter['subject'];
+        }
+        if (!empty($filter['status'])) {
+            $where[]  = 'status = ?';
+            $params[] = $filter['status'];
+        }
+        if (!empty($filter['ids'])) {
+            $ids      = array_map('intval', $filter['ids']);
+            $where[]  = 'id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            $params   = array_merge($params, $ids);
+        }
+        $sql = 'SELECT * FROM exam_questions' . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+            . ' ORDER BY subject_slug, id';
+        $rows = array_map([$this, 'hydrateExamQuestion'], $this->all($sql, $params));
+        if (!empty($filter['tag'])) {
+            $tag  = (string) $filter['tag'];
+            $rows = array_values(array_filter($rows, static fn(array $q): bool => in_array($tag, $q['tags'], true)));
+        }
+        $limit = (int) ($filter['limit'] ?? 0);
+        return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
+    }
+
+    /**
+     * A test with its rows. $sections is the output of exam_labels(): one
+     * entry per question with section, position, label and guide minutes.
+     *
+     * @param array<string,mixed> $t
+     * @param array<int,array{section:string,question_id:int,position:int,label:string,minutes_guide:?int}> $rows
+     */
+    public function addExamTest(array $t, array $rows): int
+    {
+        return $this->transaction(function () use ($t, $rows): int {
+            $st = $this->db->prepare(
+                'INSERT INTO exam_tests (name, scheduled_for, block_key, duration_minutes, instructions, status, note, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $st->execute([
+                $t['name'], $t['scheduled_for'], $t['block_key'] ?? null, (int) $t['duration_minutes'],
+                $t['instructions'] ?? null, 'ready', $t['note'] ?? null, tt_now_utc(),
+            ]);
+            $id = (int) $this->db->lastInsertId();
+            $ins = $this->db->prepare(
+                'INSERT INTO exam_test_questions (test_id, question_id, section, position, label, section_minutes_guide)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $upd = $this->db->prepare("UPDATE exam_questions SET status = 'scheduled' WHERE id = ?");
+            foreach ($rows as $r) {
+                $ins->execute([$id, $r['question_id'], $r['section'], $r['position'], $r['label'], $r['minutes_guide']]);
+                $upd->execute([$r['question_id']]);
+            }
+            return $id;
+        });
+    }
+
+    private function hydrateExamTest(array $r): array
+    {
+        $r['id']               = (int) $r['id'];
+        $r['block_key']        = $r['block_key'] === null ? null : (int) $r['block_key'];
+        $r['duration_minutes'] = (int) $r['duration_minutes'];
+        return $r;
+    }
+
+    /** The bare row, no sections. */
+    public function examTestRow(int $id): ?array
+    {
+        $r = $this->one('SELECT * FROM exam_tests WHERE id = ?', [$id]);
+        return $r ? $this->hydrateExamTest($r) : null;
+    }
+
+    /**
+     * A test with its sections in order, each question with its bank row and
+     * her answer (null when nothing was saved), plus totals.
+     */
+    public function examTest(int $id): ?array
+    {
+        $t = $this->examTestRow($id);
+        if (!$t) {
+            return null;
+        }
+        $rows = $this->all(
+            'SELECT tq.section, tq.position, tq.label, tq.section_minutes_guide, q.*
+             FROM exam_test_questions tq JOIN exam_questions q ON q.id = tq.question_id
+             WHERE tq.test_id = ? ORDER BY tq.position',
+            [$id]
+        );
+        $answers = [];
+        foreach ($this->all('SELECT * FROM exam_answers WHERE test_id = ?', [$id]) as $a) {
+            $a['question_id']         = (int) $a['question_id'];
+            $a['flagged']             = (int) $a['flagged'] === 1;
+            $a['time_spent_seconds']  = (int) $a['time_spent_seconds'];
+            $a['score']               = $a['score'] === null ? null : (float) $a['score'];
+            $a['attempt_question_id'] = $a['attempt_question_id'] === null ? null : (int) $a['attempt_question_id'];
+            $answers[$a['question_id']] = $a;
+        }
+        $sections = [];
+        foreach ($rows as $r) {
+            $section = (string) $r['section'];
+            $guide   = $r['section_minutes_guide'] === null ? null : (int) $r['section_minutes_guide'];
+            $q = $this->hydrateExamQuestion(array_diff_key($r, ['section' => 1, 'position' => 1, 'label' => 1, 'section_minutes_guide' => 1]));
+            $q['label']    = (string) $r['label'];
+            $q['position'] = (int) $r['position'];
+            $q['answer']   = $answers[$q['id']] ?? null;
+            if (!isset($sections[$section])) {
+                $sections[$section] = ['subject' => $section, 'minutes_guide' => $guide, 'questions' => []];
+            }
+            $sections[$section]['questions'][] = $q;
+        }
+        $t['sections']    = array_values($sections);
+        $t['sat_minutes'] = exam_sat_minutes($t);
+        $t['sat_date']    = exam_sat_date($t);
+        $t['question_count'] = count($rows);
+        $t['marks']       = array_sum(array_map(static fn($r) => (int) $r['marks'], $rows));
+        return $t;
+    }
+
+    /** @return array<int,array> newest scheduled first */
+    public function listExamTests(array $filter = []): array
+    {
+        $where  = [];
+        $params = [];
+        if (!empty($filter['status'])) {
+            $where[]  = 'status = ?';
+            $params[] = $filter['status'];
+        }
+        if (!empty($filter['from'])) {
+            $where[]  = 'scheduled_for >= ?';
+            $params[] = $filter['from'];
+        }
+        if (!empty($filter['to'])) {
+            $where[]  = 'scheduled_for <= ?';
+            $params[] = $filter['to'];
+        }
+        $rows = $this->all(
+            'SELECT t.*, (SELECT COUNT(*) FROM exam_test_questions tq WHERE tq.test_id = t.id) AS question_count,
+                    (SELECT COALESCE(SUM(q.marks), 0) FROM exam_test_questions tq JOIN exam_questions q ON q.id = tq.question_id
+                      WHERE tq.test_id = t.id) AS marks
+             FROM exam_tests t' . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+            . ' ORDER BY scheduled_for DESC, id DESC' . (!empty($filter['limit']) ? ' LIMIT ' . (int) $filter['limit'] : ''),
+            $params
+        );
+        return array_map(function (array $r): array {
+            $r = $this->hydrateExamTest($r);
+            $r['question_count'] = (int) $r['question_count'];
+            $r['marks']          = (int) $r['marks'];
+            $r['sat_minutes']    = exam_sat_minutes($r);
+            return $r;
+        }, $rows);
+    }
+
+    /** Tests scheduled between two dates inclusive. */
+    public function examTestsBetween(string $from, string $to): array
+    {
+        return array_reverse($this->listExamTests(['from' => $from, 'to' => $to]));
+    }
+
+    /** The one test on a date in any of the statuses, or null. */
+    public function examTestOnDate(string $date, array $statuses): ?array
+    {
+        foreach ($this->listExamTests(['from' => $date, 'to' => $date]) as $t) {
+            if (in_array($t['status'], $statuses, true)) {
+                return $t;
+            }
+        }
+        return null;
+    }
+
+    /** ready → open. The deadline is the server's, set once, never moved. */
+    public function startExamTest(int $id): array
+    {
+        return $this->transaction(function () use ($id): array {
+            $t = $this->examTestRow($id);
+            if (!$t || $t['status'] !== 'ready') {
+                throw new InvalidArgumentException('only a ready test can be started');
+            }
+            $start = tt_now_utc();
+            $st = $this->db->prepare(
+                "UPDATE exam_tests SET status = 'open', started_at = ?, deadline_at = ?, sit_token = ? WHERE id = ?"
+            );
+            $st->execute([$start, exam_add_seconds($start, $t['duration_minutes'] * 60), exam_sit_token(), $id]);
+            return $this->examTestRow($id);
+        });
+    }
+
+    /**
+     * One answer, written or rewritten. time_spent_seconds is a running
+     * total from the page, so the larger of stored and sent is kept — a
+     * stale beacon arriving after a fresh save cannot wind it back.
+     *
+     * @param array{answer?:?string,working?:?string,flagged?:bool,time_spent_seconds?:int} $a
+     */
+    public function saveExamAnswer(int $testId, int $questionId, array $a): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO exam_answers (test_id, question_id, answer, working, flagged, time_spent_seconds, saved_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(test_id, question_id) DO UPDATE SET
+               answer = excluded.answer, working = excluded.working, flagged = excluded.flagged,
+               time_spent_seconds = MAX(exam_answers.time_spent_seconds, excluded.time_spent_seconds),
+               saved_at = excluded.saved_at'
+        );
+        $st->execute([
+            $testId, $questionId, $a['answer'] ?? null, $a['working'] ?? null,
+            (int) !empty($a['flagged']), max(0, (int) ($a['time_spent_seconds'] ?? 0)), tt_now_utc(),
+        ]);
+    }
+
+    /**
+     * open → closed. The timer closes at the deadline exactly, whenever the
+     * request that notices it arrives; a person closes at now. Idempotent:
+     * a test already closed is returned as it is.
+     */
+    public function closeExamTest(int $id, string $by): array
+    {
+        return $this->transaction(function () use ($id, $by): array {
+            $t = $this->examTestRow($id);
+            if (!$t) {
+                throw new InvalidArgumentException("no exam test $id");
+            }
+            if ($t['status'] !== 'open') {
+                return $t;
+            }
+            if (!in_array($by, EXAM_CLOSED_BY, true)) {
+                throw new InvalidArgumentException("closed_by must be one of " . implode(', ', EXAM_CLOSED_BY));
+            }
+            $now = tt_now_utc();
+            $at  = $by === 'timer' ? (string) $t['deadline_at'] : $now;
+            // A person closing after the deadline is the timer closing late.
+            if ($by !== 'timer' && exam_deadline_passed($t)) {
+                $by = 'timer';
+                $at = (string) $t['deadline_at'];
+            }
+            $st = $this->db->prepare(
+                "UPDATE exam_tests SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ?"
+            );
+            $st->execute([$at, $by, $id]);
+            $this->db->prepare(
+                "UPDATE exam_questions SET status = 'answered'
+                 WHERE status = 'scheduled' AND id IN (SELECT question_id FROM exam_test_questions WHERE test_id = ?)"
+            )->execute([$id]);
+            return $this->examTestRow($id);
+        });
+    }
+
+    /** Close a test the timer has ended but nobody has closed. Returns the fresh row. */
+    public function lazyCloseExamTest(array $test): array
+    {
+        if (($test['status'] ?? '') === 'open' && exam_deadline_passed($test)) {
+            return $this->closeExamTest((int) $test['id'], 'timer');
+        }
+        return $test;
+    }
+
+    /**
+     * The marks, one row per question. Every question of the test must be
+     * present; the tool checks that before calling.
+     *
+     * @param array<int,array{question_id:int,score:float,note?:?string,student_feedback?:?string}> $marks
+     */
+    public function saveExamMarks(int $testId, array $marks): void
+    {
+        $st = $this->db->prepare(
+            'INSERT INTO exam_answers (test_id, question_id, answer, working, flagged, time_spent_seconds, saved_at,
+                                       score, marker_note, student_feedback)
+             VALUES (?, ?, NULL, NULL, 0, 0, ?, ?, ?, ?)
+             ON CONFLICT(test_id, question_id) DO UPDATE SET
+               score = excluded.score, marker_note = excluded.marker_note,
+               student_feedback = excluded.student_feedback'
+        );
+        foreach ($marks as $m) {
+            $st->execute([
+                $testId, (int) $m['question_id'], tt_now_utc(), (float) $m['score'],
+                $m['note'] ?? null, $m['student_feedback'] ?? null,
+            ]);
+        }
+    }
+
+    public function setExamAnswerAttemptQuestion(int $testId, int $questionId, int $attemptQuestionId): void
+    {
+        $this->db->prepare(
+            'UPDATE exam_answers SET attempt_question_id = ? WHERE test_id = ? AND question_id = ?'
+        )->execute([$attemptQuestionId, $testId, $questionId]);
+    }
+
+    /** closed → marked; the questions follow. */
+    public function setExamTestMarked(int $id, ?string $note = null): void
+    {
+        $this->db->prepare(
+            "UPDATE exam_tests SET status = 'marked', marked_at = ?, note = COALESCE(?, note) WHERE id = ?"
+        )->execute([tt_now_utc(), $note, $id]);
+        $this->db->prepare(
+            "UPDATE exam_questions SET status = 'marked'
+             WHERE id IN (SELECT question_id FROM exam_test_questions WHERE test_id = ?)"
+        )->execute([$id]);
+    }
+
+    /**
+     * The attempt_questions ids of one attempt in the order they were
+     * written, so a marked test can point each answer at its attempt row.
+     *
+     * @return array<int,int>
+     */
+    /** The attempt one attempt_questions row belongs to. */
+    public function attemptIdOfQuestion(int $attemptQuestionId): ?int
+    {
+        $row = $this->one(
+            'SELECT p.attempt_id FROM attempt_questions q JOIN attempt_papers p ON p.id = q.paper_id WHERE q.id = ?',
+            [$attemptQuestionId]
+        );
+        return $row ? (int) $row['attempt_id'] : null;
+    }
+
+    public function examAttemptQuestionIds(int $attemptId): array
+    {
+        $ids = [];
+        foreach ($this->listPapers($attemptId) as $p) {
+            foreach ($this->listQuestions((int) $p['id']) as $q) {
+                $ids[] = (int) $q['id'];
+            }
+        }
+        return $ids;
     }
 }
 

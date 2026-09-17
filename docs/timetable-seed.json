@@ -440,6 +440,19 @@
       "subjects": [],
       "tracking": "self_report",
       "note": "Ticked by the parent from the review chat."
+    },
+    {
+      "id": 39,
+      "weekday": 3,
+      "start": "14:30",
+      "end": "15:30",
+      "kind": "exam_practice",
+      "label": "Exam practice — timed paper",
+      "subjects": [
+        "exam-skills"
+      ],
+      "tracking": "evidence",
+      "note": "Mixed-subject timed paper on the portal at /exam; marked afterwards in her exam-practice project."
     }
   ],
   "targets_hours_per_week": {
@@ -447,7 +460,8 @@
     "english-literature": 4.5,
     "english-language": 3.5,
     "computer-science": 3.5,
-    "spanish": 1.75
+    "spanish": 1.75,
+    "exam-skills": 1.0
   },
-  "_note": "No holidays here. Book days off through tracker_request_day_off once the tools are live."
+  "_note": "No holidays here. Book days off through tracker_request_day_off once the tools are live. Block 39 (Wednesday 14:30 exam practice) was added in September 2026; on the live board Spanish #20 sits at 14:30 and moves to 15:30-15:45 — re-cut from tracker_get_timetable, not from this file (docs/exam-skills-rollout.md)."
 }

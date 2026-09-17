@@ -24,7 +24,7 @@
  *                             or a prompted answer recorded in the prior n days
  *   min_duration_minutes      a recorded duration ≥ n minutes
  *   min_duration_fraction     a recorded duration ≥ this fraction of the block
- *   evidence_type             the record is of this type (session|attempt|practice)
+ *   evidence_type             the record is of this type (session|attempt|practice|exam)
  *
  * A row also says whether a session logged against the kind needs a lesson
  * review (review_required): the kinds a tutor skill owns do, retrieval,
@@ -68,6 +68,13 @@ const SHAPE_RULE_SEED = [
     ['kind' => 'writing', 'satisfied_by' => 'any', 'review_required' => true,
      'shape' => [['min_duration_fraction' => 0.5]],
      'expects' => 'a recorded duration of at least half the block'],
+    // The Wednesday exam-practice block: satisfied by a sat test, which the
+    // service records itself when the timer ends the sitting. satisfied_by
+    // stays 'any' because the binding refinement's CHECK names three values;
+    // the shape condition is what says a session is not a sitting.
+    ['kind' => 'exam_practice', 'satisfied_by' => 'any',
+     'shape' => [['evidence_type' => 'exam']],
+     'expects' => 'a sat exam-practice test (closed by the timer, or submitted)'],
     // The fallback for a kind with no row of its own: any record, always
     // met. The verdict still says the kind has no rule, so it can be added
     // rather than improvised twice.
@@ -283,6 +290,10 @@ function shape_facts_summary(array $facts): string
     }
     if ($facts['type'] === 'attempt') {
         return 'a marked attempt';
+    }
+    if ($facts['type'] === 'exam') {
+        return 'a sat exam-practice test' . ($facts['duration_minutes'] === null
+            ? '' : ' of ' . (int) $facts['duration_minutes'] . ' min');
     }
     $bits = [];
     $u = (int) $facts['updates'];

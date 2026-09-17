@@ -161,6 +161,7 @@ require_once __DIR__ . '/lib/mcp.php';
 require_once __DIR__ . '/lib/parent.php';
 require_once __DIR__ . '/lib/dashboard.php';
 require_once __DIR__ . '/lib/timetable_edit.php';
+require_once __DIR__ . '/lib/dashboard_exam.php';
 
 try {
     $store = new Store($dbPath);
@@ -467,6 +468,117 @@ if ($path === '/tt/edit' && $method === 'POST') {
         'blocks'            => $res['blocks'],
         'diff'              => $res['diff'],
     ]);
+}
+
+// ---- exam practice ------------------------------------------------------
+//
+// The timed paper. Reading is as public as the board; the three student
+// writes (start, answer, submit) need no login — she has none — and are
+// guarded instead by the test's state, a token issued at Start, and the
+// deadline. The bank is the parent's alone.
+
+if ($path === '/exam/bank') {
+    if (!parent_signed_in($store, $password)) {
+        parent_redirect('/login?next=' . rawurlencode('/exam/bank'));
+    }
+    $dashboardGuard();
+    send_html(render_exam_bank($store, $_GET));
+}
+
+if ($path === '/exam') {
+    $dashboardGuard();
+    send_html(render_exam_index($store, parent_signed_in($store, $password)));
+}
+
+if (preg_match('#^/exam/(\d+)(?:/(start|answer|submit))?$#', $path, $m)) {
+    $examId = (int) $m[1];
+    $action = $m[2] ?? null;
+    $test   = $store->examTestRow($examId);
+    if (!$test) {
+        if ($action !== null) {
+            send_json(['error' => 'not_found'], 404);
+        }
+        $dashboardGuard();
+        send_html(render_exam_index($store, parent_signed_in($store, $password)), 404);
+    }
+    // A timer that has run out ended the sitting whether or not anyone was
+    // looking: every request closes an overdue test before doing anything.
+    $test     = $store->lazyCloseExamTest($test);
+    $isParent = parent_signed_in($store, $password);
+
+    if ($action === null) {
+        $dashboardGuard();
+        send_html(render_exam_test($store, $store->examTest($examId), $isParent));
+    }
+    if ($method !== 'POST') {
+        send_json(['error' => 'method_not_allowed'], 405);
+    }
+    $b = body();
+
+    if ($action === 'start') {
+        // Only the day's paper opens for her; the parent can open any.
+        if ($test['status'] !== 'ready') {
+            parent_redirect("/exam/$examId");
+        }
+        if ($test['scheduled_for'] !== tt_today() && !$isParent) {
+            send_html(render_exam_locked($examId, 'This paper is for ' . tt_pretty($test['scheduled_for']) . '; it opens on the day.'), 403);
+        }
+        $store->startExamTest($examId);
+        parent_redirect("/exam/$examId");
+    }
+
+    if ($action === 'answer') {
+        $why = exam_guard_write($test, isset($b['token']) ? (string) $b['token'] : null);
+        if ($why !== null) {
+            send_json(['error' => 'locked', 'reason' => $why, 'status' => $test['status']], 409);
+        }
+        $full  = $store->examTest($examId);
+        $known = [];
+        foreach ($full['sections'] as $sec) {
+            foreach ($sec['questions'] as $q) {
+                $known[(int) $q['id']] = true;
+            }
+        }
+        $answers = is_array($b['answers'] ?? null) ? $b['answers'] : [$b];
+        $saved   = 0;
+        foreach ($answers as $ans) {
+            if (!is_array($ans)) {
+                continue;
+            }
+            $qid = (int) ($ans['question_id'] ?? 0);
+            if (!isset($known[$qid])) {
+                continue;
+            }
+            $store->saveExamAnswer($examId, $qid, [
+                'answer'             => mb_substr((string) ($ans['answer'] ?? ''), 0, EXAM_ANSWER_MAX),
+                'working'            => mb_substr((string) ($ans['working'] ?? ''), 0, EXAM_ANSWER_MAX),
+                'flagged'            => !empty($ans['flagged']),
+                'time_spent_seconds' => (int) ($ans['time_spent_seconds'] ?? 0),
+            ]);
+            $saved++;
+        }
+        send_json([
+            'ok'         => true,
+            'saved'      => $saved,
+            'server_now' => exam_now(),
+            'deadline'   => exam_epoch($test['deadline_at']),
+        ]);
+    }
+
+    if ($action === 'submit') {
+        // Handing in: hers with the token, at any time after the deadline
+        // too (it then closes as the timer); the parent's with the login.
+        $token = isset($b['token']) ? (string) $b['token'] : null;
+        $hers  = $test['status'] === 'open' && $token !== null && $token !== ''
+            && hash_equals((string) ($test['sit_token'] ?? ''), $token);
+        if ($test['status'] === 'open' && ($hers || $isParent)) {
+            $by = $hers ? ((($b['by'] ?? '') === 'timer') ? 'timer' : 'student') : 'parent';
+            $store->closeExamTest($examId, $by);
+        } elseif ($test['status'] === 'open') {
+            send_json(['error' => 'forbidden', 'reason' => 'the token does not match this sitting'], 403);
+        }
+        parent_redirect("/exam/$examId");
+    }
 }
 
 if ($path === '/') {
