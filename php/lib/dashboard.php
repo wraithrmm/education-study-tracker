@@ -14,6 +14,8 @@ if (!defined('TRACKER')) {
 require_once __DIR__ . '/dashboard_review.php';
 // The weekly synthesis, the learner model and the week plans: parent-only.
 require_once __DIR__ . '/dashboard_synthesis.php';
+// Exam practice: the timed test she sits, and the parent's question bank.
+require_once __DIR__ . '/dashboard_exam.php';
 
 const STATUS_COLOUR = [
     'gap'        => '#ef4444',
@@ -440,7 +442,7 @@ const DASH_HAND_FONT = '<link rel="preconnect" href="https://fonts.googleapis.co
 function dash_shell(string $title, string $body, string $head = ''): string
 {
     $t   = h($title);
-    $css = DASH_CSS . "\n" . DASH_REVIEW_CSS . "\n" . DASH_SYNTH_CSS;
+    $css = DASH_CSS . "\n" . DASH_REVIEW_CSS . "\n" . DASH_SYNTH_CSS . "\n" . DASH_EXAM_CSS;
     return "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\">\n"
         . "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
         . "<title>$t</title>$head<style>$css</style></head>\n"
@@ -629,6 +631,7 @@ function tt_evidence_href(array $ev, ?string $subject): ?string
         'session'  => '/s/' . rawurlencode($subject) . '/session/' . (int) $ev['id'],
         'attempt'  => '/s/' . rawurlencode($subject) . '/a/' . (int) $ev['id'],
         'practice' => '/s/' . rawurlencode($subject) . '/practice',
+        'exam'     => '/exam/' . (int) $ev['id'],
         default    => null,
     };
 }
@@ -714,6 +717,9 @@ function tt_design_a(array $w, array $names, ?array $ctl = null): string
             foreach ($b['evidence'] as $ev) {
                 $href = tt_evidence_href($ev, $b['subject']);
             }
+            // The exam-practice chip is her way into the paper waiting for
+            // her: no login, no question in the HTML until she presses Start.
+            $href = $href ?? ($b['exam_href'] ?? null);
             $cls = 'class="blk s-' . h($b['status'])
                 . (($b['shape'] ?? null) === 'unmet' ? ' s-shape' : '')
                 . '" style="--acc:' . h($b['accent']) . '"';
@@ -1012,6 +1018,26 @@ function render_timetable_section(
     }
     $w   = $store->judgeWeek($dateInWeek);
     $now = tt_now();
+
+    // A test waiting or in progress this week hangs off its block's chip.
+    foreach ($store->examTestsBetween($w['monday'], tt_add_days($w['monday'], 6)) as $et) {
+        if (!in_array($et['status'], ['ready', 'open'], true)) {
+            continue;
+        }
+        foreach ($w['days'] as &$day) {
+            if ($day['date'] !== $et['scheduled_for']) {
+                continue;
+            }
+            foreach ($day['blocks'] as &$b) {
+                if ($b['kind'] === 'exam_practice' && ($et['block_key'] === null || $et['block_key'] === $b['block_key'])) {
+                    $b['exam_href'] = '/exam/' . (int) $et['id'];
+                    break;
+                }
+            }
+            unset($b);
+        }
+        unset($day);
+    }
 
     $names = tt_subject_names($store);
     $ctl   = $isParent
@@ -2041,8 +2067,11 @@ function tt_parent_line(Store $store, bool $isParent, string $selfPath): string
     $edit = str_starts_with($selfPath, '/tt/edit')
         ? ''
         : '<a href="/tt/edit">edit the timetable</a> · ';
+    $bank = str_starts_with($selfPath, '/exam/bank')
+        ? ''
+        : '<a href="/exam/bank">question bank</a> · ';
     return '<form class="tt-signin" method="post" action="/logout">'
-        . '<small>Signed in as Dad · ' . $edit . '<button type="submit">sign out</button></small></form>';
+        . '<small>Signed in as Dad · ' . $edit . $bank . '<button type="submit">sign out</button></small></form>';
 }
 
 /** The sign-in page. Deliberately plain: it is a door, not a feature. */
@@ -2132,7 +2161,8 @@ function render_index(Store $store, bool $isParent = false): string
         $stamp = '<p class="tt-stamp mono">'
             . h(tt_stamp(null, true)) . '</p>';
     }
-    $body = $timetable . ($timetable === '' ? '' : '<h2>Subjects</h2>');
+    $body = $timetable
+        . ($timetable === '' ? '' : '<p><small><a href="/exam">Exam practice</a> — the weekly timed paper</small></p><h2>Subjects</h2>');
     if ($subjects) {
         foreach ($subjects as $s) {
             $p    = progressFor($store, $s['slug']);

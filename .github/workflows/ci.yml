@@ -47,3 +47,10 @@ jobs:
 
       - name: Weekly synthesis acceptance tests
         run: php deploy/synthesis-test.php
+
+      # Exam skills: the bank's refusals and idempotency, scheduling, the
+      # student's page before and during the sitting, the write guard and
+      # the grace, the timer closing the test, the block judged from the
+      # sitting, and marking into one attempt per subject.
+      - name: Exam skills acceptance tests
+        run: php deploy/exam-test.php

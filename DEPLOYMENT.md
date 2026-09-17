@@ -140,6 +140,7 @@ php deploy/practice-test.php
 php deploy/continuity-test.php
 php deploy/lesson-review-test.php
 php deploy/synthesis-test.php
+php deploy/exam-test.php
 ```
 
 The first boots the service on PHP's built-in server against a throwaway

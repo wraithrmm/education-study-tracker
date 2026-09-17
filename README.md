@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week. `/exam` is the weekly timed exam-practice paper: `/exam/<id>` is one sitting, hidden until Start, timed, then marked; `/exam/bank` is the parent's question bank.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -28,8 +28,9 @@ To run it locally, `bash deploy/smoke-test.sh` boots it against a throwaway
 database and exercises every endpoint, `php deploy/practice-test.php` runs
 the practice acceptance tests and the scoreboard golden snapshots, and
 `php deploy/continuity-test.php` covers session continuity, unfinished work,
-block shape and retrieval scheduling against a frozen clock; DEPLOYMENT.md
-has the recipe for poking at it by hand.
+block shape and retrieval scheduling against a frozen clock, and
+`php deploy/exam-test.php` covers the question bank, the timed sitting and
+its marking; DEPLOYMENT.md has the recipe for poking at it by hand.
 
 | Variable | Purpose |
 |---|---|
@@ -159,6 +160,13 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_get_week_synthesis` | Read one back, with its snapshot and the drift since. |
 | `tracker_list_week_syntheses` | One line per synthesised week. |
 | `tracker_learner_model` | The evolving model of how she learns, each row resting on signals. |
+| `tracker_exam_add_questions` | Bank exam-style questions with their mark schemes, tagged by subject and topic. Parent's project. |
+| `tracker_exam_list_questions` | The bank, one line per question. Parent's project. |
+| `tracker_exam_update_question` | Vet, edit or retire a question. Frozen once it is in a test. |
+| `tracker_exam_schedule_test` | Build one timed test from vetted questions, in subject sections, against the Wednesday block. |
+| `tracker_exam_list_tests` | Every test with its status — the one waiting for her, the one awaiting marking. |
+| `tracker_exam_get_test` | One test in full: her answers, timing and flags, with the schemes once the sitting is over. |
+| `tracker_exam_mark_test` | Mark a sat test: scores and feedback per question, one `check` attempt per subject. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -207,9 +215,11 @@ Steps 5 and 8 re-run the source seed, which is how a source added later
 Step 9 adds the unfinished-work and `consolidates` columns to sessions, step
 10 creates and seeds `block_kind_rules`, and step 11 adds `item_key` to
 practice items, the `retrieval_state` and `retrieval_config` tables, and the
-`retrieval_warmup` and `retrieval_subject` sources. None of them backfills:
-no old summary is scraped for the word "unfinished", and no old practice run
-is replayed into the schedule.
+`retrieval_warmup` and `retrieval_subject` sources. Step 14 adds the
+`exam_practice` block kind (rebuilding `timetable_blocks` around the wider
+CHECK, as step 7 did), the four exam tables and the kind's shape rule. None
+of them backfills: no old summary is scraped for the word "unfinished", and
+no old practice run is replayed into the schedule.
 
 ## Continuity between sessions
 
@@ -259,7 +269,8 @@ turns out wrong is an `UPDATE`. A row is a list of alternatives, each an
 object of conditions that must all hold (`min_items`, `min_updates`,
 `min_updates_with_evidence`, `min_distinct_topics`, `consolidates_nonempty`,
 `recent_error_update_days`, `min_duration_minutes`, `min_duration_fraction`,
-`evidence_type`; the vocabulary is documented in `php/lib/shape.php`). A kind
+`evidence_type` — `session`, `attempt`, `practice` or `exam`; the vocabulary is
+documented in `php/lib/shape.php`). A kind
 with no row is judged as always met and the response says so, so it can be
 added rather than improvised twice. The binding refinement — a timed block
 takes an attempt, a retrieval block takes a `retrieval_` practice run — is
@@ -425,6 +436,62 @@ synthesis never overwrites a test the parent set. On the pages the synthesis
 sits beneath the weekly review, the learner model has its own page at
 `/learner`, the subject page carries the week's plan, and the signals page
 shows each test's setter and whether this week answered it — all parent-only.
+
+## Exam skills
+
+Once a week she sits a **timed, mixed-subject paper** on the portal, in exam
+conditions: exam-style questions in the house style of each subject's papers,
+one clock, no pause, marked the way the exam would mark them. It exists to
+teach what an examiner expects of a one-mark answer and a four-mark one, how
+to keep to time, when to leave a question and come back, and never to leave
+a blank. `docs/exam-skills.md` is the contract; `docs/exam-skills-rollout.md`
+is what to do after deploying it.
+
+**The bank is the parent's.** Questions are written in the parent's
+exam-question project — past papers and mark schemes in its knowledge base —
+and stored with `tracker_exam_add_questions`, each tagged by subject and
+topic ref, with a mark scheme in that paper's own code system. Every question
+lands as a draft; `tracker_exam_update_question` vets it, and only a vetted
+question can go into a test. On the portal the bank (`/exam/bank`) is behind
+the parent's login; on the connector, which has one identity, it is by
+contract — the student's project never calls the bank tools, and
+`tracker_exam_get_test` withholds the schemes until the sitting is over.
+
+**A test is one sitting.** `tracker_exam_schedule_test` builds it: vetted
+questions in subject sections, each section with its marks and a suggested
+time, one duration, and the exam-practice block it fulfils. A question is sat
+once. The page at `/exam/<id>` shows her the shape of the paper — sections,
+marks, minutes — and one **Start** button; the questions are not in the HTML
+until she presses it. Start sets the deadline on the server. From then the
+page shows the questions with an answer box (and a working box for maths and
+computer science), a countdown, a strip of question pills that show
+answered, blank and flagged, and warnings at five minutes and one. Answers
+save as she types, on an interval, and on the way out of the page, and the
+time each question had focus is recorded. A reload gets everything back from
+the server; nothing lives in the browser. At zero the page locks and hands
+in; the server closes the test at the deadline whether or not any page was
+open, and refuses a save more than ten seconds late. There is no pause and
+no extension.
+
+**Marking writes attempts.** In her exam-practice project she says the test
+is ready for marking. `tracker_exam_get_test` gives every answer beside its
+scheme; `tracker_exam_mark_test` records a score, a marker's note and a line
+of student feedback per question and writes **one ordinary attempt per
+subject** (kind `check`, one paper, every question with its topic ref), so
+the attempt pages, the per-topic breakdown, the weekly review and the
+synthesis read the sitting like any other marked work. The skill then logs
+one session per subject with its review and one for the `exam-skills`
+subject with the technique observations — time per section against its
+guide, order, flags, blanks, marks lost to technique rather than knowledge.
+She sees her marks per section and the feedback lines; the schemes, model
+answers and marker's notes render only for the parent.
+
+**The sitting is the block's evidence.** The Wednesday block has kind
+`exam_practice`; a closed or marked test — or one still open past its
+deadline — is evidence of type `exam` for the `exam-skills` subject, carrying
+the minutes actually sat, and the kind's shape rule is met by nothing else.
+The technique session is logged without a block key or a duration so the
+hour is counted once.
 
 ## Practice
 

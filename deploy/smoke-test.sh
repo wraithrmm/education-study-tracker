@@ -275,7 +275,9 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_list_lesson_reviews tracker_signals tracker_update_signal \
             tracker_review_audit_queue tracker_audit_stamp tracker_week_synthesis_inputs \
             tracker_save_week_synthesis tracker_get_week_synthesis tracker_list_week_syntheses \
-            tracker_learner_model; do
+            tracker_learner_model tracker_exam_add_questions tracker_exam_list_questions \
+            tracker_exam_update_question tracker_exam_schedule_test tracker_exam_list_tests \
+            tracker_exam_get_test tracker_exam_mark_test; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -286,10 +288,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 46 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 53 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 46 of 46)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 53 of 53)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -613,7 +615,7 @@ echo
 echo "== timetable =="
 # The seeded database has only maths. The timetable names five subjects, so
 # the rest are created first — which is also what happened for real.
-for sub in english-literature english-language computer-science spanish; do
+for sub in english-literature english-language computer-science spanish exam-skills; do
   call tracker_create_subject "{\"slug\":\"$sub\",\"name\":\"Smoke $sub\",\"strands\":{\"A\":\"A\"},\"topics\":[{\"ref\":\"A1\",\"name\":\"One\",\"strand\":\"A\"}]}" > /dev/null
 done
 
@@ -624,8 +626,8 @@ blocks="$(jq -c '[.blocks[] | . + {block_key: .id}]' "$SEED")"
 targets="$(jq -c '.targets_hours_per_week' "$SEED")"
 
 body="$(call tracker_set_timetable "{\"blocks\":$blocks,\"valid_from\":\"2024-09-02\",\"note\":\"smoke seed\",\"targets\":$targets}")"
-contains "tracker_set_timetable writes the seed" "$body" "36 blocks"
-contains "and reports the diff it wrote" "$body" "Added (36)"
+contains "tracker_set_timetable writes the seed" "$body" "37 blocks"
+contains "and reports the diff it wrote" "$body" "Added (37)"
 
 # One extra block laid across Monday's maths block, everything else identical.
 clash="$(jq -c '[.blocks[] | . + {block_key: .id}] + [{block_key:99,weekday:1,start:"09:50",end:"10:10",kind:"teach",label:"Clash",subjects:["maths"],tracking:"evidence"}]' "$SEED")"
@@ -638,7 +640,7 @@ body="$(call tracker_set_timetable '{"blocks":[{"block_key":1,"weekday":1,"start
 contains "an unknown subject slug is refused" "$body" "not a tracked subject"
 
 body="$(call tracker_get_timetable '{"valid_on":"2024-09-09"}')"
-contains "tracker_get_timetable returns the version in force" "$body" "36 blocks"
+contains "tracker_get_timetable returns the version in force" "$body" "37 blocks"
 contains "and marks how each block is tracked" "$body" "[self_report]"
 
 # Monday 2024-09-09. A maths session fills block 3 and nothing else.
@@ -757,7 +759,7 @@ call tracker_log_practice '{"subject":"maths","runs":[{"client_run_id":"smoke-we
 body="$(call tracker_week_report '{"week":"2024-W37"}')"
 contains "tracker_week_report opens on the week and its dates" "$body" \
   "Week 2024-W37 — 9 September 2024 to 13 September 2024"
-contains "the headline counts study blocks only" "$body" "Study blocks 2 of 21 done"
+contains "the headline counts study blocks only" "$body" "Study blocks 2 of 22 done"
 contains "with movement counted separately" "$body" "movement ticked 1 of 5"
 contains "and the review block separately again" "$body" "review block not ticked"
 contains "the register speaks the one block format" "$body" "#3   09:45-11:00  Maths — new topic"
@@ -767,7 +769,7 @@ contains "and a timed block says it was an attempt that was missing" "$body" \
   "Tue 13:15 Timed handwritten practice — no attempt logged"
 contains "the extra sits on its own day as an extra" "$body" "+ extra: maths practice #"
 contains "hours are read against the timetable's planned hours" "$body" "maths 1.93/4.83"
-contains "and totalled against the same figure" "$body" "of 13.08 planned hours"
+contains "and totalled against the same figure" "$body" "of 14.08 planned hours"
 lacks "never against the skills' split" "$body" "/5.00"
 contains "the pending day off is put to the parent, not decided" "$body" "do not decide it"
 contains "each subject reports its practice" "$body" "practice: 3 runs, 40 attempted"
@@ -783,7 +785,7 @@ sections='{"held":"Eighteen of twenty-one study blocks held, or so this note cla
 body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
 contains "tracker_save_weekly_review writes version 1" "$body" "Saved version 1 (draft) for 2024-W37"
 contains "the snapshot is the server's, whatever the note says" "$body" \
-  "Snapshot: study blocks 2 of 21 done"
+  "Snapshot: study blocks 2 of 22 done"
 contains "and it points at the page" "$body" "Read it at /week/2024-W37"
 
 body="$(call tracker_save_weekly_review "{\"week\":\"2024-W37\",\"stage\":\"draft\",\"written_by\":\"routine\",\"sections\":$sections,\"note\":\"written by the smoke run\"}")"
@@ -840,7 +842,7 @@ contains "the latest version is the one returned" "$body" "version 2 of 2 · rev
 contains "excusing a block after the save makes the drift line appear" "$body" \
   "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
 contains "and the drift line quotes the counts the snapshot was written against" "$body" \
-  "(19 missed · 0 excused)"
+  "(20 missed · 0 excused)"
 contains "and the decisions it recorded are read back" "$body" "excusal 2024-09-11#20: excused"
 
 body="$(call tracker_get_weekly_review '{"week":"2024-W37","version":1}')"
@@ -974,7 +976,7 @@ if [ "$REMOTE" = 0 ]; then
   contains "with movement counted separately" "$week" "movement ticked 1 of 5"
   contains "and the review block separately again" "$week" "review block not ticked"
   contains "the segmented bar says the counts in words, not in colour" "$week" \
-    'aria-label="21 study blocks: 2 done, 1 of the done not in shape, 18 missed, 1 excused"'
+    'aria-label="22 study blocks: 2 done, 1 of the done not in shape, 19 missed, 1 excused"'
   contains "hours are read against the timetable's planned hours" "$week" "1.93 / 4.83"
   contains "and the bar says which side of the plan it is on, in words" "$week" \
     "under the timetable"
@@ -1004,7 +1006,7 @@ if [ "$REMOTE" = 0 ]; then
   contains "excusing a block after the save puts the drift line on the page" "$week" \
     "Since then: Wed 09:45 Spanish — vocab + listening excused — Dentist."
   contains "and the drift line quotes the counts the note was written against" "$week" \
-    "(19 missed · 0 excused)"
+    "(20 missed · 0 excused)"
 
   v1="$("${CURL[@]}" "$BASE/week/2024-W37?v=1")"
   contains "?v=1 shows the first version" "$v1" "Eighteen of twenty-one study blocks held"
@@ -1034,7 +1036,7 @@ if [ "$REMOTE" = 0 ]; then
   contains "/weeks lists the week" "$ledger" "2024-W37"
   contains "and links to it" "$ledger" 'href="/week/2024-W37"'
   contains "and carries its stamp" "$ledger" 'class="ministamp"'
-  contains "with the same study-block fraction the week page shows" "$ledger" ">1/21<"
+  contains "with the same study-block fraction the week page shows" "$ledger" ">1/22<"
   contains "and a mark saying the record has moved since the note" "$ledger" \
     'aria-label="the record has moved since this note was written"'
   contains "weeks before the first timetable say so" "$ledger" "no timetable yet"
@@ -1144,7 +1146,7 @@ if [ "$REMOTE" = 0 ]; then
   check "signed out, the editor sends you to the login" "$code" "303"
   editor="$("${CURL[@]}" -b "$JAR" "$BASE/tt/edit")"
   contains "signed in, the editor renders" "$editor" 'id="ttedit"'
-  check "with one chip per block of the version in force" "$(n_of "$editor" '<div class="blk eblk')" "36"
+  check "with one chip per block of the version in force" "$(n_of "$editor" '<div class="blk eblk')" "37"
   contains "each with a grip to move it by" "$editor" 'class="ehandle"'
   contains "and its length to change" "$editor" 'class="elen"'
   contains "and the board links to it" "$auth" 'href="/tt/edit">edit the timetable'
@@ -1208,7 +1210,87 @@ if [ "$REMOTE" = 0 ]; then
   lacks "and it is not in the MISSED list" "$report" \
     '<b>English Literature — set text</b> — no session logged that day'
   contains "and the bar counts it apart from both done and missed, in words" "$report" \
-    'aria-label="21 study blocks: 2 done, 1 of the done not in shape, 1 marked by hand, 17 missed, 1 excused"'
+    'aria-label="22 study blocks: 2 done, 1 of the done not in shape, 1 marked by hand, 18 missed, 1 excused"'
+fi
+
+echo
+echo "== exam practice =="
+# The bank, the scheduled paper and the pages around it. The tools are the
+# parent's; the pages are hers up to the moment she presses Start. Write
+# tools, so local only.
+if [ "$REMOTE" = 0 ]; then
+  body="$(call tracker_exam_add_questions '{"questions":[{"client_key":"smoke-q1","subject":"maths","topic_refs":["A17"],"marks":2,"question_md":"Solve 3x + 4 = 19\n\nYou must show your working.","mark_scheme_md":"M1 for 3x = 15 oe\nA1 for x = 5","paper_style":"8300/1H","command_word":"Solve"},{"client_key":"smoke-q2","subject":"computer-science","topic_refs":["A1"],"marks":1,"question_md":"State the denary value of 1011.","mark_scheme_md":"11"}]}')"
+  contains "tracker_exam_add_questions banks a draft" "$body" "2 questions added to the bank as draft"
+  body="$(call tracker_exam_add_questions '{"questions":[{"client_key":"smoke-q1","subject":"maths","topic_refs":["A17"],"marks":2,"question_md":"x","mark_scheme_md":"y"}]}')"
+  contains "and a repeated client_key is a no-op" "$body" "already stored as draft, unchanged"
+  body="$(call tracker_exam_add_questions '{"questions":[{"client_key":"smoke-q3","subject":"maths","topic_refs":["NOPE"],"marks":2,"question_md":"x","mark_scheme_md":"y"}]}')"
+  contains "an unknown topic ref is refused" "$body" "which maths does not hold"
+  body="$(call tracker_exam_list_questions '{"subject":"maths"}')"
+  contains "tracker_exam_list_questions lists it" "$body" "smoke-q1"
+  contains "and says it is the parent's" "$body" "Parent only"
+  body="$(call tracker_exam_schedule_test '{"name":"Smoke paper","scheduled_for":"2024-09-11","duration_minutes":30,"block_key":39,"sections":[{"subject":"maths","question_ids":[1],"minutes_guide":10}]}')"
+  contains "a draft cannot be scheduled" "$body" "not vetted"
+  call tracker_exam_update_question '{"id":1,"action":"vet"}' > /dev/null
+  call tracker_exam_update_question '{"id":2,"action":"vet"}' > /dev/null
+  body="$(call tracker_exam_schedule_test '{"name":"Smoke paper","scheduled_for":"2024-09-11","duration_minutes":30,"block_key":39,"sections":[{"subject":"maths","question_ids":[1],"minutes_guide":10},{"subject":"computer-science","question_ids":[2],"minutes_guide":5}]}')"
+  contains "tracker_exam_schedule_test builds the paper" "$body" "scheduled for 2024-09-11: 2 questions, 3 marks, 30 min, block #39"
+  body="$(call tracker_exam_list_tests '{}')"
+  contains "tracker_exam_list_tests shows it waiting" "$body" "waiting: /exam/1"
+  body="$(call tracker_exam_get_test '{"id":1}')"
+  contains "tracker_exam_get_test withholds the scheme before the sitting" "$body" "withheld"
+  body="$(call tracker_exam_get_test '{"id":1,"include_bank":true}')"
+  contains "unless the parent asks for the bank" "$body" "MARK SCHEME: M1 for 3x = 15 oe"
+
+  page="$("${CURL[@]}" "$BASE/exam")"
+  contains "/exam lists the paper" "$page" "Smoke paper"
+  page="$("${CURL[@]}" "$BASE/exam/1")"
+  contains "/exam/1 shows the shape of the paper" "$page" "1 question, 2 marks, about 10 min"
+  lacks "and never a question before Start" "$page" "Solve 3x"
+  contains "and says it opens on its day" "$page" "It opens on the day"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/exam/1/start")"
+  check "a stranger cannot start a paper before its day" "$code" "403"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/exam/1/answer" -H 'content-type: application/json' -d '{"token":"nope","answers":[]}')"
+  check "nor write into a sitting that has not started" "$code" "409"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/exam/999")"
+  check "a missing test is a 404" "$code" "404"
+  code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/exam/bank")"
+  check "the bank sends a stranger to the login" "$code" "303"
+  if [ -n "${JAR:-}" ]; then
+    # The parent section signed out at its end; sign in again.
+    "${CURL[@]}" -c "$JAR" -o /dev/null -X POST "$BASE/login" -d "password=$PASSWORD&next=/"
+    bank="$("${CURL[@]}" -b "$JAR" "$BASE/exam/bank")"
+    contains "and shows the parent every question with its scheme" "$bank" "M1 for 3x = 15 oe"
+    code="$("${CURL[@]}" -b "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/exam/1/start")"
+    check "the parent can start a paper on any day" "$code" "303"
+    sitting="$("${CURL[@]}" "$BASE/exam/1")"
+    contains "and the sitting page then carries the question" "$sitting" "Solve 3x + 4 = 19"
+    contains "and the timer's data" "$sitting" '"deadline":'
+    lacks "but no scheme for her" "$sitting" "M1 for 3x"
+    TOKEN="$(printf '%s' "$sitting" | grep -o 'name="token" value="[a-f0-9]*"' | head -1 | grep -o '[a-f0-9]\{32\}')"
+    if [ -n "$TOKEN" ]; then pass "a sitting token is issued"; else fail "no sitting token on the page"; fi
+    body="$("${CURL[@]}" -X POST "$BASE/exam/1/answer" -H 'content-type: application/json' -d "{\"token\":\"$TOKEN\",\"answers\":[{\"question_id\":1,\"answer\":\"x = 5\",\"working\":\"3x = 15\",\"time_spent_seconds\":40}]}")"
+    contains "an answer saves with the token" "$body" '"saved":1'
+    contains "and the reply carries the server's clock" "$body" '"server_now":'
+    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/exam/1/answer" -H 'content-type: application/json' -d '{"token":"nope","answers":[{"question_id":1,"answer":"x = 6"}]}')"
+    check "and not without it" "$code" "409"
+    sitting="$("${CURL[@]}" "$BASE/exam/1")"
+    contains "a reload gets the answer back" "$sitting" ">x = 5</textarea>"
+    code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/exam/1/submit" -d "token=$TOKEN&by=student")"
+    check "handing in closes the sitting" "$code" "303"
+    closed="$("${CURL[@]}" "$BASE/exam/1")"
+    contains "and the page says it is ready for marking" "$closed" "ready for marking"
+    body="$(call tracker_exam_mark_test '{"id":1,"marks":[{"question_id":1,"score":2,"note":"M1 A1","student_feedback":"Clear working."},{"question_id":2,"score":0,"note":"blank","student_feedback":"Place values 8 4 2 1."}]}')"
+    contains "tracker_exam_mark_test writes one attempt per subject" "$body" "- maths: 2/2 over 1 question, 0 blank — attempt #"
+    contains "and counts the blank" "$body" "- computer-science: 0/1 over 1 question, 1 blank"
+    marked="$("${CURL[@]}" "$BASE/exam/1")"
+    contains "the marked page shows her the feedback" "$marked" "Place values 8 4 2 1."
+    lacks "and not the marker's note" "$marked" ">blank<"
+    lacks "nor the scheme" "$marked" "M1 for 3x"
+    pmarked="$("${CURL[@]}" -b "$JAR" "$BASE/exam/1")"
+    contains "the parent sees the scheme" "$pmarked" "M1 for 3x = 15"
+    body="$(call tracker_list_attempts '{"subject":"maths"}')"
+    contains "and the attempt is on the subject's record" "$body" "Smoke paper — GCSE Mathematics section"
+  fi
 fi
 
 echo

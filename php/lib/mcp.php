@@ -34,6 +34,8 @@ final class McpError extends Exception
 require_once __DIR__ . '/mcp_review.php';
 // The weekly synthesis's validation and write, and the blocks other tools print from it.
 require_once __DIR__ . '/mcp_synthesis.php';
+// The exam-skills tools: the question bank, the timed test and its marking.
+require_once __DIR__ . '/mcp_exam.php';
 
 function mcp_text(string $s): array
 {
@@ -696,6 +698,7 @@ function mcp_absent(array $b): string
     }
     return match ($b['kind']) {
         'timed_handwritten' => 'no attempt logged',
+        'exam_practice'     => 'no exam-practice test sat',
         'retrieval'         => 'no retrieval practice logged',
         'spanish'           => 'no practice logged',
         default             => 'no session logged',
@@ -865,7 +868,7 @@ function mcp_tools(): array
         'required' => ['one_sentence', 'independent', 'supported', 'big_picture', 'planner', 'missing_evidence'],
     ];
 
-    return [
+    $tools = [
         [
             'name'  => 'tracker_list_subjects',
             'title' => 'List tracked subjects',
@@ -2259,6 +2262,7 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
     ];
+    return array_merge($tools, mcp_exam_tools($readOnly, $write, $isoDate, $subjectArg));
 }
 
 // ---- tool implementations -----------------------------------------------
@@ -2315,6 +2319,20 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     if ($e['type'] === 'session') {
                         $word = mcp_review_word($store->sessionById((int) $e['id']));
                         $tag  = $word === '' ? '' : '  · ' . $word;
+                    }
+                    if ($e['type'] === 'exam') {
+                        $ex  = $store->examTestRow((int) $e['id']);
+                        $tag = $ex === null ? '' : ($ex['status'] === 'marked'
+                            ? '  · marked'
+                            : '  · closed, awaiting marking — tracker_exam_mark_test');
+                    }
+                }
+                // The Wednesday paper waiting for her: the tutor chat can
+                // point her at it without a question ever entering the chat.
+                if ($b['kind'] === 'exam_practice' && in_array($b['status'], ['now', 'pending', 'upcoming'], true)) {
+                    $waiting = $store->examTestOnDate($date, ['ready', 'open']);
+                    if ($waiting) {
+                        $tag .= "  · test #{$waiting['id']} {$waiting['status']} at /exam/{$waiting['id']}";
                     }
                 }
                 $lines[] = '  ' . mcp_block_line($b) . $tag;
@@ -2793,6 +2811,29 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         . ($l['measured'] ? '' : ' — the block length, not a measured sitting')
                         . ($l['blanks'] === null ? '' : ', ' . $l['blanks'] . ' blanks') . ')'
                     : ' — and none in the eight weeks before it, so stamina has no new reading') . '.';
+            }
+
+            $examTests = $store->examTestsBetween($monday, tt_add_days($monday, 6));
+            if ($examTests) {
+                $lines[] = "\nEXAM PRACTICE";
+                foreach ($examTests as $et) {
+                    $line = '- ' . $et['scheduled_for'] . ' ' . $et['name'] . ' — ' . $et['status']
+                        . ($et['sat_minutes'] !== null ? ', sat ' . $et['sat_minutes'] . ' of ' . $et['duration_minutes'] . ' min' : ', not sat')
+                        . ($et['closed_by'] ? ', closed by ' . $et['closed_by'] : '');
+                    if ($et['status'] === 'marked') {
+                        $full = $store->examTest((int) $et['id']);
+                        $bits = [];
+                        foreach ($full['sections'] as $sec) {
+                            $tot    = exam_section_totals($sec);
+                            $bits[] = $sec['subject'] . ' ' . num((float) $tot['score']) . '/' . num($tot['max'])
+                                . ($tot['blanks'] ? ' (' . $tot['blanks'] . ' blank)' : '');
+                        }
+                        $line .= ': ' . implode(' · ', $bits);
+                    } elseif ($et['status'] === 'closed') {
+                        $line .= ' — READY FOR MARKING';
+                    }
+                    $lines[] = $line;
+                }
             }
 
             foreach ($names as $slug => $name) {
@@ -5434,6 +5475,10 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 . "\nThe previous configuration is kept, so it can be read back if this one turns out wrong."
                 . "\nBoard: /s/$slug/practice");
         }
+    }
+
+    if (str_starts_with($name, 'tracker_exam_')) {
+        return mcp_exam_call($store, $name, $a);
     }
 
     throw new McpError("Unknown tool \"$name\".");
