@@ -57,6 +57,12 @@ changed, with times, each citing its synthesis week) → parent approves →
 Block keys are kept stable where the block survives, so history and excusals still resolve. The
 `valid_from` is the Monday the new shape starts. Show the diff *before* writing, every time.
 
+Send every surviving block back **whole** — label, subjects, tracking, `alternate` and its
+`note`. A re-cut writes a new version and keeps only what it is given, so a field left out of the
+write is gone from that version on, silently and for every week after. `tracker_get_timetable`
+prints all of them, the notes included, for exactly this reason: what it shows you is what you
+owe back.
+
 Constraints that survive every phase, because the research does: movement before the first hard
 block; retrieval warm-up first; no whole-subject switching inside a block; 20–25-minute chunks
 with breaks; Spanish loses every tie; handwriting on paper at least weekly from Transition on.

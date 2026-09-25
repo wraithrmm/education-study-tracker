@@ -20,7 +20,7 @@ One row of the stored timetable:
 | `subjects` | zero or more subject slugs the block belongs to. `[]` for movement/break. Several slugs for a mixed retrieval or a rotating block |
 | `tracking` | `evidence` — done when the tracker holds evidence (below) · `self_report` — done when someone ticks it through chat · `none` — shown, never judged (breaks, lunch) |
 | `alternate` | optional: `{ "odd": ["maths"], "even": ["computer-science"] }` by ISO week, for the Thursday deep block |
-| `note` | one line of guidance shown on hover/tap, e.g. "rotate: Lang Q5 / Lit essay / Maths section" |
+| `note` | one line of guidance for whoever runs the block, e.g. "rotate: Lang Q5 / Lit essay / Maths section". `tracker_get_timetable` prints it under the block; a re-cut must send it back or it is lost |
 
 The timetable is versioned: `tracker_set_timetable` replaces the whole set and stamps a
 `valid_from` date, so past weeks are judged against the timetable that was in force then.
