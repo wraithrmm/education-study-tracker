@@ -36,6 +36,11 @@ A student-facing chat never triggers either mode.
    most recently, which is what the Saturday task wants. Read it once. If it says the week
    already has a `parent` version, stop and say so; a routine draft may not be saved over the
    parent's.
+1a. **Then, per subject taught:** `tracker_progress_forecast(subject)` and read its `SIGNALS`
+   block as `progress-forecast` describes. A `stalled` or `no_new_topics` signal is a Part 13
+   priority in its own right; `off_target` belongs in Part 18's big picture with the cone's
+   band, never its most-likely figure alone; `stuck_topics` names the topics Part 14's week
+   plan must decide about.
 2. **Write** the twenty parts as the object in `synthesis-rules.md` §3, in the order §4 gives
    (Part 20 first, Parts 1 and 18 last), from the returned inputs only. Reuse existing signal
    keys (§5); quote learner voice verbatim (§6); no diagnosis, no learning-style labels, no

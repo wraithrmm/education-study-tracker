@@ -78,6 +78,7 @@ keeps skill releases apart from anything the service might tag later.
 | `gcse-english-marker` | parent | Marks 8700 and 8702 against level descriptors |
 | `gcse-cs-marker` | parent | Marks 8525, both components |
 | `gcse-spanish-marker` | parent | Marks 8692, all four components |
+| `progress-forecast` | parent | Reads the aimline, the cone and the stall signals for a subject, and says what each asks for |
 | `exam-question-generator` | parent | Writes, vets and schedules the weekly paper's questions |
 | `gcse-progress-tracker` | either | Topic state, promotion bars, grade projection; holds the shared references |
 | `gcse-tracker-dashboard` | parent | Creates and extends subjects, configures the dashboard |

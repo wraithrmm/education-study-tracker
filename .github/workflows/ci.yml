@@ -48,6 +48,12 @@ jobs:
       - name: Weekly synthesis acceptance tests
         run: php deploy/synthesis-test.php
 
+      # Progress over time and the forecast: the replay, the aimline rule,
+      # the cone's shape and determinism, the stall signals, the goal
+      # override, the tool's two formats and the page for both readers.
+      - name: Progress forecast acceptance tests
+        run: php deploy/progress-test.php
+
       # Exam skills: the bank's refusals and idempotency, scheduling, the
       # student's page before and during the sitting, the write guard and
       # the grace, the timer closing the test, the block judged from the

@@ -61,6 +61,12 @@ jobs:
       - name: Weekly synthesis acceptance tests
         run: php deploy/synthesis-test.php
 
+      # Progress over time and the forecast: the replay, the aimline rule,
+      # the cone's shape and determinism, the stall signals, the goal
+      # override, the tool's two formats and the page for both readers.
+      - name: Progress forecast acceptance tests
+        run: php deploy/progress-test.php
+
       - name: Check required secrets are present
         env:
           SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}

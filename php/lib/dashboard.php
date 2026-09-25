@@ -16,6 +16,7 @@ require_once __DIR__ . '/dashboard_review.php';
 require_once __DIR__ . '/dashboard_synthesis.php';
 // Exam practice: the timed test she sits, and the parent's question bank.
 require_once __DIR__ . '/dashboard_exam.php';
+require_once __DIR__ . '/dashboard_progress.php';
 
 const STATUS_COLOUR = [
     'gap'        => '#ef4444',
@@ -1543,6 +1544,21 @@ function week_subject_section(
             . week_coverage_spark($store, $slug, $s['name'], $monday, $sunday, $cov, $accent)
             . '</div></div>';
 
+        // Which side of the aimline the week ended, from the progress page.
+        $pw = null;
+        foreach (progress_compute($store->progressInputs($slug), ['cone' => false])['weeks'] as $w) {
+            if ($w['monday'] === $monday) {
+                $pw = $w;
+                break;
+            }
+        }
+        if ($pw !== null && $pw['blocks'] > 0) {
+            $out .= '<p class="sspec">' . ($pw['aim_pct'] !== null ? 'Aimline ' . (int) round($pw['aim_pct']) . '% · ' : '')
+                . '<a href="/s/' . h($slug) . '/progress">' . h(progress_flag_word($pw)) . '</a> · '
+                . $pw['touches'] . ' touch' . ($pw['touches'] === 1 ? '' : 'es') . ', ' . ($pw['net'] > 0 ? '+' : '') . $pw['net']
+                . ' step' . (abs($pw['net']) === 1 ? '' : 's') . '</p>';
+        }
+
         // What moved, with the status either side of it.
         $moved = array_values(array_filter(
             $snap['changes'], static fn($c) => $c['subject_slug'] === $slug
@@ -2167,11 +2183,15 @@ function render_index(Store $store, bool $isParent = false): string
         foreach ($subjects as $s) {
             $p    = progressFor($store, $s['slug']);
             $n    = count($p['topics']);
+            // The aimline reading only: the cone costs a simulation per subject
+            // and belongs on the subject's own pages.
+            $line = pg_summary_line(progress_compute($store->progressInputs($s['slug']), ['cone' => false]), false);
             $body .= '<a class="item" href="/s/' . h($s['slug']) . '" style="text-decoration:none">'
                 . '<div class="grow"><strong>' . h($s['name']) . '</strong>'
                 . '<div><small>' . h($s['spec_code'] ?? '') . ' ' . h($s['tier'] ?? '') . ' · ' . $n . ' topics</small></div>'
                 . '</div>'
-                . '<div class="num"><strong class="mono">' . $p['pct'] . '%</strong><div><small>covered</small></div></div>'
+                . '<div class="num"><strong class="mono">' . $p['pct'] . '%</strong><div><small>covered</small></div>'
+                . ($line !== '' ? '<div><small>' . h($line) . '</small></div>' : '') . '</div>'
                 . '</a>';
         }
     } else {
@@ -2450,6 +2470,13 @@ function render_subject(Store $store, array $subject, bool $isParent = false): s
     $subjectName = h($subject['name']);
     $lowerCount  = count($lower);
 
+    // One line under the headline: where the pace lands, and the aimline.
+    // The page behind it holds the line, the cone and the weeks.
+    $progress     = progress_compute($store->progressInputs($subject['slug']), ['cone' => $isParent]);
+    $summary      = pg_summary_line($progress, $isParent);
+    $progressLine = '<p><small>' . ($summary !== '' ? h($summary) . ' · ' : '')
+        . '<a href="/s/' . h($subject['slug']) . '/progress">progress and forecast →</a></small></p>';
+
     $body = <<<HTML
 <header>
   <div><p class="kicker">{$kicker}</p><h1>{$subjectName}</h1></div>
@@ -2458,7 +2485,7 @@ function render_subject(Store $store, array $subject, bool $isParent = false): s
 
 <div class="stats">
   <div class="card"><p class="label">Spec conquered</p><p class="big mono">{$pct}%</p>
-    <div class="track"><div style="width:{$pct}%"></div></div></div>
+    <div class="track"><div style="width:{$pct}%"></div></div>{$progressLine}</div>
   <div class="card"><p class="label">Lower-tier secure</p>
     <p class="big mono">{$lowerSecure}<small>/{$lowerCount}</small></p>
     <p><small>topics secure or better</small></p></div>

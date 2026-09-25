@@ -38,6 +38,11 @@ A named week (`2026-W37`) → that week. Say which week at the top of the output
    planner, which is where that subject's carry-forward comes from.
 5. `tracker_list_practice(subject: "spanish", since: <Monday>)` — the Spanish slots are practice,
    not sessions, and would otherwise look empty.
+5a. `tracker_progress_forecast(subject)` per subject — read its `SIGNALS` block the way
+   `progress-forecast` says: a stall of two weeks or more, a run under the aimline, an
+   off-target cone or no new topic opened goes into "Slipped" and that subject's
+   carry-forward, with the tool's own wording and level. Quote the needed-versus-delivered
+   pace when the question is whether she is on track.
 6. `tracker_signals(status: "open", min_strength: "established")` only when `SIGNAL MOVEMENT`
    names a signal that reached established this week — to fetch its full trail for the parent.
 

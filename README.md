@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week. `/exam` is the weekly timed exam-practice paper: `/exam/<id>` is one sitting, hidden until Start, timed, then marked; `/exam/bank` is the parent's question bank.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week. `/s/<subject>/progress` is the subject over time: coverage replayed day by day, the straight line it has to follow to its goal, the cone of where the last weeks' pace lands it, and the weeks that stalled. `/exam` is the weekly timed exam-practice paper: `/exam/<id>` is one sitting, hidden until Start, timed, then marked; `/exam/bank` is the parent's question bank.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -148,6 +148,7 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_week_report` | Everything a week is judged on in one call: blocks, extras, hours against the timetable, movement, attempts, practice, queue tops, blocks done in the wrong shape, unfinished work. |
 | `tracker_save_weekly_review` | Save the written half of a week as a new version. The tracker attaches its own snapshot of the figures. |
 | `tracker_get_weekly_review` | Read a saved review back, with the snapshot it was written against and how the record has moved since. |
+| `tracker_progress_forecast` | Progress over time for a subject: the aimline, the forecast cone, the week-by-week table and the stall signals behind `/s/<subject>/progress`. |
 | `tracker_save_lesson_review` | Save or re-version one session's lesson review. The normal path is the `review` argument of `tracker_log_session`; this is for the audit and the parent. |
 | `tracker_get_lesson_review` | One lesson review in the standard layout, with its snapshot and the drift since. |
 | `tracker_list_lesson_reviews` | Reviewed sessions one line each — or, with `missing: true`, the sessions still owed one. |
@@ -436,6 +437,29 @@ synthesis never overwrites a test the parent set. On the pages the synthesis
 sits beneath the weekly review, the learner model has its own page at
 `/learner`, the subject page carries the week's plan, and the signals page
 shows each test's setter and whether this week answered it — all parent-only.
+
+## Progress and forecast
+
+`/s/<subject>/progress` puts the coverage number on a line. The unit is the
+step — one topic moving up one level, the same weighting the percentage
+already uses — replayed from the audit trail to any past day, so nothing is
+stored and a corrected status corrects the history. Three layers sit on the
+line: the **aimline**, a straight line from the first tracked day to the goal
+(every step on exam day unless the parent sets `goal_pct` / `goal_date` on
+`tracker_create_subject`), with the curriculum-based-measurement rule that four
+consecutive weeks under it means change the teaching; the **cone**, the future
+re-run 5,000 times from the subject's own past weeks in steps per timetabled
+block, so booked days off carry no steps, needing four weeks of pace and
+provisional until eight; and the **signals** — weeks stalled, weeks under the
+line, the odds of the goal, no new topic opened, regressions, topics touched
+repeatedly without moving. Under the chart: the topics by status week by week,
+the week table, and (for the parent) what is in flight with its age.
+
+The line and the aimline are public like the rest of the subject page; the
+cone and the in-flight table are the signed-in parent's. The same numbers
+come back from `tracker_progress_forecast`, signals first, and the
+`progress-forecast` skill says how to read them in the Friday review and the
+Saturday synthesis. `docs/progress-forecast.md` is the contract.
 
 ## Exam skills
 
