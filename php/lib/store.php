@@ -2449,12 +2449,16 @@ final class Store
 
     public function addSession(array $s): int
     {
+        // created_at is stamped from the tracker's clock rather than left to
+        // the column default: the audit queue compares it against the audit
+        // stamp, which is tt_now_utc(), and two clocks cannot be compared.
         $st = $this->db->prepare(
             'INSERT INTO sessions
                (subject_slug, date, summary, topics_touched, next_steps, block_key, duration_minutes,
-                unfinished, unfinished_refs, consolidates)
+                unfinished, unfinished_refs, consolidates, created_at)
              VALUES (:subject_slug, :date, :summary, :topics_touched, :next_steps,
-                     :block_key, :duration_minutes, :unfinished, :unfinished_refs, :consolidates)'
+                     :block_key, :duration_minutes, :unfinished, :unfinished_refs, :consolidates,
+                     :created_at)'
         );
         $refs = $s['unfinished_refs'] ?? null;
         $cons = $s['consolidates'] ?? null;
@@ -2469,6 +2473,7 @@ final class Store
             ':unfinished'       => $s['unfinished'] ?? null,
             ':unfinished_refs'  => $refs ? json_encode(array_values($refs), JSON_UNESCAPED_UNICODE) : null,
             ':consolidates'     => $cons ? json_encode(array_values($cons), JSON_UNESCAPED_UNICODE) : null,
+            ':created_at'       => tt_now_utc(),
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -3639,11 +3644,12 @@ final class Store
             $version = $latest === null ? 1 : (int) $latest['version'] + 1;
             $st = $this->db->prepare(
                 'INSERT INTO weekly_reviews
-                   (week, version, stage, written_by, snapshot_json, sections_json, note)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+                   (week, version, stage, written_by, written_at, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $st->execute([
-                $week, $version, $r['stage'], $r['written_by'], $snapshot, $sections, $r['note'] ?? null,
+                $week, $version, $r['stage'], $r['written_by'], tt_now_utc(),
+                $snapshot, $sections, $r['note'] ?? null,
             ]);
             $id = (int) $this->db->lastInsertId();
             $this->db->exec('COMMIT');
@@ -4668,12 +4674,12 @@ final class Store
             $version = $latest === null ? 1 : (int) $latest['version'] + 1;
             $st = $this->db->prepare(
                 'INSERT INTO lesson_reviews
-                   (session_id, subject_slug, version, stage, written_by, snapshot_json, sections_json, note)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                   (session_id, subject_slug, version, stage, written_by, written_at, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $st->execute([
                 $sessionId, $r['subject_slug'], $version, $r['stage'], $r['written_by'],
-                $snapshot, $sections, $r['note'] ?? null,
+                tt_now_utc(), $snapshot, $sections, $r['note'] ?? null,
             ]);
             $id = (int) $this->db->lastInsertId();
             $st = $this->db->prepare('UPDATE sessions SET review_id = ? WHERE id = ?');
@@ -5482,10 +5488,11 @@ final class Store
             }
             $version = $latest === null ? 1 : (int) $latest['version'] + 1;
             $st = $this->db->prepare(
-                'INSERT INTO weekly_syntheses (week, version, stage, written_by, snapshot_json, sections_json, note)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO weekly_syntheses (week, version, stage, written_by, written_at, snapshot_json, sections_json, note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $st->execute([$week, $version, $r['stage'], $r['written_by'], $snapshot, $sections, $r['note'] ?? null]);
+            $st->execute([$week, $version, $r['stage'], $r['written_by'], tt_now_utc(),
+                          $snapshot, $sections, $r['note'] ?? null]);
             $id = (int) $this->db->lastInsertId();
             return ['status' => 'stored',
                     'row' => $this->hydrateSynthesis($this->one('SELECT * FROM weekly_syntheses WHERE id = ?', [$id]))];
