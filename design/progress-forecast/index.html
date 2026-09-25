@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The aimline and the cone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&amp;family=Fraunces:opsz,wght@9..144,500;9..144,700&amp;family=IBM+Plex+Mono:wght@400;600&amp;display=swap">
+<style>/* ====================================================================== *
+ *  DECK CHROME — tokens shared with design/weekly-report, practice-ab    *
+ *  and timetable-abc so the four decks read as one set.                  *
+ * ====================================================================== */
+:root{
+  --ground:#f2f1ec; --panel:#fbfaf6; --edge:#dcd8cd; --edge-soft:#e8e5db;
+  --ink:#221f1a; --ink-2:#514c42; --muted:#7d7768;
+  --violet:#7c3aed; --gold:#f5a623; --gold-lit:#ffd257; --red:#c0392b; --green:#059669;
+  --shadow:0 1px 2px rgba(34,31,26,.06), 0 10px 26px -14px rgba(34,31,26,.35); }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ color-scheme:dark;
+    --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+    --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+    --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b; --green:#34d399;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85); }
+}
+:root[data-theme="dark"]{ color-scheme:dark;
+  --ground:#191813; --panel:#22201a; --edge:#3a3730; --edge-soft:#302d27;
+  --ink:#f2efe6; --ink-2:#cbc5b6; --muted:#948d7d;
+  --violet:#a586f7; --gold:#ffbe4d; --gold-lit:#ffd98a; --red:#e2725b; --green:#34d399;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.85); }
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:16px/1.6 Fraunces,Georgia,"Times New Roman",serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.page{max-width:78rem;margin:0 auto;padding-block:2.5rem 5rem;padding-inline:1.25rem}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:4px}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.86em}
+.mast{display:grid;gap:.9rem;padding-bottom:1.6rem;border-bottom:1px solid var(--edge)}
+.eyebrow{font:600 .68rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0}
+.mast h1{font-size:clamp(2rem,4.4vw,3rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.mast p.lede{margin:0;max-width:66ch;color:var(--ink-2);font-size:1.02rem}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-top:.4rem}
+.brief div{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .85rem}
+.brief b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.brief span{font-size:.9rem;color:var(--ink-2)}
+.jump{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;
+  padding:.65rem 0;margin:0 0 .5rem;background:var(--ground);border-bottom:1px solid var(--edge-soft)}
+.jump span.lab{font:600 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:.3rem}
+.jump a{text-decoration:none;font-size:.82rem;padding:.3rem .7rem;border:1px solid var(--edge);border-radius:999px;background:var(--panel);transition:background .15s,border-color .15s}
+.jump a:hover{background:var(--gold-lit);border-color:var(--gold);color:#221f1a}
+.sec{margin-top:3.2rem;scroll-margin-top:6rem}
+.shead{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:baseline;margin-bottom:.2rem}
+.stag{font:700 .78rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;background:var(--ink);color:var(--ground);padding:.25rem .5rem;border-radius:5px}
+.shead h2{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.thesis{margin:.35rem 0 1.1rem;max-width:70ch;color:var(--ink-2)}
+.frame{border:1px solid var(--edge);border-radius:14px;background:var(--panel);box-shadow:var(--shadow);overflow:hidden}
+.frame.phone{max-width:25rem}
+.chrome{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-bottom:1px solid var(--edge-soft);background:var(--panel)}
+.chrome i{width:9px;height:9px;border-radius:999px;background:var(--edge);display:block}
+.chrome code{margin-left:.4rem;font:400 .72rem/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.75rem;margin-top:1rem}
+.note{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.75rem .9rem}
+.note b{display:block;font:600 .66rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+.note p{margin:0;font-size:.88rem;color:var(--ink-2)}
+.note p+p{margin-top:.5rem}
+.note.why{border-left:3px solid var(--green)}
+.note.weak{border-left:3px solid var(--gold)}
+.note.cost{border-left:3px solid var(--violet)}
+.spec{background:var(--panel);border:1px solid var(--edge-soft);border-radius:12px;padding:1rem 1.1rem;margin-top:1rem}
+.spec h3{font-size:1.05rem;margin:0 0 .4rem}
+.spec p,.spec li{color:var(--ink-2);font-size:.92rem}
+.spec p{margin:.3rem 0 0}
+.spec ul,.spec ol{padding-left:1.1rem;margin:.3rem 0 0}
+.spec li{margin:.25rem 0}
+.spec+.spec{margin-top:.75rem}
+.codebox{overflow-x:auto;background:var(--ground);border:1px solid var(--edge-soft);border-radius:8px;padding:.7rem .8rem;margin:.5rem 0 .2rem}
+.codebox pre{margin:0;font:400 .78rem/1.55 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink-2)}
+.cmpwrap{overflow-x:auto}
+.cmp{width:100%;border-collapse:collapse;margin-top:.9rem;font-size:.9rem;background:var(--panel);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+.cmp th{text-align:left;font:600 .66rem/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:.6rem .7rem;border-bottom:1px solid var(--edge)}
+.cmp td{padding:.6rem .7rem;border-bottom:1px solid var(--edge-soft);vertical-align:top;color:var(--ink-2)}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td:first-child{color:var(--ink);font-weight:700}
+.cmp td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rec{margin-top:1rem;background:var(--panel);border:1px solid var(--edge);border-left:4px solid var(--violet);border-radius:10px;padding:1rem 1.1rem}
+.rec p{margin:0 0 .6rem;color:var(--ink-2)}.rec p:last-child{margin:0}
+.rec b{color:var(--ink)}
+.rec ol{margin:.2rem 0 .7rem;padding-left:1.2rem;color:var(--ink-2)}
+.rec ol li{margin:.35rem 0}
+.ask{margin-top:1rem;display:grid;gap:.6rem}
+.ask div{background:var(--panel);border:1px dashed var(--edge);border-radius:10px;padding:.7rem .9rem;font-size:.92rem;color:var(--ink-2)}
+.ask div b{color:var(--ink);font-weight:700}
+.ask div .q{font:600 .64rem/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-right:.4rem}
+footer.deck{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--edge);font-size:.8rem;color:var(--muted)}
+footer.deck a{color:var(--ink-2)}
+/* the big equation, deck-only */
+.unit{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.75rem;margin-top:1rem}
+.unit div{background:var(--panel);border:1px solid var(--edge-soft);border-radius:10px;padding:.85rem .95rem}
+.unit .n{font:700 2rem/1 Fraunces,Georgia,serif;letter-spacing:-.02em;color:var(--ink)}
+.unit .n small{font-size:.9rem;font-weight:500;color:var(--muted);letter-spacing:0}
+.unit p{margin:.35rem 0 0;font-size:.86rem;color:var(--ink-2)}
+/* ====================================================================== *
+ *  THE MOCK — the live exercise-book design system, paper-light always.  *
+ * ====================================================================== */
+.mock{color:#1c1917;background-color:#fcfcf9;
+  background-image:linear-gradient(rgba(96,140,200,.12) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(96,140,200,.12) 1px,transparent 1px);background-size:24px 24px;
+  font:16px/1.5 Georgia,"Times New Roman",serif;padding:1.5rem 1.3rem 1.8rem;
+  --em:#059669; --am:#b45309; --rd:#dc2626; --mu:#78716c; --ln:#d6d3d1; --acc:#7c3aed}
+.mock.phone{padding:1rem .85rem 1.4rem;font-size:15px}
+.mock *{box-sizing:border-box}
+.mock .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.mock a{color:#1c1917}
+.mock small{color:var(--mu)}
+.mock header.ph{display:flex;flex-wrap:wrap;gap:.9rem;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #292524;padding-bottom:.8rem}
+.mock header.ph h1{font-size:1.65rem;margin:.1rem 0;font-family:Georgia,serif;font-weight:700;letter-spacing:0}
+.mock.phone header.ph h1{font-size:1.3rem}
+.mock .kicker{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--mu);margin:0}
+.mock .kicker a{text-decoration:none}
+.mock .sub{margin:.15rem 0 0;font-size:.78rem;color:var(--mu)}
+.mock .panel-title{text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:#374151;font-weight:700;margin:1.6rem 0 .5rem;font-family:Georgia,serif}
+.mock .cap{font-size:.74rem;color:var(--mu);margin:.45rem 0 0;max-width:72ch}
+.mock .card{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:.85rem .95rem}
+.mock .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin-top:1.1rem}
+.mock.phone .stats{grid-template-columns:1fr 1fr}
+.mock .stats .label{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin:0}
+.mock .stats .big{font-size:1.75rem;margin:.15rem 0 0;font-weight:700;line-height:1.15}
+.mock .stats .big small{font-size:.8rem;font-weight:400;color:var(--mu)}
+.mock.phone .stats .big{font-size:1.35rem}
+.mock .stats .sub{margin:.35rem 0 0;font-size:.74rem;color:#57534e}
+.mock .track{height:7px;background:#e7e5e4;border-radius:999px;overflow:hidden;margin-top:.5rem;position:relative}
+.mock .track>i{position:absolute;inset:0 auto 0 0;background:var(--acc);border-radius:999px}
+.mock .track>b{position:absolute;top:-2px;bottom:-2px;width:2px;background:#1c1917}
+.mock .delta{font-size:.74rem;color:#059669;margin-left:.3rem}
+.mock .delta.flat{color:var(--mu)}
+.mock .flag{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:.7rem 1rem;margin-top:1rem;font-size:.9rem}
+.mock .flag b{color:#92400e}
+.mock .flag .rule{display:block;margin-top:.3rem;font-size:.78rem;color:#78350f}
+.mock .chartbox{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:.75rem .75rem .5rem;position:relative}
+.mock .chart{width:100%;height:auto;display:block}
+.mock .chart .tk{font:11px "IBM Plex Mono",ui-monospace,monospace;fill:#78716c}
+.mock .chart .lb{font:600 12px Georgia,serif;fill:#1c1917}
+.mock .legend{display:flex;flex-wrap:wrap;gap:.35rem 1rem;font-size:.72rem;color:var(--mu);margin:.5rem 0 0}
+.mock .legend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--acc);vertical-align:middle;margin-right:.35rem}
+.mock .legend i.dash{border-top-style:dashed}
+.mock .legend i.dot{border-top:2px dotted #78716c}
+.mock .legend i.band{height:10px;border:0;background:rgba(124,58,237,.18);border-radius:2px}
+.mock .legend i.band2{height:10px;border:0;background:rgba(124,58,237,.09);border-radius:2px}
+.mock .legend i.secl{border-top:2px dashed #10b981}
+.mock .legend i.sw{height:10px;border:0;border-radius:2px}
+.mock details.chartdata{margin-top:.4rem;font-size:.78rem}
+.mock details.chartdata summary{cursor:pointer;color:var(--mu)}
+.mock .tip{position:absolute;pointer-events:none;display:none;background:#1c1917;color:#fcfcf9;font:11px/1.45 "IBM Plex Mono",ui-monospace,monospace;padding:.4rem .55rem;border-radius:6px;white-space:nowrap;z-index:5}
+.mock .tablewrap{overflow-x:auto}
+.mock table.wk{width:100%;border-collapse:collapse;font-size:.82rem;background:#fff;border:1px solid var(--ln);border-radius:10px;overflow:hidden;min-width:38rem}
+.mock table.wk th{text-align:left;font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);padding:.5rem .6rem;border-bottom:1px solid var(--ln);font-weight:600}
+.mock table.wk td{padding:.5rem .6rem;border-bottom:1px solid #ededea;vertical-align:top}
+.mock table.wk tr:last-child td{border-bottom:0}
+.mock table.wk td.n{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.mock table.wk td.w{white-space:nowrap}
+.mock table.wk td.w small{display:block;font-size:.68rem}
+.mock .pill{display:inline-block;font:600 .62rem/1.5 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;padding:.05rem .45rem;border-radius:999px;border:1px solid;white-space:nowrap}
+.mock .pill.ahead{color:#065f46;border-color:#6ee7b7;background:#ecfdf5}
+.mock .pill.behind{color:#92400e;border-color:#fcd34d;background:#fffbeb}
+.mock .pill.stall{color:#991b1b;border-color:#fca5a5;background:#fef2f2}
+.mock .pill.none{color:var(--mu);border-color:var(--ln);background:#fafaf9}
+.mock .dot{display:inline-block;width:10px;height:10px;border-radius:999px;vertical-align:-1px;margin-right:.3rem}
+.mock .ref{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:700}
+.mock .age{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.mock .age.old{color:#b45309;font-weight:600}
+.mock .method{margin-top:1.6rem;font-size:.84rem;color:#44403c}
+.mock .method summary{cursor:pointer;font-weight:700;color:#1c1917}
+.mock .method ol{padding-left:1.2rem;margin:.4rem 0 0}
+.mock .method li{margin:.3rem 0}
+.mock footer{margin-top:1.6rem;font-size:.72rem;color:var(--mu)}
+/* the entry points */
+.mock .entry{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.7rem;margin-top:.4rem}
+.mock .entry .card p{margin:0}
+.mock .entry .lk{display:block;margin-top:.45rem;font-size:.76rem}
+.mock .item{display:flex;gap:1rem;align-items:center;background:#fff;border:1px solid var(--ln);border-radius:10px;padding:.7rem .9rem;text-decoration:none}
+.mock .item .grow{flex:1}
+.mock .item .num{text-align:right;white-space:nowrap}
+.mock .item .num .fc{display:block;font-size:.7rem;color:var(--mu)}
+@media (max-width:52rem){ .mock .stats{grid-template-columns:1fr 1fr} }
+@media (max-width:40rem){ .mock .stats{grid-template-columns:1fr 1fr} .mock .stats .big{font-size:1.35rem} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ============================ 1 · MASTHEAD ========================== -->
+<header class="mast">
+  <p class="eyebrow">Education Tracker · design concept · for review</p>
+  <h1>The aimline and the cone</h1>
+  <p class="lede">The portal says 31% today and nothing about yesterday or May. This page puts the number on
+    a line: where it was, the straight line it has to follow to be exam-ready on 14 May, and a cone of
+    where the last four weeks' pace actually lands it. Under the chart, the three signals that say a week
+    stalled before the headline number does. Every figure below is computed from the real maths record
+    as it stood on 25 September.</p>
+  <div class="brief">
+    <div><b>The question</b><span>Not "is 31% good" but "will she get there, and which weeks are the
+      ones to worry about". Both need a line, a target and an honest range.</span></div>
+    <div><b>The unit</b><span>A <em>step</em> is one topic moving up one level. Maths has 64 topics ×
+      3 levels = 192 steps; 60 are done, 132 to go, 116 maths blocks left before the exam. That is the
+      arithmetic the whole page rests on.</span></div>
+    <div><b>The science</b><span>An aimline with a decision rule from curriculum-based measurement;
+      a calendar-aware Monte Carlo forecast that resamples her own weeks; flow metrics (touches, age,
+      cycle time) to catch a stall. Nothing fitted, nothing tuned.</span></div>
+    <div><b>Where it lives</b><span><code>/s/maths/progress</code>, linked from the "Spec conquered"
+      card; the exam-day figure joins the subject rows on the index; a
+      <code>tracker_progress_forecast</code> tool so the Friday review can quote it.</span></div>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Sections">
+  <span class="lab">Jump</span>
+  <a href="#measure">The measure</a>
+  <a href="#page">The page</a>
+  <a href="#phone">On a phone</a>
+  <a href="#entry">Where it shows</a>
+  <a href="#science">How it's worked out</a>
+  <a href="#cone">Why the cone is that wide</a>
+  <a href="#alternatives">Alternatives</a>
+  <a href="#build">What it takes</a>
+  <a href="#verdict">Verdict &amp; questions</a>
+</nav>
+
+<!-- ============================ 2 · THE MEASURE ======================= -->
+<section class="sec" id="measure">
+  <div class="shead"><span class="stag">01</span><h2>The measure: steps, not a percentage</h2></div>
+  <p class="thesis">The 31% is already a sum of points: not started and gap score 0, developing 1, secure 2,
+    exam-ready 3, divided by three per topic. Forecasting in points makes the required pace a whole number
+    a week that a parent can hold in their head, and it can be replayed to any past day from the audit
+    trail, so the line needs no new storage.</p>
+  <div class="unit">
+    <div><div class="n">192<small> steps</small></div><p>64 topics × 3 levels. The whole Higher-tier syllabus, exam-ready everywhere.</p></div>
+    <div><div class="n">60<small> done</small></div><p>24 secure (48) + 9 developing (9) + 1 exam-ready (3). That is the 31%.</p></div>
+    <div><div class="n">132<small> to go</small></div><p>Over 116 timetabled maths blocks before 14 May: <b>4.0 a week</b> needed.</p></div>
+    <div><div class="n">3.1<small> a week</small></div><p>What the last four weeks delivered, per timetabled block, scaled to a week. Close, but two of those weeks were 0 and 2.</p></div>
+  </div>
+  <div class="notes">
+    <div class="note why"><b>Why steps</b><p>One step is one visible event on the topic page: "S4 developing → secure".
+      The parent can check any step against its evidence. A percentage of a percentage cannot be argued with; a step can.</p></div>
+    <div class="note why"><b>Replayed, not stored</b><p>The tracker already replays coverage from <code>topic_changes</code>
+      for the week page. The daily series is the same replay at day resolution. Nothing is written; a corrected
+      status corrects the history.</p></div>
+    <div class="note weak"><b>The known skew</b><p>Changes are stamped when they were logged, not when the session
+      happened. A session logged the next morning lands its steps a day late. The build should date each change by
+      its session's date where it has one, which the weekly review already does.</p></div>
+  </div>
+</section>
+
+<!-- ============================ 3 · THE PAGE ========================== -->
+<section class="sec" id="page">
+  <div class="shead"><span class="stag">02</span><h2>The page: <code>/s/maths/progress</code></h2></div>
+  <p class="thesis">Summary first, then the chart, then the three stall signals, then the topics in flight.
+    Everything on it is the maths record on 25 September, run through the method in section 05. The
+    hover on the main chart reads the week under the cursor.</p>
+
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><code>education.rmmann.co.uk/s/maths/progress</code></div>
+    <div class="mock">
+      <header class="ph">
+        <div>
+          <p class="kicker"><a href="#page">← GCSE Mathematics</a></p>
+          <h1>Progress and forecast</h1>
+          <p class="sub">Replayed from 93 status changes in 15 sessions since 19 Aug · 231 days to the exam ·
+            built from <strong>4 weeks</strong> of pace, provisional until 8</p>
+        </div>
+      </header>
+
+      <div class="stats">
+        <div class="card"><p class="label">Today</p>
+          <p class="big mono">31%<small> · 60 of 192 steps</small></p>
+          <div class="track"><i style="width:31.2%"></i><b style="left:33.1%" title="aimline today: 33%"></b></div>
+          <p class="sub">30% three weeks ago · 22% on 19 Aug · aimline says 33% today</p></div>
+        <div class="card"><p class="label">Pace, last 4 weeks</p>
+          <p class="big mono">3.1<small> steps a week</small></p>
+          <p class="sub">needs <strong>4.0</strong> to be exam-ready everywhere by 14 May · weeks ran 2 · 13 · 0 · 2</p></div>
+        <div class="card"><p class="label">On exam day, at this pace</p>
+          <p class="big mono">85%<small> likely</small></p>
+          <p class="sub">probably between <strong>54%</strong> and <strong>100%</strong> · the last two weeks' pace alone lands at 46%</p></div>
+        <div class="card"><p class="label">Everything secure</p>
+          <p class="big mono">65%<small> chance by exam day</small></p>
+          <p class="sub">typically reached <strong>28 Feb</strong> · everything exam-ready by 14 May: 31% chance</p></div>
+      </div>
+
+      <div class="flag"><b>Two weeks below the aimline.</b> Week 38 stalled: two sessions, both stopped at
+        "times up", 14 touches, no steps. Week 39 trod water: four sessions, 26 touches, 2 steps.
+        <span class="rule">The rule that says change the teaching fires at four consecutive weeks below the line.
+        Two more like these and it will. The week page names what was cut short.</span></div>
+
+      <p class="panel-title">Where she is, where she's headed</p>
+      <div class="chartbox" id="bubox">
+        <svg class="chart" viewBox="0 0 720 300" role="img" aria-labelledby="bu-t"><title id="bu-t">Coverage since 17 August with the aimline to the exam and the forecast cone</title>
+<line x1="40" x2="656" y1="268" y2="268" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="272" text-anchor="end" class="tk">0%</text>
+<line x1="40" x2="656" y1="205" y2="205" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="209" text-anchor="end" class="tk">25%</text>
+<line x1="40" x2="656" y1="142" y2="142" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="146" text-anchor="end" class="tk">50%</text>
+<line x1="40" x2="656" y1="79" y2="79" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="83" text-anchor="end" class="tk">75%</text>
+<line x1="40" x2="656" y1="16" y2="16" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="20" text-anchor="end" class="tk">100%</text>
+<line x1="74" x2="74" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="77" y="284" class="tk">Sep</text>
+<line x1="141.9" x2="141.9" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="144.9" y="284" class="tk">Oct</text>
+<line x1="212.1" x2="212.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="215.1" y="284" class="tk">Nov</text>
+<line x1="280.1" x2="280.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="283.1" y="284" class="tk">Dec</text>
+<line x1="350.3" x2="350.3" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="353.3" y="284" class="tk">Jan</text>
+<line x1="420.5" x2="420.5" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="423.5" y="284" class="tk">Feb</text>
+<line x1="483.9" x2="483.9" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="486.9" y="284" class="tk">Mar</text>
+<line x1="554.1" x2="554.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="557.1" y="284" class="tk">Apr</text>
+<line x1="622" x2="622" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="625" y="284" class="tk">May</text>
+<line x1="40" x2="656" y1="99.9" y2="99.9" stroke="#10b981" stroke-width="1" stroke-dasharray="2 4"/>
+<text x="44" y="95.9" class="tk" fill="#047857">everything secure · 67%</text>
+<polygon points="128.3,189.2 132.9,189.4 148.7,178.8 164.6,165.7 180.4,155.1 196.3,149.8 212.1,142 228,131.4 243.8,126.4 259.7,113 275.5,108 291.4,99.9 307.2,92.1 323.1,81.5 338.9,73.7 354.8,65.9 370.6,58.1 386.5,47.5 402.4,39.7 418.2,31.6 434.1,23.8 449.9,16 465.8,16 481.6,16 497.5,16 513.3,16 529.2,16 545,16 560.9,16 576.7,16 592.6,16 608.4,16 624.3,16 640.1,16 651.5,16 651.5,152.6 640.1,155.1 624.3,155.1 608.4,155.1 592.6,157.6 576.7,157.6 560.9,160.4 545,160.4 529.2,162.9 513.3,162.9 497.5,165.7 481.6,165.7 465.8,165.7 449.9,168.2 434.1,168.2 418.2,171 402.4,171 386.5,173.5 370.6,173.5 354.8,176 338.9,176 323.1,178.8 307.2,178.8 291.4,178.8 275.5,181.3 259.7,181.3 243.8,184.1 228,184.1 212.1,186.6 196.3,186.6 180.4,189.4 164.6,189.4 148.7,189.4 132.9,189.4" fill="#7c3aed" fill-opacity=".08"/>
+<polygon points="128.3,189.2 132.9,189.4 148.7,178.8 164.6,173.5 180.4,165.7 196.3,160.4 212.1,152.6 228,144.5 243.8,139.5 259.7,131.4 275.5,126.4 291.4,118.3 307.2,110.5 323.1,105.2 338.9,97.4 354.8,92.1 370.6,84.3 386.5,76.5 402.4,68.4 418.2,63.4 434.1,55.3 449.9,50 465.8,42.2 481.6,36.9 497.5,29.1 513.3,23.8 529.2,16 545,16 560.9,16 576.7,16 592.6,16 608.4,16 624.3,16 640.1,16 651.5,16 651.5,131.4 640.1,134.2 624.3,134.2 608.4,136.7 592.6,139.5 576.7,139.5 560.9,142 545,144.5 529.2,144.5 513.3,147.3 497.5,149.8 481.6,149.8 465.8,152.6 449.9,155.1 434.1,157.6 418.2,157.6 402.4,160.4 386.5,162.9 370.6,162.9 354.8,165.7 338.9,168.2 323.1,168.2 307.2,171 291.4,173.5 275.5,173.5 259.7,176 243.8,178.8 228,178.8 212.1,181.3 196.3,184.1 180.4,186.6 164.6,186.6 148.7,189.4 132.9,189.4" fill="#7c3aed" fill-opacity=".14"/>
+<polyline points="128.3,189.2 132.9,189.4 148.7,186.6 164.6,184.1 180.4,181.3 196.3,176 212.1,171 228,168.2 243.8,162.9 259.7,160.4 275.5,155.1 291.4,152.6 307.2,147.3 323.1,142 338.9,139.5 354.8,134.2 370.6,131.4 386.5,126.4 402.4,121.1 418.2,118.3 434.1,113 449.9,108 465.8,105.2 481.6,99.9 497.5,97.4 513.3,92.1 529.2,86.8 545,84.3 560.9,79 576.7,76.5 592.6,71.2 608.4,65.9 624.3,60.6 640.1,58.1 651.5,52.8" fill="none" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>
+<line x1="44.5" y1="211.6" x2="651.5" y2="16" stroke="#78716c" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round"/>
+<text x="237" y="137" class="tk" fill="#78716c" transform="rotate(-21 237 137)">aimline · 4 steps a week</text>
+<polyline points="40,211.6 42.3,211.6 44.5,211.6 46.8,211.6 49.1,211.6 51.3,211.6 53.6,211.6 55.9,211.6 58.1,211.6 60.4,211.6 62.6,211.6 64.9,211.6 67.2,211.6 69.4,211.6 71.7,211.6 74,211.6 76.2,210.2 78.5,210.2 80.8,208.9 83,208.9 85.3,208.9 87.6,205 89.8,201.1 92.1,198.4 94.4,198.4 96.6,194.5 98.9,191.9 101.1,191.9 103.4,191.9 105.7,191.9 107.9,191.9 110.2,191.9 112.5,191.9 114.7,191.9 117,191.9 119.3,191.9 121.5,190.6 123.8,190.6 126.1,190.6 128.3,189.2" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="128.3" cy="189.2" r="4" fill="#7c3aed" stroke="#fff" stroke-width="2"/>
+<text x="120.3" y="180.2" text-anchor="end" class="lb">31% today</text>
+<line x1="128.3" x2="128.3" y1="16" y2="268" stroke="#78716c" stroke-width="1"/>
+<line x1="651.5" x2="651.5" y1="16" y2="268" stroke="#dc2626" stroke-width="1"/>
+<text x="646.5" y="257.9" text-anchor="end" class="tk" fill="#b91c1c">exam · 14 May</text>
+<text x="657.5" y="56.8" class="lb">85% likely</text>
+<text x="657.5" y="135.4" class="tk">54%</text>
+<text x="657.5" y="20" class="tk">100%</text>
+</svg>
+        <div class="tip" id="butip"></div>
+      </div>
+      <div class="legend">
+        <span><i></i>coverage, day by day</span>
+        <span><i class="dot"></i>aimline: 22% on 19 Aug to 100% on exam day</span>
+        <span><i class="dash"></i>most likely path</span>
+        <span><i class="band"></i>likely (15–85%)</span>
+        <span><i class="band2"></i>possible (5–95%)</span>
+        <span><i class="secl"></i>everything secure</span>
+      </div>
+      <p class="cap">No days off are booked yet. Book Christmas and the half-terms under days off and the cone
+        routes around them: no steps are expected on a day with no maths block. The cone stops at 100% because
+        the syllabus does; it does not know that the Higher-only topics still to come are harder than the
+        probability block that made week 37.</p>
+      <details class="chartdata"><summary>Chart data</summary>
+        <div class="tablewrap"><table class="wk" style="min-width:0;margin-top:.4rem">
+          <thead><tr><th>Week ending</th><th>Actual</th><th>Aimline</th><th>Likely low</th><th>Most likely</th><th>Likely high</th></tr></thead>
+          <tbody><tr><td class="w">23 Aug</td><td class="n">22%</td><td class="n">24%</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr><tr><td class="w">30 Aug</td><td class="n">22%</td><td class="n">26%</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr><tr><td class="w">6 Sep</td><td class="n">23%</td><td class="n">28%</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr><tr><td class="w">13 Sep</td><td class="n">30%</td><td class="n">30%</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr><tr><td class="w">20 Sep</td><td class="n">30%</td><td class="n">32%</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr><tr><td class="w">27 Sep</td><td class="n">—</td><td class="n">34%</td><td class="n">31%</td><td class="n">31%</td><td class="n">31%</td></tr><tr><td class="w">4 Oct</td><td class="n">—</td><td class="n">36%</td><td class="n">31%</td><td class="n">32%</td><td class="n">35%</td></tr><tr><td class="w">11 Oct</td><td class="n">—</td><td class="n">38%</td><td class="n">32%</td><td class="n">33%</td><td class="n">38%</td></tr><tr><td class="w">18 Oct</td><td class="n">—</td><td class="n">40%</td><td class="n">32%</td><td class="n">34%</td><td class="n">41%</td></tr><tr><td class="w">25 Oct</td><td class="n">—</td><td class="n">42%</td><td class="n">33%</td><td class="n">36%</td><td class="n">43%</td></tr><tr><td class="w">1 Nov</td><td class="n">—</td><td class="n">44%</td><td class="n">34%</td><td class="n">38%</td><td class="n">46%</td></tr><tr><td class="w">8 Nov</td><td class="n">—</td><td class="n">46%</td><td class="n">35%</td><td class="n">40%</td><td class="n">49%</td></tr><tr><td class="w">15 Nov</td><td class="n">—</td><td class="n">48%</td><td class="n">35%</td><td class="n">42%</td><td class="n">51%</td></tr><tr><td class="w">22 Nov</td><td class="n">—</td><td class="n">50%</td><td class="n">36%</td><td class="n">43%</td><td class="n">54%</td></tr><tr><td class="w">29 Nov</td><td class="n">—</td><td class="n">52%</td><td class="n">38%</td><td class="n">45%</td><td class="n">56%</td></tr><tr><td class="w">6 Dec</td><td class="n">—</td><td class="n">54%</td><td class="n">38%</td><td class="n">46%</td><td class="n">59%</td></tr><tr><td class="w">13 Dec</td><td class="n">—</td><td class="n">56%</td><td class="n">38%</td><td class="n">48%</td><td class="n">62%</td></tr><tr><td class="w">20 Dec</td><td class="n">—</td><td class="n">58%</td><td class="n">40%</td><td class="n">50%</td><td class="n">65%</td></tr><tr><td class="w">27 Dec</td><td class="n">—</td><td class="n">60%</td><td class="n">40%</td><td class="n">51%</td><td class="n">68%</td></tr><tr><td class="w">3 Jan</td><td class="n">—</td><td class="n">62%</td><td class="n">41%</td><td class="n">53%</td><td class="n">70%</td></tr><tr><td class="w">10 Jan</td><td class="n">—</td><td class="n">64%</td><td class="n">42%</td><td class="n">54%</td><td class="n">73%</td></tr><tr><td class="w">17 Jan</td><td class="n">—</td><td class="n">66%</td><td class="n">42%</td><td class="n">56%</td><td class="n">76%</td></tr><tr><td class="w">24 Jan</td><td class="n">—</td><td class="n">68%</td><td class="n">43%</td><td class="n">58%</td><td class="n">79%</td></tr><tr><td class="w">31 Jan</td><td class="n">—</td><td class="n">70%</td><td class="n">44%</td><td class="n">59%</td><td class="n">81%</td></tr><tr><td class="w">7 Feb</td><td class="n">—</td><td class="n">72%</td><td class="n">44%</td><td class="n">62%</td><td class="n">84%</td></tr><tr><td class="w">14 Feb</td><td class="n">—</td><td class="n">74%</td><td class="n">45%</td><td class="n">64%</td><td class="n">86%</td></tr><tr><td class="w">21 Feb</td><td class="n">—</td><td class="n">76%</td><td class="n">46%</td><td class="n">65%</td><td class="n">90%</td></tr><tr><td class="w">28 Feb</td><td class="n">—</td><td class="n">78%</td><td class="n">47%</td><td class="n">67%</td><td class="n">92%</td></tr><tr><td class="w">7 Mar</td><td class="n">—</td><td class="n">80%</td><td class="n">47%</td><td class="n">68%</td><td class="n">95%</td></tr><tr><td class="w">14 Mar</td><td class="n">—</td><td class="n">82%</td><td class="n">48%</td><td class="n">70%</td><td class="n">97%</td></tr><tr><td class="w">21 Mar</td><td class="n">—</td><td class="n">84%</td><td class="n">49%</td><td class="n">72%</td><td class="n">100%</td></tr><tr><td class="w">28 Mar</td><td class="n">—</td><td class="n">86%</td><td class="n">49%</td><td class="n">73%</td><td class="n">100%</td></tr><tr><td class="w">4 Apr</td><td class="n">—</td><td class="n">88%</td><td class="n">50%</td><td class="n">75%</td><td class="n">100%</td></tr><tr><td class="w">11 Apr</td><td class="n">—</td><td class="n">90%</td><td class="n">51%</td><td class="n">76%</td><td class="n">100%</td></tr><tr><td class="w">18 Apr</td><td class="n">—</td><td class="n">92%</td><td class="n">51%</td><td class="n">78%</td><td class="n">100%</td></tr><tr><td class="w">25 Apr</td><td class="n">—</td><td class="n">94%</td><td class="n">52%</td><td class="n">80%</td><td class="n">100%</td></tr><tr><td class="w">2 May</td><td class="n">—</td><td class="n">97%</td><td class="n">53%</td><td class="n">82%</td><td class="n">100%</td></tr><tr><td class="w">9 May</td><td class="n">—</td><td class="n">99%</td><td class="n">53%</td><td class="n">83%</td><td class="n">100%</td></tr><tr><td class="w">14 May</td><td class="n">—</td><td class="n">100%</td><td class="n">54%</td><td class="n">85%</td><td class="n">100%</td></tr></tbody></table></div></details>
+
+      <p class="panel-title">How the colours have moved</p>
+      <div class="chartbox"><svg class="chart" viewBox="0 0 720 200" role="img" aria-labelledby="cfd-t"><title id="cfd-t">Topics by status, week by week</title>
+<line x1="34" x2="608" y1="174" y2="174" stroke="#e7e5e4"/>
+<text x="28" y="178" text-anchor="end" class="tk">0</text>
+<line x1="34" x2="608" y1="133.5" y2="133.5" stroke="#e7e5e4"/>
+<text x="28" y="137.5" text-anchor="end" class="tk">16</text>
+<line x1="34" x2="608" y1="93" y2="93" stroke="#e7e5e4"/>
+<text x="28" y="97" text-anchor="end" class="tk">32</text>
+<line x1="34" x2="608" y1="52.5" y2="52.5" stroke="#e7e5e4"/>
+<text x="28" y="56.5" text-anchor="end" class="tk">48</text>
+<line x1="34" x2="608" y1="12" y2="12" stroke="#e7e5e4"/>
+<text x="28" y="16" text-anchor="end" class="tk">64</text>
+<polygon points="34,174 134.4,174 234.9,174 335.4,174 435.8,171.5 536.2,171.5 608,171.5 608,174 536.2,174 435.8,174 335.4,174 234.9,174 134.4,174 34,174" fill="#0ea5e9" fill-opacity=".85" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616" y="176.7" class="tk">1 exam-ready</text>
+<polygon points="34,131 134.4,131 234.9,131 335.4,133.5 435.8,113.2 536.2,113.2 608,110.7 608,171.5 536.2,171.5 435.8,171.5 335.4,174 234.9,174 134.4,174 34,174" fill="#10b981" fill-opacity=".85" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616" y="145.1" class="tk">24 secure</text>
+<polygon points="34,108.2 134.4,108.2 234.9,108.2 335.4,100.6 435.8,90.5 536.2,90.5 608,87.9 608,110.7 536.2,113.2 435.8,113.2 335.4,133.5 234.9,131 134.4,131 34,131" fill="#fbbf24" fill-opacity=".85" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616" y="103.3" class="tk">9 developing</text>
+<polygon points="34,72.8 134.4,72.8 234.9,72.8 335.4,72.8 435.8,72.8 536.2,72.8 608,72.8 608,87.9 536.2,90.5 435.8,90.5 335.4,100.6 234.9,108.2 134.4,108.2 34,108.2" fill="#ef4444" fill-opacity=".85" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616" y="84.3" class="tk">6 gap</text>
+<polygon points="34,12 134.4,12 234.9,12 335.4,12 435.8,12 536.2,12 608,12 608,72.8 536.2,72.8 435.8,72.8 335.4,72.8 234.9,72.8 134.4,72.8 34,72.8" fill="#d6d3d1" fill-opacity=".85" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616" y="46.4" class="tk">24 not started</text>
+<text x="34" y="192" text-anchor="middle" class="tk">16 Aug</text>
+<text x="134.4" y="192" text-anchor="middle" class="tk">23 Aug</text>
+<text x="234.9" y="192" text-anchor="middle" class="tk">30 Aug</text>
+<text x="335.4" y="192" text-anchor="middle" class="tk">6 Sep</text>
+<text x="435.8" y="192" text-anchor="middle" class="tk">13 Sep</text>
+<text x="536.2" y="192" text-anchor="middle" class="tk">20 Sep</text>
+<text x="608" y="192" text-anchor="middle" class="tk">25 Sep</text>
+</svg></div>
+      <div class="legend">
+        <span><i class="sw" style="background:#0ea5e9"></i>exam-ready</span>
+        <span><i class="sw" style="background:#10b981"></i>secure</span>
+        <span><i class="sw" style="background:#fbbf24"></i>developing</span>
+        <span><i class="sw" style="background:#ef4444"></i>gap</span>
+        <span><i class="sw" style="background:#d6d3d1"></i>not started</span>
+      </div>
+      <p class="cap">Green grows from the bottom. The yellow band is what is in flight; it widened to 13 in the
+        week of 31 Aug when the probability block opened, and narrowed to 9 as five of them went secure. A flat
+        picture is a stalled week. Green shrinking is a regression: A4 fell back to developing on 2 Sep and was
+        re-secured on the 7th. The grey has not moved since August: 24 topics have never been opened.</p>
+
+      <p class="panel-title">Week by week</p>
+      <div class="chartbox"><svg class="chart" viewBox="0 0 720 150" role="img" aria-labelledby="wk-t"><title id="wk-t">Steps gained each week against the pace needed</title>
+<line x1="34" x2="600" y1="124" y2="124" stroke="#e7e5e4"/>
+<text x="28" y="128" text-anchor="end" class="tk">0</text>
+<line x1="34" x2="600" y1="71" y2="71" stroke="#e7e5e4"/>
+<text x="28" y="75" text-anchor="end" class="tk">7</text>
+<line x1="34" x2="600" y1="18" y2="18" stroke="#e7e5e4"/>
+<text x="28" y="22" text-anchor="end" class="tk">14</text>
+<text x="81.2" y="119" text-anchor="middle" class="tk">no blocks</text>
+<text x="81.2" y="142" text-anchor="middle" class="tk">W34</text>
+<text x="175.5" y="119" text-anchor="middle" class="tk">no blocks</text>
+<text x="175.5" y="142" text-anchor="middle" class="tk">W35</text>
+<rect x="258.8" y="108.9" width="22" height="15.1" rx="3" fill="#7c3aed"/>
+<text x="269.8" y="103.9" text-anchor="middle" class="lb">+2</text>
+<text x="269.8" y="142" text-anchor="middle" class="tk">W36</text>
+<rect x="353.2" y="25.6" width="22" height="98.4" rx="3" fill="#7c3aed"/>
+<text x="364.2" y="20.6" text-anchor="middle" class="lb">+13</text>
+<text x="364.2" y="142" text-anchor="middle" class="tk">W37</text>
+<text x="458.5" y="119" text-anchor="middle" class="lb">+0</text>
+<text x="458.5" y="142" text-anchor="middle" class="tk">W38</text>
+<rect x="541.8" y="108.9" width="22" height="15.1" rx="3" fill="#7c3aed"/>
+<text x="552.8" y="103.9" text-anchor="middle" class="lb">+2</text>
+<text x="552.8" y="142" text-anchor="middle" class="tk">W39</text>
+<line x1="34" x2="600" y1="93.7" y2="93.7" stroke="#78716c" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round"/>
+<text x="608" y="97.7" class="tk">needed · 4 a week</text>
+</svg></div>
+      <div class="tablewrap" style="margin-top:.6rem">
+      <table class="wk">
+        <thead><tr><th>Week</th><th>Blocks</th><th>Sessions</th><th>Touches</th><th>Steps</th><th>Aimline</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td class="w">W34<small>17 Aug</small></td><td class="n">0</td><td class="n">1</td><td class="n">0</td><td class="n">0</td><td><span class="pill none">no blocks</span></td><td>Phase 1 exit check, 22/25. No maths blocks timetabled yet.</td></tr>
+          <tr><td class="w">W35<small>24 Aug</small></td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td><span class="pill none">no blocks</span></td><td>Summer.</td></tr>
+          <tr><td class="w">W36<small>31 Aug</small></td><td class="n">4</td><td class="n">3</td><td class="n">16</td><td class="n">+2</td><td><span class="pill behind">4 behind</span></td><td>Phase 2 opens on probability. A4 slipped secure → developing.</td></tr>
+          <tr><td class="w">W37<small>7 Sep</small></td><td class="n">5</td><td class="n">5</td><td class="n">18</td><td class="n">+13</td><td><span class="pill ahead">1 ahead</span></td><td>The probability block: five topics taught and secured in one week. 1.4 touches a step.</td></tr>
+          <tr><td class="w">W38<small>14 Sep</small></td><td class="n">4</td><td class="n">2</td><td class="n">14</td><td class="n">0</td><td><span class="pill stall">stalled</span></td><td>Two sessions, both stopped at "times up". S4 checked, not moved. Two blocks unlogged.</td></tr>
+          <tr><td class="w">W39<small>21 Sep</small></td><td class="n">4</td><td class="n">4</td><td class="n">26</td><td class="n">+2</td><td><span class="pill behind">4 behind</span></td><td>Treading water: 13 touches a step. S4 secured, G3 opened; N10 and G14-16 touched five times each, unmoved.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="cap">Touches are status changes where nothing moved: evidence logged against a topic that stayed where
+        it was. They are not wasted (S4 needed three independent showings) but a week of 26 touches for 2 steps is the
+        signature of consolidation without a new topic opened. Natural process limits on the weekly steps appear
+        here once six weeks are in; with four they would be meaningless.</p>
+
+      <p class="panel-title">In flight</p>
+      <div class="tablewrap">
+      <table class="wk">
+        <thead><tr><th>Topic</th><th>Status</th><th>In this status</th><th>Touched, unmoved</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ref">N10</span> Fractions and decimals, recurring decimals</td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age old">12 weeks</td><td class="n">5</td><td>Show-that chain still two lines short on four asks.</td></tr>
+          <tr><td><span class="ref">G14-G16</span> Perimeter and area</td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age old">12 weeks</td><td class="n">5</td><td>Units now present; working line still absent.</td></tr>
+          <tr><td><span class="ref">S2</span> Charts and tables</td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age">2 weeks</td><td class="n">2</td><td>Pie charts and line graphs untouched.</td></tr>
+          <tr><td><span class="ref">A22</span> Inequalities</td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age old">12 weeks</td><td class="n">1</td><td>Teach with N15, as planned.</td></tr>
+          <tr><td><span class="ref">G3</span> Angles: parallel lines and polygons</td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age">new, 25 Sep</td><td class="n">0</td><td>Opened Friday; reasons not yet in exam form.</td></tr>
+          <tr><td><span class="ref">N6-N7 · R10 · G4-G6 · G9-G12</span></td><td><span class="dot" style="background:#fbbf24"></span>developing</td><td class="age old">12 weeks</td><td class="n">0</td><td>Set at the June diagnostics, not touched since.</td></tr>
+          <tr><td><span class="ref">A11 · A23-A25 · G1 · G17-G18 · G20 · G22-G23</span></td><td><span class="dot" style="background:#ef4444"></span>gap</td><td class="age old">12 weeks</td><td class="n">0</td><td>Known gaps, none opened yet.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="cap">A fresh topic takes <strong>6 days</strong> from first taught to secure, typically (P1, P2-P3, P4-P5, P6-P7, P8, S4,
+        A4 re-secured). The two June-diagnostic developings that made it, N4 and N15, took ten weeks each. Nine in flight is
+        the widest the yellow band has been: more open topics with the same weekly steps means each one waits longer.</p>
+
+      <details class="method"><summary>How this is worked out</summary>
+        <ol>
+          <li><b>The line</b> is coverage replayed from every status change, one point per day.</li>
+          <li><b>The aimline</b> runs from 22% on 19 Aug, the first tracked day, to 100% on exam day. Being under it two weeks
+            running is a warning; four weeks running is the rule to change the teaching.</li>
+          <li><b>The cone</b> re-runs the future 5,000 times. Each run first re-draws which of the last four weeks count,
+            then gives every future week the pace of one of those weeks, scaled to how many maths blocks the timetable has
+            that week. Days off carry no blocks. The shaded band is where 70% of runs land; the paler band, 90%.</li>
+          <li><b>Stalled</b> is a week with maths blocks and sessions but no steps. <b>Behind</b> is a week that ended under
+            the aimline. <b>Touched, unmoved</b> counts evidence logged against a topic that stayed put.</li>
+          <li>The cone does not know that later topics may be harder, that exam-ready needs revision-phase work, or
+            about holidays nobody has booked. It narrows as weeks are added.</li>
+        </ol>
+      </details>
+      <footer>Generated live from the tracker database. Forecast seeded by date, so the page reads the same all day.</footer>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note why"><b>Summary before detail</b><p>Four cards answer the four questions in order: where is she, how fast
+      is she going, where does that land on the day, and when is "everything secure". Each carries its own comparison
+      (three weeks ago, the pace needed, the range, the second goal) so no card is a bare number.</p></div>
+    <div class="note why"><b>The flag is the stall detector</b><p>It only speaks when a rule fires: two weeks under the aimline
+      is amber, four is red, a negative week is red. The wording names the weeks and the cause the record already holds,
+      and points at the week page rather than repeating it.</p></div>
+    <div class="note why"><b>One chart, three layers</b><p>Actual, aimline, cone. The dotted aimline is the target, the dashed
+      median is the projection, the solid line is the fact. Gridlines are hairlines, the only saturated marks are the
+      2px lines. The 67% "everything secure" rule is the milestone the second card reports.</p></div>
+    <div class="note weak"><b>Provisional, and it says so</b><p>Four weeks is the minimum the page will forecast from. Under
+      four it shows the line and the aimline only. The header states the count, and the cone's width is the honest
+      consequence, not a styling choice.</p></div>
+    <div class="note cost"><b>Cost on the server</b><p>5,000 runs × 33 weeks is 165,000 draws in PHP, well under 100 ms.
+      The random seed is the date and the subject, so a reload does not redraw the cone and a golden test can pin it.</p></div>
+    <div class="note cost"><b>Real data, one caveat</b><p>These figures come from the tracker's history export. Standalone
+      updates carry no session, so the prototype dated them to the nearest session that week; the build reads
+      <code>session_id</code> and gets this exact.</p></div>
+  </div>
+</section>
+
+<!-- ============================ 4 · PHONE ============================= -->
+<section class="sec" id="phone">
+  <div class="shead"><span class="stag">03</span><h2>On a phone</h2></div>
+  <p class="thesis">The cards go two by two, the chart keeps its shape because it is an SVG with its own viewBox,
+    and the tables scroll sideways in their own box. The first screen is the four cards and the flag.</p>
+  <div class="frame phone">
+    <div class="chrome"><i></i><i></i><i></i><code>/s/maths/progress</code></div>
+    <div class="mock phone">
+      <header class="ph"><div>
+        <p class="kicker">← GCSE Mathematics</p>
+        <h1>Progress and forecast</h1>
+        <p class="sub">4 weeks of pace · 231 days to the exam</p>
+      </div></header>
+      <div class="stats">
+        <div class="card"><p class="label">Today</p><p class="big mono">31%</p><p class="sub">60 of 192 steps · 30% three weeks ago</p></div>
+        <div class="card"><p class="label">Pace</p><p class="big mono">3.1<small>/wk</small></p><p class="sub">needs 4.0</p></div>
+        <div class="card"><p class="label">Exam day</p><p class="big mono">85%</p><p class="sub">likely 54–100%</p></div>
+        <div class="card"><p class="label">All secure</p><p class="big mono">65%</p><p class="sub">chance by 14 May</p></div>
+      </div>
+      <div class="flag"><b>Two weeks below the aimline.</b> W38 stalled, W39 trod water. <span class="rule">Fires at four.</span></div>
+      <p class="panel-title">Where she is, where she's headed</p>
+      <div class="chartbox"><svg class="chart" viewBox="0 0 720 300" role="img" aria-labelledby="bu-t2"><title id="bu-t2">Coverage since 17 August with the aimline to the exam and the forecast cone</title>
+<line x1="40" x2="656" y1="268" y2="268" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="272" text-anchor="end" class="tk">0%</text>
+<line x1="40" x2="656" y1="205" y2="205" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="209" text-anchor="end" class="tk">25%</text>
+<line x1="40" x2="656" y1="142" y2="142" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="146" text-anchor="end" class="tk">50%</text>
+<line x1="40" x2="656" y1="79" y2="79" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="83" text-anchor="end" class="tk">75%</text>
+<line x1="40" x2="656" y1="16" y2="16" stroke="#e7e5e4" stroke-width="1"/>
+<text x="34" y="20" text-anchor="end" class="tk">100%</text>
+<line x1="74" x2="74" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="77" y="284" class="tk">Sep</text>
+<line x1="141.9" x2="141.9" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="144.9" y="284" class="tk">Oct</text>
+<line x1="212.1" x2="212.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="215.1" y="284" class="tk">Nov</text>
+<line x1="280.1" x2="280.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="283.1" y="284" class="tk">Dec</text>
+<line x1="350.3" x2="350.3" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="353.3" y="284" class="tk">Jan</text>
+<line x1="420.5" x2="420.5" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="423.5" y="284" class="tk">Feb</text>
+<line x1="483.9" x2="483.9" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="486.9" y="284" class="tk">Mar</text>
+<line x1="554.1" x2="554.1" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="557.1" y="284" class="tk">Apr</text>
+<line x1="622" x2="622" y1="268" y2="272" stroke="#78716c" stroke-width="1"/>
+<text x="625" y="284" class="tk">May</text>
+<line x1="40" x2="656" y1="99.9" y2="99.9" stroke="#10b981" stroke-width="1" stroke-dasharray="2 4"/>
+<text x="44" y="95.9" class="tk" fill="#047857">everything secure · 67%</text>
+<polygon points="128.3,189.2 132.9,189.4 148.7,178.8 164.6,165.7 180.4,155.1 196.3,149.8 212.1,142 228,131.4 243.8,126.4 259.7,113 275.5,108 291.4,99.9 307.2,92.1 323.1,81.5 338.9,73.7 354.8,65.9 370.6,58.1 386.5,47.5 402.4,39.7 418.2,31.6 434.1,23.8 449.9,16 465.8,16 481.6,16 497.5,16 513.3,16 529.2,16 545,16 560.9,16 576.7,16 592.6,16 608.4,16 624.3,16 640.1,16 651.5,16 651.5,152.6 640.1,155.1 624.3,155.1 608.4,155.1 592.6,157.6 576.7,157.6 560.9,160.4 545,160.4 529.2,162.9 513.3,162.9 497.5,165.7 481.6,165.7 465.8,165.7 449.9,168.2 434.1,168.2 418.2,171 402.4,171 386.5,173.5 370.6,173.5 354.8,176 338.9,176 323.1,178.8 307.2,178.8 291.4,178.8 275.5,181.3 259.7,181.3 243.8,184.1 228,184.1 212.1,186.6 196.3,186.6 180.4,189.4 164.6,189.4 148.7,189.4 132.9,189.4" fill="#7c3aed" fill-opacity=".08"/>
+<polygon points="128.3,189.2 132.9,189.4 148.7,178.8 164.6,173.5 180.4,165.7 196.3,160.4 212.1,152.6 228,144.5 243.8,139.5 259.7,131.4 275.5,126.4 291.4,118.3 307.2,110.5 323.1,105.2 338.9,97.4 354.8,92.1 370.6,84.3 386.5,76.5 402.4,68.4 418.2,63.4 434.1,55.3 449.9,50 465.8,42.2 481.6,36.9 497.5,29.1 513.3,23.8 529.2,16 545,16 560.9,16 576.7,16 592.6,16 608.4,16 624.3,16 640.1,16 651.5,16 651.5,131.4 640.1,134.2 624.3,134.2 608.4,136.7 592.6,139.5 576.7,139.5 560.9,142 545,144.5 529.2,144.5 513.3,147.3 497.5,149.8 481.6,149.8 465.8,152.6 449.9,155.1 434.1,157.6 418.2,157.6 402.4,160.4 386.5,162.9 370.6,162.9 354.8,165.7 338.9,168.2 323.1,168.2 307.2,171 291.4,173.5 275.5,173.5 259.7,176 243.8,178.8 228,178.8 212.1,181.3 196.3,184.1 180.4,186.6 164.6,186.6 148.7,189.4 132.9,189.4" fill="#7c3aed" fill-opacity=".14"/>
+<polyline points="128.3,189.2 132.9,189.4 148.7,186.6 164.6,184.1 180.4,181.3 196.3,176 212.1,171 228,168.2 243.8,162.9 259.7,160.4 275.5,155.1 291.4,152.6 307.2,147.3 323.1,142 338.9,139.5 354.8,134.2 370.6,131.4 386.5,126.4 402.4,121.1 418.2,118.3 434.1,113 449.9,108 465.8,105.2 481.6,99.9 497.5,97.4 513.3,92.1 529.2,86.8 545,84.3 560.9,79 576.7,76.5 592.6,71.2 608.4,65.9 624.3,60.6 640.1,58.1 651.5,52.8" fill="none" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>
+<line x1="44.5" y1="211.6" x2="651.5" y2="16" stroke="#78716c" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round"/>
+<text x="237" y="137" class="tk" fill="#78716c" transform="rotate(-21 237 137)">aimline · 4 steps a week</text>
+<polyline points="40,211.6 42.3,211.6 44.5,211.6 46.8,211.6 49.1,211.6 51.3,211.6 53.6,211.6 55.9,211.6 58.1,211.6 60.4,211.6 62.6,211.6 64.9,211.6 67.2,211.6 69.4,211.6 71.7,211.6 74,211.6 76.2,210.2 78.5,210.2 80.8,208.9 83,208.9 85.3,208.9 87.6,205 89.8,201.1 92.1,198.4 94.4,198.4 96.6,194.5 98.9,191.9 101.1,191.9 103.4,191.9 105.7,191.9 107.9,191.9 110.2,191.9 112.5,191.9 114.7,191.9 117,191.9 119.3,191.9 121.5,190.6 123.8,190.6 126.1,190.6 128.3,189.2" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="128.3" cy="189.2" r="4" fill="#7c3aed" stroke="#fff" stroke-width="2"/>
+<text x="120.3" y="180.2" text-anchor="end" class="lb">31% today</text>
+<line x1="128.3" x2="128.3" y1="16" y2="268" stroke="#78716c" stroke-width="1"/>
+<line x1="651.5" x2="651.5" y1="16" y2="268" stroke="#dc2626" stroke-width="1"/>
+<text x="646.5" y="257.9" text-anchor="end" class="tk" fill="#b91c1c">exam · 14 May</text>
+<text x="657.5" y="56.8" class="lb">85% likely</text>
+<text x="657.5" y="135.4" class="tk">54%</text>
+<text x="657.5" y="20" class="tk">100%</text>
+</svg></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 5 · ENTRY POINTS ====================== -->
+<section class="sec" id="entry">
+  <div class="shead"><span class="stag">04</span><h2>Where it shows without opening the page</h2></div>
+  <p class="thesis">Three touches elsewhere, each one line, so the forecast is met on the way to the number rather
+    than hidden behind it.</p>
+  <div class="frame"><div class="chrome"><i></i><i></i><i></i><code>/s/maths · / · /week/2026-W39</code></div>
+    <div class="mock">
+      <p class="panel-title" style="margin-top:0">The subject page: the "Spec conquered" card grows a line</p>
+      <div class="entry">
+        <div class="card"><p class="label">Spec conquered</p><p class="big mono" style="font-size:1.6rem;margin:.15rem 0 0;font-weight:700">31%</p>
+          <div class="track"><i style="width:31.2%"></i><b style="left:33.1%"></b></div>
+          <a class="lk" href="#page">85% likely by exam day · 2 weeks under the aimline · <u>progress and forecast →</u></a></div>
+        <div class="card"><p class="label">Lower-tier secure</p><p class="big mono" style="font-size:1.6rem;margin:.15rem 0 0;font-weight:700">23<small style="font-size:.8rem;font-weight:400">/38</small></p><p class="sub" style="font-size:.74rem;margin:.3rem 0 0;color:#57534e">topics secure or better</p></div>
+      </div>
+      <p class="panel-title">The index: every subject row carries its exam-day figure</p>
+      <a class="item" href="#page"><div class="grow"><strong>GCSE Mathematics</strong><div><small>AQA 8300 Higher · 64 topics</small></div></div>
+        <div class="num"><strong class="mono">31%</strong> <small>covered</small><span class="fc">85% likely on exam day · <span style="color:#b45309">2 wks under aimline</span></span></div></a>
+      <a class="item" href="#page" style="margin-top:.5rem"><div class="grow"><strong>GCSE English Literature</strong><div><small>AQA 8702 · 205 topics</small></div></div>
+        <div class="num"><strong class="mono">1%</strong> <small>covered</small><span class="fc">too early to forecast · 3 weeks of pace</span></div></a>
+      <p class="cap">English Literature at 1% of 205 topics with 3 weeks of pace is where this view earns its keep: the moment
+        it has four weeks, its exam-day figure will be a number the parent cannot unsee.</p>
+      <p class="panel-title">The week page: each subject card says which side of the line the week ended</p>
+      <div class="entry">
+        <div class="card"><p style="display:flex;justify-content:space-between;align-items:baseline"><strong>Maths</strong><span><span class="mono" style="font-weight:700">31%</span><span class="delta">+1</span></span></p>
+          <p style="font-size:.76rem;color:#57534e;margin:.3rem 0 0">Aimline 33% · <span class="pill behind">4 steps behind</span> · 26 touches, 2 steps</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 6 · THE SCIENCE ======================= -->
+<section class="sec" id="science">
+  <div class="shead"><span class="stag">05</span><h2>How it's worked out</h2></div>
+  <p class="thesis">Three bodies of work, each used for the one thing it is good at. None of them is a curve fitted to
+    five points.</p>
+
+  <div class="spec">
+    <h3>1 · The aimline and the four-point rule (curriculum-based measurement)</h3>
+    <p>Progress monitoring in special education has used this since the 1980s: measure a student weekly on the same
+      scale, draw a straight <em>aimline</em> from the baseline to the goal on the goal date, and apply a decision rule.
+      Fuchs, Fuchs and Hamlett's rule is the standard one: <strong>four consecutive data points below the aimline means
+      the instruction is not enough and should change; four consecutive above means raise the goal.</strong> It was
+      designed for exactly this situation, a handful of noisy weekly points and a parent or teacher who needs a clear
+      trigger rather than a regression coefficient.</p>
+    <p>Here the scale is steps, the baseline is coverage on the first tracked day, and the goal defaults to 192 steps on
+      exam day. The parent can set a different goal (say 80% by the February mock) and the aimline re-anchors; the rule
+      is unchanged. The page reports the consecutive count under the line and what it means at two and at four.</p>
+  </div>
+
+  <div class="spec">
+    <h3>2 · The cone: a calendar-aware Monte Carlo forecast from her own weeks</h3>
+    <p>Probabilistic forecasting from throughput is the method the flow-metrics community settled on after story-point
+      velocity failed (Vacanti, <em>Actionable Agile Metrics</em> and <em>When Will It Be Done?</em>): never forecast
+      from an average, resample the real history, report percentiles, keep the zero weeks in. Two adaptations make
+      it fit a timetable rather than a Kanban board:</p>
+    <ul>
+      <li><strong>The unit of pace is steps per timetabled maths block</strong>, not per calendar day. Each past week
+        gives one rate: its steps divided by the blocks the timetable in force that week gave maths. Each future week
+        applies a sampled rate to the blocks it will have, from the timetable version in force and the days off booked.
+        A holiday week has no blocks and so gets no steps; the alternating Thursday deep block is counted on the weeks
+        it falls.</li>
+      <li><strong>Two levels of resampling.</strong> With four weeks, the dominant uncertainty is not week-to-week noise
+        but whether 3.1 a week is even her rate. Each run first bootstraps the set of past weeks (draw four with
+        replacement), then draws every future week from that set. The outer draw carries the rate uncertainty, the
+        inner draw the weekly noise. Section 06 shows why the single-level version is not acceptable.</li>
+    </ul>
+    <p>5,000 runs, seeded by date and subject so the page is stable and testable. Outputs: the percentile bands per
+      week, the exam-day distribution, and the date distribution for reaching each milestone, which is where "65% chance
+      of everything secure, typically 28 February" comes from. The cone narrows at roughly the square root of the number
+      of weeks: eight weeks in, it should be about two-thirds as wide.</p>
+  </div>
+
+  <div class="spec">
+    <h3>3 · The stall signals: flow metrics, and process limits once there is enough</h3>
+    <ul>
+      <li><strong>Steps against the aimline</strong>, per week: the CBM rule above.</li>
+      <li><strong>Touches without movement</strong>: a status change whose from and to are the same is evidence logged
+        against a topic that stayed put. The ratio of touches to steps is a flow-efficiency measure. Week 37 ran at 1.4
+        touches a step, week 39 at 13. It does not say the touches were wrong; it says no new topic opened.</li>
+      <li><strong>Work-item age</strong>: how long each developing topic has been developing, and how often it has been
+        touched meanwhile. Vacanti's point is that age is the only <em>leading</em> indicator: throughput and the cone
+        tell you about the past, the age of what is open tells you what the next weeks will do. N10 and G14-16 at twelve
+        weeks and five touches each are the two topics to decide about.</li>
+      <li><strong>Cycle time</strong>: days from first taught to secure, over topics that made it. Six days typically
+        for a freshly opened topic, ten weeks for the diagnostics-era ones. That is the number that turns "nine in
+        flight" into "expect about a week each, if they are taught".</li>
+      <li><strong>Natural process limits</strong> (Wheeler's XmR chart) on the weekly steps: centre line at the mean,
+        limits at ±2.66 × the mean moving range. A week outside the limits is a signal, inside is routine variation.
+        Six weeks is the practical minimum for the limits to mean anything, so the page holds them back until then and
+        says so. With the four weeks in hand the lower limit is below zero and would flag nothing.</li>
+    </ul>
+  </div>
+
+  <div class="spec">
+    <h3>4 · The cumulative flow diagram (Kanban)</h3>
+    <p>The five statuses are a workflow: not started → gap → developing → secure → exam-ready. Stacking the counts
+      over time is a cumulative flow diagram, and it is read the same way here as on any board: the width of the yellow
+      band is the work in progress, its horizontal length is how long a topic waits there, the slope of the green edge
+      is throughput. Little's law (time in progress = work in progress ÷ throughput) is what makes "nine in flight at
+      three steps a week" a wait of about three weeks per topic rather than an impression.</p>
+  </div>
+
+  <div class="notes">
+    <div class="note weak"><b>What none of it knows</b><p>That the 24 unopened topics include the Higher-only ones
+      (surds, circle theorems, vectors, iteration), which will move slower than probability did. That exam-ready is a
+      different kind of work from secure and comes in a revision phase. That regressions cluster around mocks.
+      The cone will learn the first two as they happen; the page says them out loud until then.</p></div>
+    <div class="note weak"><b>Goals</b><p>The tracker holds no target grade or target coverage. The default goal
+      (all 192 steps on exam day) is the strictest reading. A parent-set goal per subject, percentage and date, is a
+      two-column addition and a tool argument; the mocks can then be milestones on the chart.</p></div>
+    <div class="note why"><b>Sources</b><p>Fuchs, Fuchs &amp; Hamlett (1990) and Shapiro (2004) on the four-point rule;
+      Vacanti (2015, 2020) on throughput forecasting and work-item age; Wheeler, <em>Understanding Variation</em>, on
+      XmR limits; Little (1961). Links in the footer.</p></div>
+  </div>
+</section>
+
+<!-- ============================ 7 · WHY THE CONE ====================== -->
+<section class="sec" id="cone">
+  <div class="shead"><span class="stag">06</span><h2>Why the cone is that wide</h2></div>
+  <p class="thesis">The same four weeks, four ways of reading them. The first three are the graphs one reaches for
+    first; each gives a confident answer the record cannot support.</p>
+  <div class="cmpwrap"><table class="cmp">
+    <thead><tr><th>Method</th><th>Exam-day coverage</th><th>What it assumes</th><th>Why not</th></tr></thead>
+    <tbody>
+      <tr><td>Straight line through the points</td><td class="num">85%, no range</td><td>The average rate is the rate, for ever.</td><td>One number, no uncertainty, and it puts a stalled fortnight and a thirteen-step week on the same slope.</td></tr>
+      <tr><td>Percent-per-week trend, last 2 weeks</td><td class="num">46%, no range</td><td>The recent past is the future.</td><td>Honest about the stall, blind to week 37. Whichever window you pick decides the answer.</td></tr>
+      <tr><td>Daily bootstrap, calendar-aware</td><td class="num">98% (86–100%)</td><td>Each future day is one of 17 past study days, redrawn.</td><td>Overconfident: 17 days from four weeks cannot show how uncertain the weekly rate is. The band is narrower than the truth by a factor of four.</td></tr>
+      <tr><td><strong>Weekly two-level bootstrap</strong> (the page)</td><td class="num">85% (54–100%)<br>5–95%: 46–100%</td><td>Her future weeks look like a re-draw of her past weeks, block for block.</td><td>The band is wide because four weeks say little. It narrows on its own as the record grows; nothing needs re-tuning.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="notes">
+    <div class="note why"><b>The test of a forecast</b><p>Not whether it is narrow but whether reality falls inside it
+      as often as it says. A 70% band that holds 70% of the time is the goal; the tracker can score its own past bands
+      once there are months of them, and the page should show that score when it has one.</p></div>
+    <div class="note why"><b>The line does the arguing</b><p>Whatever the cone says, the aimline is a plain fact: 4.0 a
+      week needed, 3.1 delivered, and this week under it. The cone adds "and if that continues, here is May". Either
+      alone is half the page.</p></div>
+  </div>
+</section>
+
+<!-- ============================ 8 · ALTERNATIVES ====================== -->
+<section class="sec" id="alternatives">
+  <div class="shead"><span class="stag">07</span><h2>Alternatives considered</h2></div>
+  <div class="cmpwrap"><table class="cmp">
+    <thead><tr><th>Approach</th><th>Verdict</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Exponential smoothing with trend (Holt)</td><td>Later, maybe</td><td>Needs a few dozen points to set its two parameters; with four it is a guess wearing a formula. Revisit at 20 weeks as a cross-check on the cone.</td></tr>
+      <tr><td>Bayesian Gamma–Poisson rate model</td><td>Rejected for now</td><td>The right shape (a rate with a posterior, overdispersed counts) but it needs a prior for "steps per block" that nobody has, and its answer is harder to explain to the person it is for than "we re-ran her past weeks".</td></tr>
+      <tr><td>A learning-curve or S-curve fit</td><td>Rejected</td><td>Every fitted curve is a story about the future chosen before the data. The cone lets the data tell it.</td></tr>
+      <tr><td>Grade projection from mock marks</td><td>Separate, not this page</td><td>Two attempts exist. When the mocks arrive their grades belong on this chart as dated marks, not as a trend of their own; the synthesis already refuses to name a grade without a paper.</td></tr>
+      <tr><td>Per-status transition rates (a Markov model)</td><td>The upgrade path</td><td>Modelling gap→developing, developing→secure and secure→exam-ready as separate rates would let the cone know the last third is slower. It needs a term of data for the third rate. The page is built so that the sampler can be swapped without touching the chart.</td></tr>
+      <tr><td>Only the eight-week sparkline that exists</td><td>Kept, but it is not this</td><td>It shows a shape with no scale, no target and no future. It stays on the week page; this page is what it links to.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================ 9 · BUILD ============================= -->
+<section class="sec" id="build">
+  <div class="shead"><span class="stag">08</span><h2>What it takes to build</h2></div>
+  <div class="spec">
+    <h3>Files</h3>
+    <ul>
+      <li><code>php/lib/progress.php</code>: pure functions. The daily replay, the per-week block calendar from the
+        timetable versions and days off, the two-level sampler, the aimline and its consecutive count, the weekly
+        table with its flags, ages and cycle times. No HTML, so the tests hit the numbers.</li>
+      <li><code>php/lib/dashboard_progress.php</code>: the page, in the style of the practice board: heading, SVG,
+        "Chart data" table under every chart. Uses <code>tt_today()</code> throughout so the frozen clock pins it.</li>
+      <li><code>php/lib/mcp_progress.php</code>: <code>tracker_progress_forecast(subject)</code>, the same numbers as
+        text and JSON, for the Friday review and the Saturday synthesis to quote. Read-only.</li>
+      <li>Store: <code>coverageAcross</code> made public and generalised to a day series; two nullable columns on
+        <code>subjects</code>, <code>goal_pct</code> and <code>goal_date</code>, settable through
+        <code>tracker_create_subject</code>.</li>
+      <li>Routes: <code>/s/{slug}/progress</code>; the three one-line entry points; <code>deploy/progress-test.php</code>
+        with a seeded record and pinned clock; a 200 and a 404 in the smoke test; both CI workflows.</li>
+    </ul>
+  </div>
+  <div class="spec">
+    <h3>Rules the build keeps</h3>
+    <ul>
+      <li>Under four weeks of blocks: line and aimline only, and the header says how many weeks it has.</li>
+      <li>The seed for the sampler is the date and the slug, so the cone holds still within a day.</li>
+      <li>Changes are dated by their session where they have one; otherwise by when they were logged.</li>
+      <li>Nothing is stored. Correct a status and the whole history re-reads.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================ 10 · VERDICT ========================== -->
+<section class="sec" id="verdict">
+  <div class="shead"><span class="stag">09</span><h2>Verdict, and four questions for you</h2></div>
+  <div class="rec">
+    <p><b>Build the page as shown.</b> The aimline gives you the plain fact every week (4.0 needed, 3.1 delivered, under
+      the line); the cone gives you May with honest width; the three stall signals name the week and the topic. On the
+      record as it stands, it would already be telling you that week 38 stalled, that N10 and G14-16 have been developing
+      for twelve weeks with five touches each, and that English Literature is three weeks from a number you will not like.</p>
+    <p>What I would not do is narrow the cone by hand. It is wide because four weeks are four weeks. By half term it will
+      be a different shape on its own.</p>
+  </div>
+  <div class="ask">
+    <div><span class="q">Q1</span><b>The goal.</b> Default is every topic exam-ready on exam day. Is that the aimline you want, or
+      "everything secure by the February mock, exam-ready by May" as two milestones? Both can be drawn; the rule needs one.</div>
+    <div><span class="q">Q2</span><b>The window.</b> The cone reads the last eight weeks once it has them. Longer is steadier,
+      shorter reacts faster to a change in teaching. Eight is my recommendation.</div>
+    <div><span class="q">Q3</span><b>Saturday sessions.</b> Session 23 was a Saturday and moved two steps. The prototype treats
+      unscheduled days as carrying no expected steps, so weekend work is a bonus, never assumed. Is that right?</div>
+    <div><span class="q">Q4</span><b>Who sees it.</b> The subject page is public by design. The forecast could be too, or parent-only
+      like the reviews. I would keep the line and the aimline public and gate the cone and the in-flight table, so she sees
+      the target without a probability of missing it.</div>
+  </div>
+</section>
+
+<footer class="deck">
+  Design concept for the Education Tracker, September 2026. All figures from the maths record on 25 September 2026;
+  forecast prototype in Python, 5,000 runs, to be ported to PHP.
+  Sources: <a href="https://www.sciencedirect.com/science/article/pii/S0022440516300449">CBM decision rules (Van Norman &amp; Christ)</a> ·
+  <a href="https://iris.peabody.vanderbilt.edu/module/dbi2/cresource/q2/p03/">IRIS Center on progress monitoring</a> ·
+  <a href="https://www.scrum.org/resources/blog/monte-carlo-forecasting-scrum">Monte Carlo forecasting from throughput</a> ·
+  <a href="https://blog.letpeople.work/p/an-introduction-and-step-by-step-guide-to-monte-carlo-simulations">step-by-step Monte Carlo guide</a> ·
+  <a href="https://michelbaudin.com/2019/03/02/the-math-behind-the-process-behavior-chart/">the maths of the XmR chart</a> ·
+  <a href="https://getnave.com/cumulative-flow-diagram">cumulative flow diagrams</a>.
+</footer>
+</div>
+
+<script>
+(function(){
+  var rows = [{"d": "2026-08-23", "l": "23 Aug", "m": 24, "a": 22, "p15": null, "p50": null, "p85": null}, {"d": "2026-08-30", "l": "30 Aug", "m": 26, "a": 22, "p15": null, "p50": null, "p85": null}, {"d": "2026-09-06", "l": "6 Sep", "m": 28, "a": 23, "p15": null, "p50": null, "p85": null}, {"d": "2026-09-13", "l": "13 Sep", "m": 30, "a": 30, "p15": null, "p50": null, "p85": null}, {"d": "2026-09-20", "l": "20 Sep", "m": 32, "a": 30, "p15": null, "p50": null, "p85": null}, {"d": "2026-09-27", "l": "27 Sep", "m": 34, "a": null, "p15": 31, "p50": 31, "p85": 31}, {"d": "2026-10-04", "l": "4 Oct", "m": 36, "a": null, "p15": 31, "p50": 32, "p85": 35}, {"d": "2026-10-11", "l": "11 Oct", "m": 38, "a": null, "p15": 32, "p50": 33, "p85": 38}, {"d": "2026-10-18", "l": "18 Oct", "m": 40, "a": null, "p15": 32, "p50": 34, "p85": 41}, {"d": "2026-10-25", "l": "25 Oct", "m": 42, "a": null, "p15": 33, "p50": 36, "p85": 43}, {"d": "2026-11-01", "l": "1 Nov", "m": 44, "a": null, "p15": 34, "p50": 38, "p85": 46}, {"d": "2026-11-08", "l": "8 Nov", "m": 46, "a": null, "p15": 35, "p50": 40, "p85": 49}, {"d": "2026-11-15", "l": "15 Nov", "m": 48, "a": null, "p15": 35, "p50": 42, "p85": 51}, {"d": "2026-11-22", "l": "22 Nov", "m": 50, "a": null, "p15": 36, "p50": 43, "p85": 54}, {"d": "2026-11-29", "l": "29 Nov", "m": 52, "a": null, "p15": 38, "p50": 45, "p85": 56}, {"d": "2026-12-06", "l": "6 Dec", "m": 54, "a": null, "p15": 38, "p50": 46, "p85": 59}, {"d": "2026-12-13", "l": "13 Dec", "m": 56, "a": null, "p15": 38, "p50": 48, "p85": 62}, {"d": "2026-12-20", "l": "20 Dec", "m": 58, "a": null, "p15": 40, "p50": 50, "p85": 65}, {"d": "2026-12-27", "l": "27 Dec", "m": 60, "a": null, "p15": 40, "p50": 51, "p85": 68}, {"d": "2027-01-03", "l": "3 Jan", "m": 62, "a": null, "p15": 41, "p50": 53, "p85": 70}, {"d": "2027-01-10", "l": "10 Jan", "m": 64, "a": null, "p15": 42, "p50": 54, "p85": 73}, {"d": "2027-01-17", "l": "17 Jan", "m": 66, "a": null, "p15": 42, "p50": 56, "p85": 76}, {"d": "2027-01-24", "l": "24 Jan", "m": 68, "a": null, "p15": 43, "p50": 58, "p85": 79}, {"d": "2027-01-31", "l": "31 Jan", "m": 70, "a": null, "p15": 44, "p50": 59, "p85": 81}, {"d": "2027-02-07", "l": "7 Feb", "m": 72, "a": null, "p15": 44, "p50": 62, "p85": 84}, {"d": "2027-02-14", "l": "14 Feb", "m": 74, "a": null, "p15": 45, "p50": 64, "p85": 86}, {"d": "2027-02-21", "l": "21 Feb", "m": 76, "a": null, "p15": 46, "p50": 65, "p85": 90}, {"d": "2027-02-28", "l": "28 Feb", "m": 78, "a": null, "p15": 47, "p50": 67, "p85": 92}, {"d": "2027-03-07", "l": "7 Mar", "m": 80, "a": null, "p15": 47, "p50": 68, "p85": 95}, {"d": "2027-03-14", "l": "14 Mar", "m": 82, "a": null, "p15": 48, "p50": 70, "p85": 97}, {"d": "2027-03-21", "l": "21 Mar", "m": 84, "a": null, "p15": 49, "p50": 72, "p85": 100}, {"d": "2027-03-28", "l": "28 Mar", "m": 86, "a": null, "p15": 49, "p50": 73, "p85": 100}, {"d": "2027-04-04", "l": "4 Apr", "m": 88, "a": null, "p15": 50, "p50": 75, "p85": 100}, {"d": "2027-04-11", "l": "11 Apr", "m": 90, "a": null, "p15": 51, "p50": 76, "p85": 100}, {"d": "2027-04-18", "l": "18 Apr", "m": 92, "a": null, "p15": 51, "p50": 78, "p85": 100}, {"d": "2027-04-25", "l": "25 Apr", "m": 94, "a": null, "p15": 52, "p50": 80, "p85": 100}, {"d": "2027-05-02", "l": "2 May", "m": 97, "a": null, "p15": 53, "p50": 82, "p85": 100}, {"d": "2027-05-09", "l": "9 May", "m": 99, "a": null, "p15": 53, "p50": 83, "p85": 100}, {"d": "2027-05-14", "l": "14 May", "m": 100, "a": null, "p15": 54, "p50": 85, "p85": 100}];
+  var box = document.getElementById('bubox'); if(!box) return;
+  var svg = box.querySelector('svg'), tip = document.getElementById('butip');
+  var X0 = new Date('2026-08-17T00:00:00Z'), X1 = new Date('2027-05-16T00:00:00Z'), L=40, R=64, W=720;
+  function show(ev){
+    var r = svg.getBoundingClientRect(); var fx = (ev.clientX - r.left) / r.width * W;
+    if(fx < L || fx > W-R){ tip.style.display='none'; return; }
+    var day = X0.getTime() + (fx-L)/(W-L-R) * (X1-X0);
+    var best=null, bd=1e18;
+    rows.forEach(function(row){ var d=Math.abs(new Date(row.d+'T00:00:00Z').getTime()-day); if(d<bd){bd=d;best=row;} });
+    if(!best){ tip.style.display='none'; return; }
+    var t = '<b>w/e ' + best.l + '</b><br>';
+    if(best.a!==null) t += 'actual ' + best.a + '%<br>';
+    t += 'aimline ' + best.m + '%';
+    if(best.p50!==null) t += '<br>likely ' + best.p15 + '–' + best.p85 + '% · median ' + best.p50 + '%';
+    tip.innerHTML = t; tip.style.display='block';
+    var bx = box.getBoundingClientRect();
+    var left = ev.clientX - bx.left + 12; if(left > bx.width - 200) left = ev.clientX - bx.left - 200;
+    tip.style.left = left + 'px'; tip.style.top = (ev.clientY - bx.top - 10) + 'px';
+  }
+  svg.addEventListener('mousemove', show);
+  svg.addEventListener('mouseleave', function(){ tip.style.display='none'; });
+})();
+</script>
+</body>
+</html>
