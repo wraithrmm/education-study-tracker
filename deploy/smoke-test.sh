@@ -100,6 +100,14 @@ code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/")"
 check "dashboard index renders" "$code" "200"
 code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths")"
 check "maths dashboard renders" "$code" "200"
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/progress")"
+check "the progress page renders" "$code" "200"
+body="$("${CURL[@]}" "$BASE/s/maths/progress")"
+contains "the progress page has its title" "$body" "<h1>Progress and forecast</h1>"
+contains "the progress page draws the line" "$body" 'aria-labelledby="pg-bu-t"'
+contains "the progress page tables its weeks" "$body" "Week by week</h2>"
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/nope/progress")"
+check "an unknown subject's progress page is a 404" "$code" "404"
 
 # The dashboard is the human-readable face of the audit trail, so the trail
 # has to reach it and not just the tools. The headings render unconditionally,
@@ -277,7 +285,7 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_save_week_synthesis tracker_get_week_synthesis tracker_list_week_syntheses \
             tracker_learner_model tracker_exam_add_questions tracker_exam_list_questions \
             tracker_exam_update_question tracker_exam_schedule_test tracker_exam_list_tests \
-            tracker_exam_get_test tracker_exam_mark_test; do
+            tracker_exam_get_test tracker_exam_mark_test tracker_progress_forecast; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -288,10 +296,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 53 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 54 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 53 of 53)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 54 of 54)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }
@@ -308,6 +316,11 @@ contains "tracker_get_state filters by status" "$body" "Gap"
 
 body="$(call tracker_review_queue '{"subject":"maths"}')"
 contains "tracker_review_queue groups the work" "$body" "Priority gaps"
+
+body="$(call tracker_progress_forecast '{"subject":"maths"}')"
+contains "tracker_progress_forecast leads with the subject" "$body" "Progress and forecast"
+contains "tracker_progress_forecast lists its signals first" "$body" "SIGNALS (read these first)"
+contains "tracker_progress_forecast tables the weeks" "$body" "WEEK BY WEEK"
 
 body="$(call tracker_list_attempts '{"subject":"maths"}')"
 contains "tracker_list_attempts converts paper grades" "$body" "grade"

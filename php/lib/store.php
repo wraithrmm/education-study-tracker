@@ -22,6 +22,8 @@ require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/synthesis.php';
 // The exam vocabulary: the status lists its CHECK constraints are built from.
 require_once __DIR__ . '/exam.php';
+// Progress over time and the forecast: pure functions over progressInputs().
+require_once __DIR__ . '/progress.php';
 
 const STATUS_ORDER = ['notstarted', 'gap', 'developing', 'secure', 'examready'];
 
@@ -493,7 +495,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 14;
+    private const SCHEMA_VERSION = 15;
 
     private function migrate(): void
     {
@@ -536,6 +538,19 @@ final class Store
 
     private function migrateStep(int $v): void
     {
+        if ($v === 15) {
+            // The progress goal: the point the aimline is drawn to. Null means
+            // every step on exam day, which is the strictest reading; the
+            // parent can set a lower percentage or an earlier date.
+            if (!$this->hasColumn('subjects', 'goal_pct')) {
+                $this->db->exec('ALTER TABLE subjects ADD COLUMN goal_pct INTEGER');
+            }
+            if (!$this->hasColumn('subjects', 'goal_date')) {
+                $this->db->exec('ALTER TABLE subjects ADD COLUMN goal_date TEXT');
+            }
+            return;
+        }
+
         if ($v === 1) {
             // Attributes a topic change to the session that produced it, so the
             // history can show what each session actually moved. Changes made
@@ -1727,6 +1742,8 @@ final class Store
             'boundaries'   => json_decode((string) ($r['boundaries'] ?: '{}'), true) ?: [],
             'boundary_max' => (int) ($r['boundary_max'] ?? 240),
             'notes'        => $r['notes'] ?? null,
+            'goal_pct'     => isset($r['goal_pct']) ? (int) $r['goal_pct'] : null,
+            'goal_date'    => $r['goal_date'] ?? null,
         ];
     }
 
@@ -1764,13 +1781,18 @@ final class Store
                 ? $json($s['boundaries']) : ($old['boundaries'] ?? '{}'),
             ':boundary_max' => $keep('boundary_max', $old['boundary_max'] ?? 240),
             ':notes'        => $keep('notes', $old['notes'] ?? null),
+            // The goal is the one pair that can be cleared: an explicit null
+            // puts the aimline back on every step at exam day.
+            ':goal_pct'     => array_key_exists('goal_pct', $s) ? $s['goal_pct'] : ($old['goal_pct'] ?? null),
+            ':goal_date'    => array_key_exists('goal_date', $s) ? $s['goal_date'] : ($old['goal_date'] ?? null),
         ];
 
         $st = $this->db->prepare(
             'INSERT INTO subjects
-               (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes)
+               (slug, name, spec_code, tier, exam_date, strands, boundaries, boundary_max, notes,
+                goal_pct, goal_date)
              VALUES (:slug, :name, :spec_code, :tier, :exam_date, :strands, :boundaries,
-                     :boundary_max, :notes)
+                     :boundary_max, :notes, :goal_pct, :goal_date)
              ON CONFLICT(slug) DO UPDATE SET
                name = excluded.name,
                spec_code = excluded.spec_code,
@@ -1779,7 +1801,9 @@ final class Store
                strands = excluded.strands,
                boundaries = excluded.boundaries,
                boundary_max = excluded.boundary_max,
-               notes = excluded.notes'
+               notes = excluded.notes,
+               goal_pct = excluded.goal_pct,
+               goal_date = excluded.goal_date'
         );
         $st->execute($row);
         return $this->getSubject($slug);
@@ -4323,6 +4347,45 @@ final class Store
             'pct_start' => $pct($points - $sinceStart),
             'pct_end'   => $pct($points - $sinceEnd),
             'topics'    => count($topics),
+        ];
+    }
+
+    /**
+     * Everything progress_compute() needs for one subject, in one bundle: the
+     * topics as they stand, every status change with its session, the
+     * sessions that were not voided, every timetable version with its blocks,
+     * and the approved days off. Read-only; the calculation is in progress.php
+     * so that the page, the tool and the tests share one set of numbers.
+     */
+    public function progressInputs(string $slug): array
+    {
+        $subject = $this->getSubject($slug);
+        if (!$subject) {
+            throw new InvalidArgumentException("Unknown subject \"$slug\".");
+        }
+        $versions = [];
+        foreach ($this->all('SELECT * FROM timetable_versions ORDER BY valid_from, id') as $v) {
+            $versions[] = ['valid_from' => (string) $v['valid_from'],
+                           'blocks' => $this->timetableBlocks((int) $v['id'])];
+        }
+        return [
+            'subject'  => $subject,
+            'today'    => tt_today(),
+            'topics'   => $this->listTopics($slug),
+            'changes'  => $this->all(
+                'SELECT ref, from_status, to_status, changed_at, session_id
+                 FROM topic_changes WHERE subject_slug = ? ORDER BY changed_at, id',
+                [$slug]
+            ),
+            'sessions' => $this->all(
+                'SELECT id, date, block_key FROM sessions
+                 WHERE subject_slug = ? AND void_reason IS NULL ORDER BY date, id',
+                [$slug]
+            ),
+            'versions' => $versions,
+            'days_off' => $this->all(
+                "SELECT date_from, date_to FROM days_off WHERE status = 'approved' ORDER BY date_from"
+            ),
         ];
     }
 

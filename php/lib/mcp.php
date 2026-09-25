@@ -36,6 +36,7 @@ require_once __DIR__ . '/mcp_review.php';
 require_once __DIR__ . '/mcp_synthesis.php';
 // The exam-skills tools: the question bank, the timed test and its marking.
 require_once __DIR__ . '/mcp_exam.php';
+require_once __DIR__ . '/mcp_progress.php';
 
 function mcp_text(string $s): array
 {
@@ -1342,7 +1343,9 @@ function mcp_tools(): array
                 . "DO NOT re-send a whole syllabus to change one field, and do not send topics at all unless "
                 . "you mean to add or update them.\n\n"
                 . "Args to create: slug, name, strands (key to display name), topics[] of { ref, name, strand, tier?, status?, watch? }. "
-                . 'Optional spec_code, tier, exam_date, notes, boundary_max (default 240), boundaries (tier to [[grade, mark], …]).',
+                . 'Optional spec_code, tier, exam_date, notes, boundary_max (default 240), boundaries (tier to [[grade, mark], …]). '
+                . 'Optional goal_pct and goal_date set the progress goal the aimline on /s/{slug}/progress is drawn to '
+                . '(default: 100% of the syllabus exam-ready on exam_date); null clears one.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
@@ -1353,6 +1356,10 @@ function mcp_tools(): array
                     'tier'         => ['type' => 'string', 'maxLength' => 30],
                     'exam_date'    => $isoDate,
                     'notes'        => ['type' => 'string', 'maxLength' => 2000],
+                    'goal_pct'     => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => 100,
+                        'description' => 'Progress goal as a percentage of the syllabus in steps; null means 100'],
+                    'goal_date'    => ['type' => ['string', 'null'], 'pattern' => '^\\d{4}-\\d{2}-\\d{2}$',
+                        'description' => 'The date the goal is to be met by; null means exam_date'],
                     'strands'      => ['type' => 'object', 'additionalProperties' => ['type' => 'string'],
                         'description' => 'Strand key to display name, e.g. { "N": "Number", "A": "Algebra" }'],
                     'boundary_max' => ['type' => 'integer', 'minimum' => 1, 'default' => 240,
@@ -2262,7 +2269,8 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
     ];
-    return array_merge($tools, mcp_exam_tools($readOnly, $write, $isoDate, $subjectArg));
+    return array_merge($tools, mcp_exam_tools($readOnly, $write, $isoDate, $subjectArg),
+        mcp_progress_tools($readOnly, $subjectArg));
 }
 
 // ---- tool implementations -----------------------------------------------
@@ -4992,6 +5000,12 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             if (array_key_exists('exam_date', $a)) {
                 $fields['exam_date'] = mcp_date($a, 'exam_date');
             }
+            if (array_key_exists('goal_pct', $a)) {
+                $fields['goal_pct'] = $a['goal_pct'] === null ? null : (int) mcp_num($a, 'goal_pct', false, 1, 100);
+            }
+            if (array_key_exists('goal_date', $a)) {
+                $fields['goal_date'] = $a['goal_date'] === null ? null : mcp_date($a, 'goal_date');
+            }
             if (is_array($a['strands'] ?? null)) {
                 $fields['strands'] = $a['strands'];
             }
@@ -5479,6 +5493,9 @@ function mcp_call_tool(Store $store, string $name, array $a): array
 
     if (str_starts_with($name, 'tracker_exam_')) {
         return mcp_exam_call($store, $name, $a);
+    }
+    if ($name === 'tracker_progress_forecast') {
+        return mcp_progress_call($store, $a);
     }
 
     throw new McpError("Unknown tool \"$name\".");

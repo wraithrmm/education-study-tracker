@@ -162,6 +162,7 @@ require_once __DIR__ . '/lib/parent.php';
 require_once __DIR__ . '/lib/dashboard.php';
 require_once __DIR__ . '/lib/timetable_edit.php';
 require_once __DIR__ . '/lib/dashboard_exam.php';
+require_once __DIR__ . '/lib/dashboard_progress.php';
 
 try {
     $store = new Store($dbPath);
@@ -617,6 +618,16 @@ if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
         send_html(render_index($store), 404);
     }
     send_html(render_subject($store, $subject, parent_signed_in($store, $password)));
+}
+
+// Progress over time and the forecast: the line, the aimline, the cone.
+if (preg_match('#^/s/([^/]+)/progress$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    send_html(render_subject_progress($store, $subject, parent_signed_in($store, $password)));
 }
 
 // The practice scoreboard: every panel the subject's configuration asks for,

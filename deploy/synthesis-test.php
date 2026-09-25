@@ -220,7 +220,7 @@ register_shutdown_function(static function () use ($dbPath) {
 });
 
 echo "== schema ==\n";
-check('a fresh database reaches schema 14', $store->meta('schema_version'), '14');
+check('a fresh database reaches schema 15', $store->meta('schema_version'), '15');
 $tables = array_column($store->db->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(), 'name');
 foreach (['weekly_syntheses', 'week_plans', 'learner_model'] as $t) {
     check("table $t exists", in_array($t, $tables, true), true);
