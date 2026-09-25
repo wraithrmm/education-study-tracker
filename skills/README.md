@@ -32,13 +32,21 @@ bash deploy/build-skills.sh --check    # validate only
 
 The build validates before it writes anything, and writes nothing if a check fails:
 
-- `claude plugin validate --strict` over both manifests and every skill;
+- `deploy/validate-manifests.php` — both manifests parse, carry the fields the plugin loader
+  reads, agree about the plugin's name, and name only sources that are really in the tree; every
+  skill has a frontmatter block with a name and a description long enough to route on. It is
+  plain PHP, so it runs anywhere the service does, CI included;
 - each skill's frontmatter `name` must equal its directory name, because the zip is named from
   the directory and claude.ai matches the two;
 - frontmatter may use only the six keys claude.ai accepts on upload — `name`, `description`,
   `license`, `compatibility`, `allowed-tools`, `metadata`. **The plugin validator does not catch
   this**: a seventh key installs perfectly well as a plugin and is a hard error on upload, which
   is exactly the failure that would otherwise be found by a person at the worst moment.
+
+Where the `claude` CLI is on the machine, `claude plugin validate --strict` runs over both
+manifests and every skill as a further layer, because it knows about plugin fields this
+repository does not use. It is not on a CI runner and the build never depends on it: if it is
+missing the build says so and carries on, and nothing above is skipped.
 
 Zips are reproducible. Entries are sorted and timestamps pinned to the last commit date, so an
 unchanged skill rebuilds byte-identically and a release diff shows only what really moved.

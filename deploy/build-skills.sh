@@ -38,16 +38,35 @@ SOURCE_DATE="$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S' 2>/dev/
 
 echo "== validating =="
 
-# The manifests and every skill, warnings treated as errors. This is the same
-# check CI runs, so a green local build means a green CI build.
-for target in .claude-plugin/plugin.json .claude-plugin/marketplace.json skills; do
-    if out="$(claude plugin validate "$target" --strict 2>&1)"; then
-        pass "$target"
-    else
-        fail "$target"
-        printf '%s\n' "$out" | sed 's/^/        /'
-    fi
-done
+# Both manifests and every skill's frontmatter, in PHP, with no dependency on
+# anything but the language the service is already written in. This is the
+# check that has to hold: it is what CI runs and what decides whether a zip
+# is written.
+if out="$(php deploy/validate-manifests.php 2>&1)"; then
+    printf '%s\n' "$out"
+else
+    printf '%s\n' "$out"
+    n="$(printf '%s\n' "$out" | grep -c '^  FAIL ' || true)"
+    FAILURES=$((FAILURES + (n > 0 ? n : 1)))
+fi
+
+# `claude plugin validate --strict` on top, where the CLI happens to be on the
+# machine: it knows about plugin fields this repository does not use, and a
+# warning from it is worth seeing before a release. It is *not* on a CI runner,
+# and a build must not fail for want of a tool that was never promised, so its
+# absence is a skip. Nothing above depends on it.
+if command -v claude >/dev/null 2>&1; then
+    for target in .claude-plugin/plugin.json .claude-plugin/marketplace.json skills; do
+        if out="$(claude plugin validate "$target" --strict 2>&1)"; then
+            pass "claude plugin validate $target"
+        else
+            fail "claude plugin validate $target"
+            printf '%s\n' "$out" | sed 's/^/        /'
+        fi
+    done
+else
+    printf '  skip  claude plugin validate — no claude CLI on this machine\n'
+fi
 
 # Things `claude plugin validate` does not check, and that break an upload to
 # claude.ai rather than a plugin install:
