@@ -1,4 +1,6 @@
 node_modules/
+
+# Built by deploy/build-skills.sh; attached to CI runs and releases, never committed.
 dist/
 
 # Secrets and local state — never commit these.
