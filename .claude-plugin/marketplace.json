@@ -1,0 +1,16 @@
+{
+  "name": "rmmann-education",
+  "owner": {
+    "name": "wraithrmm",
+    "url": "https://github.com/wraithrmm"
+  },
+  "description": "The GCSE study skills that run against the Education Tracker service at education.rmmann.co.uk.",
+  "plugins": [
+    {
+      "name": "gcse-tracker",
+      "source": "./",
+      "description": "Tutors, markers, the tracker tools, the lesson review and weekly synthesis, the parent's review and planner, and the weekly timed exam paper.",
+      "category": "education"
+    }
+  ]
+}

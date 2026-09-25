@@ -1,0 +1,52 @@
+name: Skills release
+
+# A tag is the release. `skills-v1.2.0` publishes the plugin and every skill
+# zip against that tag, so an install can be pinned to a version that will
+# still be there next term.
+on:
+  push:
+    tags: ['skills-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the skill zips
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validation is not a formality here: a skill with a frontmatter key
+      # claude.ai rejects installs fine as a plugin and fails on upload, and
+      # the release is where that would be discovered too late.
+      - name: Build the skill and plugin zips
+        run: bash deploy/build-skills.sh
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Skills and plugin built from \`$TAG\`."
+            echo
+            echo "**Install the whole plugin** — in Claude Code:"
+            echo
+            echo '```'
+            echo "/plugin marketplace add ${{ github.repository }}"
+            echo "/plugin install gcse-tracker@rmmann-education"
+            echo '```'
+            echo
+            echo "**Or upload one skill** to claude.ai: download its zip below and add it under Settings → Capabilities → Skills."
+            echo
+            tail -n +2 dist/CONTENTS.md
+          } > "$RUNNER_TEMP/notes.md"
+
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "Skills $TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            dist/*.zip dist/skills/*.zip

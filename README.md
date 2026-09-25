@@ -620,6 +620,26 @@ Grade boundaries are per-subject. `boundary_max` is the total the boundaries are
 The database is a single file and it is the only copy of the record; see
 [DEPLOYMENT.md](DEPLOYMENT.md#backups). Worth a weekly cron.
 
+## The skills
+
+The skills that drive all of this — the four subject tutors, the four markers, the progress and
+dashboard tools, the lesson review and weekly synthesis, the parent's Friday review and term
+planner, the retrieval block and the weekly exam paper — live in `skills/`, beside the service
+they call. A change to a tool and the change to the skill that uses it land in one commit.
+
+The repository is itself an installable plugin and its own marketplace:
+
+```
+/plugin marketplace add wraithrmm/education-study-tracker
+/plugin install gcse-tracker@rmmann-education
+```
+
+`bash deploy/build-skills.sh` validates both manifests and every `SKILL.md`, then builds one zip
+per skill — the shape claude.ai wants for a single upload — and one for the whole plugin. CI runs
+it on every build and attaches the zips; a `skills-v*` tag publishes them on a Release.
+`skills/README.md` has the detail, including the frontmatter rule the plugin validator does not
+catch but an upload does.
+
 ## Known limits
 
 - One password, one tenant. Fine for a household; don't hand the URL to a class.
