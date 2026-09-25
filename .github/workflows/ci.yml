@@ -54,3 +54,19 @@ jobs:
       # sitting, and marking into one attempt per subject.
       - name: Exam skills acceptance tests
         run: php deploy/exam-test.php
+
+      # The skills ship from this repo as well as the service does. Validate
+      # the plugin and marketplace manifests and every SKILL.md, then build
+      # the zips: one per skill for a hand upload to claude.ai, and one for
+      # the whole plugin. Reproducible, so an unchanged skill rebuilds
+      # byte-identically and a release diff shows only what moved.
+      - name: Build the skill and plugin zips
+        run: bash deploy/build-skills.sh
+
+      - name: Upload the zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: skills-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90

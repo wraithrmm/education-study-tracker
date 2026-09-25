@@ -1,0 +1,13 @@
+{
+  "name": "gcse-tracker",
+  "displayName": "GCSE Tracker",
+  "version": "1.0.0",
+  "description": "The skills that teach, mark and record a home-educated GCSE student's week against the Education Tracker service: four subject tutors, four exam-board markers, the progress and dashboard tools, the per-lesson review and weekly synthesis, the parent's Friday review and term planner, the retrieval block, and the weekly timed exam-practice paper.",
+  "author": {
+    "name": "wraithrmm",
+    "url": "https://github.com/wraithrmm"
+  },
+  "homepage": "https://github.com/wraithrmm/education-study-tracker/blob/main/skills/README.md",
+  "repository": "https://github.com/wraithrmm/education-study-tracker",
+  "keywords": ["gcse", "education", "aqa", "home-education", "tutoring", "exam-practice"]
+}
