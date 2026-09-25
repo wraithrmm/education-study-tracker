@@ -24,21 +24,29 @@ exam-practice project logs after each sitting.
 
 ## 3. Re-cut the timetable
 
-The live board is what to re-cut from, not `docs/timetable-seed.json` — the
-board has been edited since the seed (the Wednesday group, lunch). From the
-parent's chat, with `term-planner`:
+The live board is what to re-cut from, not `docs/timetable-seed.json` — that
+file is the September fixture the smoke test runs against, and the board has
+moved on. As of version 11 the free keys start at **42**, Wednesday afternoon
+holds block **41** (English Language — reading, real sources, 14:30–15:30),
+and block 20 (Spanish) is at 09:45 in the morning, so it no longer needs
+moving. From the parent's chat, with `term-planner`:
 
-> Read the timetable with `tracker_get_timetable`. Add block **39**, Wednesday
+> Read the timetable with `tracker_get_timetable`. Add block **42**, Wednesday
 > 14:30–15:30, kind `exam_practice`, label "Exam practice — timed paper",
 > subjects `["exam-skills"]`, tracking `evidence`, note "Mixed-subject timed
 > paper on the portal at /exam; marked afterwards in her exam-practice
-> project". Move block **20** (Spanish) to 15:30–15:45. Keep every other
-> block's key, times and kind exactly as they are. Show me the diff, then
-> write it with `tracker_set_timetable`, `valid_from` next Monday.
+> project". Move block **41** to 15:30–16:30. Keep every other block's key,
+> times, kind **and note** exactly as they are. Show me the diff, then write
+> it with `tracker_set_timetable`, `valid_from` next Monday.
 
 It should report one block added and one moved. Check `/` afterwards: the
 Wednesday column gains the chip, and once a test is scheduled the chip links
 to it.
+
+Read the keys and the notes from the board on the day, not from here. A re-cut
+writes a whole new version and keeps only what it is given, so a block whose
+note is not sent back loses it — which is why `tracker_get_timetable` prints
+every note.
 
 ## 4. The two skills and the two projects
 
@@ -61,7 +69,7 @@ In the generator project:
 
 > Generate the first three weeks of questions for maths, English Language,
 > English Literature and computer science, vet them, and schedule next
-> Wednesday's paper against block 39.
+> Wednesday's paper against the exam-practice block.
 
 Check the bank at `/exam/bank` (sign in first) and the paper at `/exam/<id>`
 — it should show the sections and the Start button and no question.

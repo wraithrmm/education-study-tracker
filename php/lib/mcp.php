@@ -1643,11 +1643,12 @@ function mcp_tools(): array
             'name'  => 'tracker_get_timetable',
             'title' => 'The timetable in force',
             'description' =>
-                "The timetable version in force on a date, with every block: key, day, times, kind, label, subjects and "
-                . "how it is tracked.\n\n"
+                "The timetable version in force on a date, with every block: key, day, times, kind, label, subjects, "
+                . "how it is tracked, and its note — everything tracker_set_timetable needs given back to it.\n\n"
                 . "USE WHEN: you need block keys, you are about to propose a change, or you are explaining the shape of "
                 . "the week. ALWAYS call this before tracker_set_timetable — that tool replaces the whole timetable, so "
-                . "writing without reading first drops every block you did not send.\n\n"
+                . "writing without reading first drops every block you did not send, and every field you did not "
+                . "resend.\n\n"
                 . "DO NOT use it to judge whether work was done; it is the plan, not the record. tracker_week_status "
                 . "judges.\n\n"
                 . 'Args: optional valid_on (defaults to today). Read-only.',
@@ -2477,9 +2478,18 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                     $b['block_key'], $b['start'], $b['end'], mcp_pad($b['label'], 44),
                     mcp_pad($b['kind'], 18), $subs)
                     . '  [' . $b['tracking'] . ']';
+                // The note has to be readable here or it cannot survive a
+                // re-cut: tracker_set_timetable replaces the whole timetable,
+                // so a field that is never shown is a field the next writer
+                // silently drops.
+                if (isset($b['note']) && (string) $b['note'] !== '') {
+                    $lines[] = '        note: ' . $b['note'];
+                }
             }
             $lines[] = "\nblock_key is the stable id: keep it when you re-cut, or excusals, ticks and "
-                . 'logged work stop resolving.';
+                . 'logged work stop resolving. Send every field back too — notes and alternate '
+                . 'subjects included — because a re-cut writes a whole new version and keeps only '
+                . 'what it is given.';
             return mcp_text(implode("\n", $lines));
         }
 

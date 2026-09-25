@@ -642,6 +642,10 @@ contains "an unknown subject slug is refused" "$body" "not a tracked subject"
 body="$(call tracker_get_timetable '{"valid_on":"2024-09-09"}')"
 contains "tracker_get_timetable returns the version in force" "$body" "37 blocks"
 contains "and marks how each block is tracked" "$body" "[self_report]"
+# The note has to come back out. A re-cut sends the whole timetable, so a
+# field this never prints is a field the next writer drops without knowing.
+contains "and shows each block's note, so a re-cut can carry it" "$body" \
+    "note: Teach → interleaved practice → exit ticket"
 
 # Monday 2024-09-09. A maths session fills block 3 and nothing else.
 body="$(call tracker_log_session '{"subject":"maths","date":"2024-09-09","summary":"Surds: intro, interleaved practice and an exit ticket","block_key":3,"duration_minutes":70}')"
