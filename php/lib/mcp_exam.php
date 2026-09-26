@@ -106,7 +106,8 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
             'description' =>
                 "Moves one question through the bank: vet it (draft → vetted, so it can be scheduled), edit its fields, or retire it.\n\n"
                 . "USE WHEN: the parent's exam-question project has checked a draft against its checklist and approves it; or a question needs a correction; or it should never be used. "
-                . "A question already scheduled, answered or marked cannot be edited or retired — the record of what she sat is fixed.\n\n"
+                . "Any question can be edited, at any status. In the bank (draft or vetted) an edit returns it to draft for re-vetting; inside a test (scheduled, answered or marked) it is corrected in place and keeps its place and status — a mark can never drop below a score already given. "
+                . "A question inside a test cannot be retired until it is taken out with tracker_exam_update_test.\n\n"
                 . 'Args: id, action (vet|edit|retire), optional note, and for edit a fields object with any of the add-questions fields except client_key and subject.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -158,6 +159,47 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
                     ],
                 ],
                 'required'   => ['name', 'scheduled_for', 'duration_minutes', 'sections'],
+            ],
+            'annotations' => $write,
+        ],
+        [
+            'name'  => 'tracker_exam_update_test',
+            'title' => 'Edit or cancel a scheduled test',
+            'description' =>
+                "Changes a test after it was scheduled, or cancels it.\n\n"
+                . "USE WHEN: the parent's exam-question project wants a booked paper changed — a longer or shorter timer, a different date or block, new instructions, questions swapped in or out — or a paper dropped. "
+                . "Parent's tool: the student's exam project never calls it.\n\n"
+                . "action \"edit\" takes a fields object. What a test may change depends on how far it has gone:\n"
+                . "- ready (not started): anything — name, scheduled_for, duration_minutes (" . EXAM_MIN_MINUTES . '-' . EXAM_MAX_MINUTES . "), block_key (null to clear), instructions, note, and sections (the whole new list, validated as in tracker_exam_schedule_test; questions already in this test may stay, questions dropped go back to vetted).\n"
+                . "- open (she is sitting it): name, instructions, note and duration_minutes — the deadline moves to start + the new duration and her page picks it up within 20 seconds. A duration that puts the deadline in the past ends the sitting now.\n"
+                . "- closed or marked: name, instructions and note.\n"
+                . "To change a question's own text or mark scheme, use tracker_exam_update_question — that works inside a test too.\n\n"
+                . "action \"cancel\" deletes a test that is not marked, with any answers saved in it. Questions from a test she never started go back to vetted; from one she started they are retired (she has seen them) unless requeue is true. A marked test cannot be cancelled: its attempts are the record.\n\n"
+                . 'Args: id, action (edit|cancel), fields? (for edit), requeue? (for cancel), note? (why, kept on the record).',
+            'inputSchema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'id'      => ['type' => 'integer', 'minimum' => 1],
+                    'action'  => ['type' => 'string', 'enum' => ['edit', 'cancel']],
+                    'fields'  => [
+                        'type'       => 'object',
+                        'description' => 'For edit: the columns to change',
+                        'properties' => [
+                            'name'             => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
+                            'scheduled_for'    => $isoDate,
+                            'duration_minutes' => ['type' => 'integer', 'minimum' => EXAM_MIN_MINUTES, 'maximum' => EXAM_MAX_MINUTES],
+                            'block_key'        => ['type' => ['integer', 'null'], 'minimum' => 1],
+                            'instructions'     => ['type' => 'string', 'maxLength' => 2000],
+                            'note'             => ['type' => 'string', 'maxLength' => 500],
+                            'sections'         => ['type' => 'array', 'minItems' => 1, 'maxItems' => 8,
+                                'description' => 'The whole new list of { subject, question_ids[], minutes_guide? }, as for tracker_exam_schedule_test'],
+                        ],
+                    ],
+                    'requeue' => ['type' => 'boolean', 'default' => false,
+                        'description' => 'For cancel of a started test: put its questions back to vetted rather than retiring them'],
+                    'note'    => ['type' => 'string', 'maxLength' => 300],
+                ],
+                'required'   => ['id', 'action'],
             ],
             'annotations' => $write,
         ],
@@ -337,6 +379,92 @@ function mcp_exam_test_head(array $t): array
     return $lines;
 }
 
+/**
+ * Validate the sections of a test being scheduled or rebuilt. Every question
+ * must exist, belong to its section's subject and be vetted — or, when
+ * $testId names the test being rebuilt, already be in that test.
+ *
+ * @return array{0:array<int,array{subject:string,question_ids:array<int,int>,minutes_guide:?int}>,1:int,2:int}
+ *         the clean sections, the guide minutes and the marks
+ */
+function mcp_exam_clean_sections(Store $store, mixed $sections, ?int $testId): array
+{
+    $sections = is_array($sections) ? $sections : [];
+    if (!$sections) {
+        throw new McpError('sections must be a non-empty array of { subject, question_ids[] }.');
+    }
+    $clean   = [];
+    $seenQ   = [];
+    $seenSub = [];
+    $guides  = 0;
+    $marks   = 0;
+    foreach (array_values($sections) as $i => $s) {
+        $at = "sections[$i]";
+        if (!is_array($s)) {
+            throw new McpError("$at must be an object.");
+        }
+        $slug = mcp_str($s, 'subject', true, 1);
+        if ($slug === EXAM_SUBJECT) {
+            throw new McpError("$at: a section is a real subject, never " . EXAM_SUBJECT . '.');
+        }
+        $r = mcp_resolve($store, $slug);
+        if (isset($r['error'])) {
+            throw new McpError("$at: " . $r['error']);
+        }
+        if (isset($seenSub[$slug])) {
+            throw new McpError("$at repeats subject $slug; one section per subject.");
+        }
+        $seenSub[$slug] = true;
+        $ids = is_array($s['question_ids'] ?? null) ? $s['question_ids'] : [];
+        if (!$ids) {
+            throw new McpError("$at.question_ids must be a non-empty array.");
+        }
+        $guide = isset($s['minutes_guide']) ? (int) $s['minutes_guide'] : null;
+        if ($guide !== null && ($guide < 1 || $guide > EXAM_MAX_MINUTES)) {
+            throw new McpError("$at.minutes_guide must be between 1 and " . EXAM_MAX_MINUTES . '.');
+        }
+        $guides += $guide ?? 0;
+        $qids = [];
+        foreach ($ids as $qid) {
+            $qid = (int) $qid;
+            if (isset($seenQ[$qid])) {
+                throw new McpError("$at repeats question #$qid.");
+            }
+            $seenQ[$qid] = true;
+            $q = $store->examQuestion($qid);
+            if (!$q) {
+                throw new McpError("$at names question #$qid, which is not in the bank.");
+            }
+            if ($q['subject_slug'] !== $slug) {
+                throw new McpError("$at is the $slug section but question #$qid is {$q['subject_slug']}.");
+            }
+            $inThisTest = $testId !== null && $store->examTestIdOfQuestion($qid) === $testId;
+            if ($q['status'] !== 'vetted' && !$inThisTest) {
+                throw new McpError("question #$qid is {$q['status']}, not vetted"
+                    . ($q['status'] === 'draft' ? ' — vet it first with tracker_exam_update_question' : ' — a question is sat once') . '.');
+            }
+            $marks += $q['marks'];
+            $qids[] = $qid;
+        }
+        $clean[] = ['subject' => $slug, 'question_ids' => $qids, 'minutes_guide' => $guide];
+    }
+    return [$clean, $guides, $marks];
+}
+
+/** One line per section of a hydrated test: its labels, marks and guide. */
+function mcp_exam_section_summary(array $t): array
+{
+    $lines = [];
+    foreach ($t['sections'] as $s) {
+        $tot = exam_section_totals($s);
+        $lines[] = '- ' . $s['subject'] . ': '
+            . implode(', ', array_map(static fn($q) => 'Q' . $q['label'] . ' (#' . $q['id'] . ')', $s['questions']))
+            . ' — ' . exam_marks_word($tot['max'])
+            . ($tot['minutes'] !== null ? ', guide ' . $tot['minutes'] . ' min' : '');
+    }
+    return $lines;
+}
+
 function mcp_exam_call(Store $store, string $name, array $a): array
 {
     switch ($name) {
@@ -471,7 +599,8 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if (!$q) {
                 throw new McpError("no question #$id in the bank.");
             }
-            $frozen = in_array($q['status'], ['scheduled', 'answered', 'marked'], true);
+            $testId = $store->examTestIdOfQuestion($id);
+            $test   = $testId !== null ? $store->examTestRow($testId) : null;
             $appendNote = static fn(?string $old, string $line): string => trim(($old ? $old . "\n" : '') . $line);
             $stamp = tt_today();
             switch ($action) {
@@ -486,8 +615,9 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                     ]);
                     return mcp_text("#$id vetted. It can now go into a test with tracker_exam_schedule_test.");
                 case 'retire':
-                    if ($frozen) {
-                        throw new McpError("#$id is {$q['status']} and part of a test; it cannot be retired.");
+                    if ($test !== null) {
+                        throw new McpError("#$id is in test #{$test['id']} ({$test['status']}); take it out first with "
+                            . 'tracker_exam_update_test (action "edit" with new sections, or action "cancel"), then retire it.');
                     }
                     if ($q['status'] === 'retired') {
                         return mcp_text("#$id is already retired.");
@@ -498,9 +628,6 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                     ]);
                     return mcp_text("#$id retired. It stays in the bank for the record and will never be scheduled.");
                 case 'edit':
-                    if ($frozen) {
-                        throw new McpError("#$id is {$q['status']} and part of a test; what she sat cannot be edited. Retire is refused too: add a new question instead.");
-                    }
                     $fields = is_array($a['fields'] ?? null) ? $a['fields'] : [];
                     if (!$fields) {
                         throw new McpError('edit needs a fields object naming what to change.');
@@ -528,6 +655,13 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                                 break;
                             case 'marks':
                                 $m = mcp_num($fields, 'marks', true, 1, 40);
+                                if ($m != (int) $m) {
+                                    throw new McpError('fields.marks must be a whole number.');
+                                }
+                                $scored = $store->examQuestionScore($id);
+                                if ($scored !== null && $m < $scored) {
+                                    throw new McpError("fields.marks cannot go below the " . num($scored) . " already scored on #$id.");
+                                }
                                 $set[$col] = (int) $m;
                                 break;
                             case 'time_guide_seconds':
@@ -547,13 +681,35 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                                 $set[$col] = mcp_str($fields, $col, $col !== 'model_answer_md' && $col !== 'source_note' && $col !== 'paper_style' && $col !== 'command_word', 0, $max);
                         }
                     }
-                    // An edit sends a vetted question back to draft: what was
-                    // checked is no longer what is stored.
-                    $set['status'] = 'draft';
-                    $set['vetted_at'] = null;
-                    $set['note'] = $appendNote($q['note'], "$stamp edited " . implode(', ', array_keys($fields)) . ($note ? ': ' . $note : ''));
+                    $changed = implode(', ', array_keys($fields));
+                    $set['note'] = $appendNote($q['note'], "$stamp edited $changed" . ($note ? ': ' . $note : ''));
+                    // In the bank, an edit sends a vetted question back to
+                    // draft: what was checked is no longer what is stored.
+                    // In a test, it is the parent correcting the paper, and
+                    // the question keeps its place and its status.
+                    if ($test === null) {
+                        if (in_array($q['status'], ['draft', 'vetted'], true)) {
+                            $set['status']    = 'draft';
+                            $set['vetted_at'] = null;
+                        }
+                        $store->updateExamQuestion($id, $set);
+                        return mcp_text("#$id edited ($changed)"
+                            . ($q['status'] === 'retired' ? '; it stays retired.' : ' and returned to draft. Vet it again before scheduling.'));
+                    }
                     $store->updateExamQuestion($id, $set);
-                    return mcp_text("#$id edited (" . implode(', ', array_keys($fields)) . ') and returned to draft. Vet it again before scheduling.');
+                    $where = "#$id edited ($changed) in place; it stays in test #{$test['id']} as {$q['status']}.";
+                    switch ($test['status']) {
+                        case 'open':
+                            $where .= ' The sitting is running: she sees the change when her page next reloads.';
+                            break;
+                        case 'closed':
+                            $where .= ' Mark it against the corrected scheme.';
+                            break;
+                        case 'marked':
+                            $where .= ' The attempt written at marking keeps its copy of the question and score; correct that with tracker_amend_session if it matters.';
+                            break;
+                    }
+                    return mcp_text($where);
                 default:
                     throw new McpError("action must be vet, edit or retire.");
             }
@@ -573,68 +729,11 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if ($blockKey !== null) {
                 mcp_check_block($store, $blockKey, $date, EXAM_SUBJECT);
             }
-            $sections = is_array($a['sections'] ?? null) ? $a['sections'] : [];
-            if (!$sections) {
-                throw new McpError('sections must be a non-empty array of { subject, question_ids[] }.');
-            }
             $clash = $store->examTestOnDate($date, ['ready', 'open']);
             if ($clash) {
                 throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
             }
-            $clean   = [];
-            $seenQ   = [];
-            $seenSub = [];
-            $guides  = 0;
-            $marks   = 0;
-            foreach (array_values($sections) as $i => $s) {
-                $at = "sections[$i]";
-                if (!is_array($s)) {
-                    throw new McpError("$at must be an object.");
-                }
-                $slug = mcp_str($s, 'subject', true, 1);
-                if ($slug === EXAM_SUBJECT) {
-                    throw new McpError("$at: a section is a real subject, never " . EXAM_SUBJECT . '.');
-                }
-                $r = mcp_resolve($store, $slug);
-                if (isset($r['error'])) {
-                    throw new McpError("$at: " . $r['error']);
-                }
-                if (isset($seenSub[$slug])) {
-                    throw new McpError("$at repeats subject $slug; one section per subject.");
-                }
-                $seenSub[$slug] = true;
-                $ids = is_array($s['question_ids'] ?? null) ? $s['question_ids'] : [];
-                if (!$ids) {
-                    throw new McpError("$at.question_ids must be a non-empty array.");
-                }
-                $guide = isset($s['minutes_guide']) ? (int) $s['minutes_guide'] : null;
-                if ($guide !== null && ($guide < 1 || $guide > EXAM_MAX_MINUTES)) {
-                    throw new McpError("$at.minutes_guide must be between 1 and " . EXAM_MAX_MINUTES . '.');
-                }
-                $guides += $guide ?? 0;
-                $qids = [];
-                foreach ($ids as $qid) {
-                    $qid = (int) $qid;
-                    if (isset($seenQ[$qid])) {
-                        throw new McpError("$at repeats question #$qid.");
-                    }
-                    $seenQ[$qid] = true;
-                    $q = $store->examQuestion($qid);
-                    if (!$q) {
-                        throw new McpError("$at names question #$qid, which is not in the bank.");
-                    }
-                    if ($q['subject_slug'] !== $slug) {
-                        throw new McpError("$at is the $slug section but question #$qid is {$q['subject_slug']}.");
-                    }
-                    if ($q['status'] !== 'vetted') {
-                        throw new McpError("question #$qid is {$q['status']}, not vetted"
-                            . ($q['status'] === 'draft' ? ' — vet it first with tracker_exam_update_question' : ' — a question is sat once') . '.');
-                    }
-                    $marks += $q['marks'];
-                    $qids[] = $qid;
-                }
-                $clean[] = ['subject' => $slug, 'question_ids' => $qids, 'minutes_guide' => $guide];
-            }
+            [$clean, $guides, $marks] = mcp_exam_clean_sections($store, $a['sections'] ?? null, null);
             $rows = exam_labels($clean);
             $id   = $store->addExamTest([
                 'name' => $name, 'scheduled_for' => $date, 'block_key' => $blockKey,
@@ -662,6 +761,131 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             }
             $lines[] = '';
             $lines[] = "She starts it at /exam/$id on the day. The questions stay hidden until she presses Start; the timer runs from then and cannot be paused.";
+            return mcp_text(implode("\n", $lines));
+        }
+
+        case 'tracker_exam_update_test': {
+            $id     = (int) ($a['id'] ?? 0);
+            $action = mcp_str($a, 'action', true, 1, 10);
+            $why    = mcp_str($a, 'note', false, 0, 300);
+            $t      = $id > 0 ? $store->examTestRow($id) : null;
+            if (!$t) {
+                throw new McpError("no exam test #$id.");
+            }
+            $t     = $store->lazyCloseExamTest($t);
+            $stamp = tt_today();
+
+            if ($action === 'cancel') {
+                if ($t['status'] === 'marked') {
+                    throw new McpError("test #$id is marked; its attempts are the record and it cannot be cancelled. "
+                        . 'Rename it or add a note with action "edit", or correct the attempts with tracker_amend_session.');
+                }
+                $seen    = $t['status'] !== 'ready';
+                $requeue = !$seen || !empty($a['requeue']);
+                $status  = $requeue ? 'vetted' : 'retired';
+                $qids    = $store->cancelExamTest($id, $status,
+                    "$stamp test #$id \"{$t['name']}\" cancelled" . ($seen ? ' after she started it' : '') . ($why ? ': ' . $why : ''));
+                return mcp_text("Test #$id \"{$t['name']}\" ({$t['scheduled_for']}, was {$t['status']}) cancelled"
+                    . ($seen ? ', with the answers saved in it' : '') . '. '
+                    . count($qids) . ' question' . (count($qids) === 1 ? '' : 's')
+                    . ($qids ? ' (#' . implode(', #', $qids) . ')' : '') . ' set to ' . $status
+                    . ($requeue ? ' and free to go into another test.' : ' because she has seen them; pass requeue: true to reuse them.'));
+            }
+            if ($action !== 'edit') {
+                throw new McpError('action must be edit or cancel.');
+            }
+
+            $fields = is_array($a['fields'] ?? null) ? $a['fields'] : [];
+            if (!$fields) {
+                throw new McpError('edit needs a fields object naming what to change.');
+            }
+            $byStatus = [
+                'ready'  => ['name', 'scheduled_for', 'duration_minutes', 'block_key', 'instructions', 'note', 'sections'],
+                'open'   => ['name', 'duration_minutes', 'instructions', 'note'],
+                'closed' => ['name', 'instructions', 'note'],
+                'marked' => ['name', 'instructions', 'note'],
+            ];
+            $allowed = $byStatus[$t['status']] ?? [];
+            foreach (array_keys($fields) as $col) {
+                if (!in_array($col, $byStatus['ready'], true)) {
+                    throw new McpError("fields.$col is not a test field (fields: " . implode(', ', $byStatus['ready']) . ').');
+                }
+                if (!in_array($col, $allowed, true)) {
+                    throw new McpError("test #$id is {$t['status']}, so fields.$col can no longer change (a {$t['status']} test may change "
+                        . implode(', ', $allowed) . '). To rebuild it, cancel it and schedule a new one.');
+                }
+            }
+
+            $set = [];
+            if (array_key_exists('name', $fields)) {
+                $set['name'] = mcp_str($fields, 'name', true, 1, 120);
+            }
+            if (array_key_exists('instructions', $fields)) {
+                $set['instructions'] = mcp_str($fields, 'instructions', false, 0, 2000);
+            }
+            if (array_key_exists('note', $fields)) {
+                $set['note'] = mcp_str($fields, 'note', false, 0, 500);
+            }
+            if (array_key_exists('duration_minutes', $fields)) {
+                $set['duration_minutes'] = (int) mcp_num($fields, 'duration_minutes', true, EXAM_MIN_MINUTES, EXAM_MAX_MINUTES);
+                if ($t['status'] === 'open') {
+                    $set['deadline_at'] = exam_add_seconds((string) $t['started_at'], $set['duration_minutes'] * 60);
+                }
+            }
+            $date = $t['scheduled_for'];
+            if (array_key_exists('scheduled_for', $fields)) {
+                $date = mcp_date($fields, 'scheduled_for', null);
+                if ($date === null) {
+                    throw new McpError('fields.scheduled_for must be a date (YYYY-MM-DD).');
+                }
+                $clash = $store->examTestOnDate($date, ['ready', 'open']);
+                if ($clash && $clash['id'] !== $id) {
+                    throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
+                }
+                $set['scheduled_for'] = $date;
+            }
+            $blockKey = array_key_exists('block_key', $fields)
+                ? ($fields['block_key'] === null ? null : (int) $fields['block_key'])
+                : $t['block_key'];
+            if (array_key_exists('block_key', $fields) || array_key_exists('scheduled_for', $fields)) {
+                if ($blockKey !== null) {
+                    mcp_check_block($store, $blockKey, $date, EXAM_SUBJECT);
+                }
+                $set['block_key'] = $blockKey;
+            }
+            $rows = null;
+            $guides = 0;
+            if (array_key_exists('sections', $fields)) {
+                [$clean, $guides] = mcp_exam_clean_sections($store, $fields['sections'], $id);
+                $rows = exam_labels($clean);
+            }
+            if ($why !== null) {
+                $set['note'] = trim((($set['note'] ?? $t['note']) ? ($set['note'] ?? $t['note']) . "\n" : '')
+                    . "$stamp edited " . implode(', ', array_keys($fields)) . ': ' . $why);
+            }
+
+            $store->transaction(function () use ($store, $id, $set, $rows): void {
+                $store->updateExamTest($id, $set);
+                if ($rows !== null) {
+                    $store->replaceExamTestQuestions($id, $rows);
+                }
+            });
+            $row   = $store->lazyCloseExamTest($store->examTestRow($id));
+            $fresh = $store->examTest($id);
+            $lines = ["Test #$id edited (" . implode(', ', array_keys($fields)) . ').'];
+            $lines = array_merge($lines, mcp_exam_test_head($fresh));
+            if ($rows !== null) {
+                $lines = array_merge($lines, mcp_exam_section_summary($fresh));
+            }
+            $duration = $fresh['duration_minutes'];
+            if ($rows !== null && $guides > $duration) {
+                $lines[] = "WARNING: the section guides add up to $guides min, more than the $duration-minute duration.";
+            }
+            if ($t['status'] === 'open' && isset($set['deadline_at'])) {
+                $lines[] = $row['status'] === 'closed'
+                    ? 'The new deadline had already passed, so the sitting is now closed and ready for marking.'
+                    : 'Her page picks up the new deadline at its next save (within 20 seconds).';
+            }
             return mcp_text(implode("\n", $lines));
         }
 

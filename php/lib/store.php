@@ -6402,6 +6402,103 @@ final class Store
         });
     }
 
+    /**
+     * Change the columns of a test named in $fields. The tool decides which
+     * columns a test in each status may change; this only writes them.
+     *
+     * @param array<string,mixed> $fields
+     */
+    public function updateExamTest(int $id, array $fields): void
+    {
+        $allowed = ['name', 'scheduled_for', 'block_key', 'duration_minutes', 'instructions', 'note', 'deadline_at'];
+        $sets = [];
+        $vals = [];
+        foreach ($fields as $col => $val) {
+            if (!in_array($col, $allowed, true)) {
+                throw new InvalidArgumentException("bad column $col");
+            }
+            $sets[] = "$col = ?";
+            $vals[] = $val;
+        }
+        if (!$sets) {
+            return;
+        }
+        $vals[] = $id;
+        $this->db->prepare('UPDATE exam_tests SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
+    }
+
+    /**
+     * Replace the questions of a test that has not been started. Questions
+     * dropped from it go back to vetted, so they can be used again; the ones
+     * it now holds are scheduled.
+     *
+     * @param array<int,array{section:string,question_id:int,position:int,label:string,minutes_guide:?int}> $rows
+     */
+    public function replaceExamTestQuestions(int $id, array $rows): void
+    {
+        $this->transaction(function () use ($id, $rows): void {
+            $old = array_map('intval', array_column(
+                $this->all('SELECT question_id FROM exam_test_questions WHERE test_id = ?', [$id]), 'question_id'
+            ));
+            $this->db->prepare('DELETE FROM exam_test_questions WHERE test_id = ?')->execute([$id]);
+            $ins = $this->db->prepare(
+                'INSERT INTO exam_test_questions (test_id, question_id, section, position, label, section_minutes_guide)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $sched = $this->db->prepare("UPDATE exam_questions SET status = 'scheduled' WHERE id = ?");
+            $new = [];
+            foreach ($rows as $r) {
+                $ins->execute([$id, $r['question_id'], $r['section'], $r['position'], $r['label'], $r['minutes_guide']]);
+                $sched->execute([$r['question_id']]);
+                $new[] = (int) $r['question_id'];
+            }
+            $back = $this->db->prepare("UPDATE exam_questions SET status = 'vetted' WHERE id = ?");
+            foreach (array_diff($old, $new) as $qid) {
+                $back->execute([$qid]);
+            }
+        });
+    }
+
+    /**
+     * Delete a test that has not been marked: its answers, its rows and the
+     * test itself. Its questions are set to $questionStatus (vetted to use
+     * them again, retired when she has seen them) with $noteLine appended.
+     *
+     * @return array<int,int> the question ids the test held
+     */
+    public function cancelExamTest(int $id, string $questionStatus, string $noteLine): array
+    {
+        return $this->transaction(function () use ($id, $questionStatus, $noteLine): array {
+            $qids = array_map('intval', array_column(
+                $this->all('SELECT question_id FROM exam_test_questions WHERE test_id = ? ORDER BY position', [$id]), 'question_id'
+            ));
+            $this->db->prepare('DELETE FROM exam_answers WHERE test_id = ?')->execute([$id]);
+            $this->db->prepare('DELETE FROM exam_test_questions WHERE test_id = ?')->execute([$id]);
+            $this->db->prepare('DELETE FROM exam_tests WHERE id = ?')->execute([$id]);
+            $upd = $this->db->prepare(
+                "UPDATE exam_questions SET status = ?, note = TRIM(COALESCE(note || char(10), '') || ?) WHERE id = ?"
+            );
+            foreach ($qids as $qid) {
+                $upd->execute([$questionStatus, $noteLine, $qid]);
+            }
+            return $qids;
+        });
+    }
+
+    /** The test a question is in, or null while it is in none. */
+    public function examTestIdOfQuestion(int $questionId): ?int
+    {
+        $r = $this->one('SELECT test_id FROM exam_test_questions WHERE question_id = ?', [$questionId]);
+        return $r ? (int) $r['test_id'] : null;
+    }
+
+    /** The mark already recorded against a question, or null when it has none. */
+    public function examQuestionScore(int $questionId): ?float
+    {
+        $r = $this->one('SELECT MAX(score) AS s FROM exam_answers WHERE question_id = ? AND score IS NOT NULL', [$questionId]);
+        return $r && $r['s'] !== null ? (float) $r['s'] : null;
+    }
+
     private function hydrateExamTest(array $r): array
     {
         $r['id']               = (int) $r['id'];
