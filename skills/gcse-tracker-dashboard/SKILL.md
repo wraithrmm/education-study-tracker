@@ -20,7 +20,7 @@ Adding a subject is a tool call, not a build.
 
 | Page | Shows |
 |---|---|
-| `/` | **The week's timetable** (today marked; each block done / short / missed / excused / extra; hours by subject), then every subject with a coverage percentage |
+| `/` | **The week's timetable** (today marked; each block done / short / missed / excused / extra; hours by subject), then every subject with a coverage percentage · `?week=YYYY-Www` shows another week, next included, on the same board |
 | `/week/{iso-week}` | A past week judged against the timetable in force then |
 | `/s/{slug}` | The dashboard: exam countdown, coverage, per-strand bars, topic chips, loose ends, resources, attempts, sessions by week |
 | `/s/{slug}/a/{id}` | One sitting: papers, every question with marks, the answer given, the note, then marks lost per topic |

@@ -77,6 +77,12 @@ Sign-in is a signed, httpOnly cookie carrying its own expiry; there is no
 session table. Changing `TRACKER_PASSWORD` signs every device out. Writes need
 both the cookie and a CSRF token.
 
+The board has arrows to flick to the previous or the next week — `/?week=YYYY-Www`
+under the hood — on the same component, so next week's shape (an alternate-week
+subject, a re-cut starting Monday) can be looked at before it arrives. Only the
+current week carries the bell, the TODAY tab and the "this week" heading; another
+week is named by its number and dated by its span. An impossible week is this week.
+
 ### The class bell
 
 Under the header on the index page is a **class bell**. Switched on, the
