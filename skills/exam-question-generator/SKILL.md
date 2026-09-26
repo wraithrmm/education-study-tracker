@@ -104,9 +104,12 @@ short and every line is a way a question has actually gone wrong — then:
 tracker_exam_update_question(id: 12, action: "vet", note: "checked: answerable at Higher, marks match the scheme")
 ```
 
-`action: "edit"` with a `fields` object corrects a draft and sends a vetted question back to
-draft (what was checked is no longer what is stored — vet it again). `action: "retire"` drops
-one. A question already in a test cannot be edited or retired: what she sat is fixed.
+`action: "edit"` with a `fields` object corrects a question. In the bank it sends a vetted
+question back to draft (what was checked is no longer what is stored — vet it again). Inside a
+test — scheduled, answered or marked — it corrects the question in place and it keeps its place
+and status; its marks can never drop below a score already given, and a marked question's
+attempt keeps the copy it was marked on. `action: "retire"` drops one; a question inside a test
+has to be taken out of it first (below).
 
 ## Building the week's paper
 
@@ -139,6 +142,23 @@ exam-practice block that runs that day. Rules it only warns about, which are you
 Report back: the sections with their marks and guides, the total, and the link she will use.
 Say plainly if you had to leave a subject out because the bank had nothing vetted for it.
 
+## Changing or cancelling a booked paper
+
+`tracker_exam_update_test(id, action: "edit", fields: {...}, note?)` changes a test after it was
+booked. Before she presses Start (`ready`) anything can change: `name`, `scheduled_for`,
+`duration_minutes`, `block_key` (null clears it), `instructions`, `note`, and `sections` — the
+whole new list, checked as for scheduling; questions already in the test may stay, and any
+dropped go back to vetted. While she is sitting it (`open`) the timer can still be lengthened or
+shortened — the deadline becomes start + the new duration and her page picks it up within 20
+seconds — along with the name, instructions and note. Once sat, only the name, instructions and
+note.
+
+`tracker_exam_update_test(id, action: "cancel", note?)` deletes a test that is not yet marked.
+Questions from a test she never started go back to vetted; from one she started they are
+retired, unless `requeue: true`. A marked test cannot be cancelled.
+
+Show the parent the change before making it, and report the test as it now stands.
+
 ## Keeping the bank healthy
 
 The parent may ask what state it is in. `tracker_exam_list_questions` answers with counts per
@@ -153,7 +173,7 @@ following week. The same ref at a different mark tariff, several weeks apart, is
 
 - Never paste a question, a mark scheme or a model answer into a chat the student might read.
   This project is the parent's; her project never calls `tracker_exam_add_questions`,
-  `tracker_exam_list_questions` or `tracker_exam_update_question`.
+  `tracker_exam_list_questions`, `tracker_exam_update_question` or `tracker_exam_update_test`.
 - Never claim a question is from a real paper. They are written **in the style of** the papers;
   `source_note` says which question was the model.
 - Never invent a topic ref, a paper code or a grade boundary.

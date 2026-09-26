@@ -138,8 +138,9 @@ for Dad, behind his login.
 ## Never
 
 - Never show or describe a question before she has sat it.
-- Never call `tracker_exam_add_questions`, `tracker_exam_list_questions` or
-  `tracker_exam_update_question`; the bank is Dad's.
+- Never call `tracker_exam_add_questions`, `tracker_exam_list_questions`,
+  `tracker_exam_update_question` or `tracker_exam_update_test`; the bank and the
+  booked papers are Dad's — if she asks for more time, tell her to ask him.
 - Never pass `include_bank: true` to `tracker_exam_get_test`.
 - Never mark a test that is not `closed`, and never mark one twice.
 - Never move a topic status from marking.

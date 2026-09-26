@@ -159,7 +159,10 @@ timer at the deadline; her hand-in; the parent)→ `closed` →(marking)→
 - `tracker_exam_update_question(id, action, note?, fields?)` — `vet`, `edit`
   (fields: topic_refs, marks, question_md, mark_scheme_md, model_answer_md,
   paper_style, calculator, command_word, time_guide_seconds, tags,
-  source_note), `retire`. Frozen once in a test.
+  source_note), `retire`. Editable at any status: in the bank an edit returns
+  it to draft; inside a test it is corrected in place, keeps its status, and
+  its marks cannot drop below a score already given. Retire refuses a
+  question inside a test until it is taken out.
 - `tracker_exam_schedule_test(name, scheduled_for, duration_minutes,
   sections[], block_key?, instructions?, note?)` — refuses a section subject
   of `exam-skills`, a repeated subject, a question that is missing, of another
@@ -167,6 +170,15 @@ timer at the deadline; her hand-in; the parent)→ `closed` →(marking)→
   does not belong to `exam-skills` (`mcp_check_block`), a duration outside
   10–120, and a second `ready`/`open` test on the date. Warns when the section
   guides exceed the duration.
+- `tracker_exam_update_test(id, action, fields?, requeue?, note?)` — `edit`:
+  a `ready` test may change name, scheduled_for, duration_minutes, block_key
+  (null clears), instructions, note and sections (the whole list, validated as
+  for scheduling; questions already in the test may stay, dropped ones go back
+  to vetted); an `open` test name, instructions, note and duration_minutes
+  (deadline = started_at + duration; a deadline already past closes it by the
+  timer); `closed`/`marked` name, instructions and note. `cancel`: deletes an
+  unmarked test with its answers; questions → vetted if it was never started,
+  else retired unless `requeue`. Refuses to cancel a marked test.
 - `tracker_exam_list_tests(status?, from?, to?, limit?)` — closes overdue open
   tests first; flags `closed` as READY FOR MARKING and `ready` with its URL.
 - `tracker_exam_get_test(id, include_bank?)` — closes an overdue test first;

@@ -169,8 +169,9 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_learner_model` | The evolving model of how she learns, each row resting on signals. |
 | `tracker_exam_add_questions` | Bank exam-style questions with their mark schemes, tagged by subject and topic. Parent's project. |
 | `tracker_exam_list_questions` | The bank, one line per question. Parent's project. |
-| `tracker_exam_update_question` | Vet, edit or retire a question. Frozen once it is in a test. |
+| `tracker_exam_update_question` | Vet, edit or retire a question. Editable at any status; inside a test it is corrected in place. |
 | `tracker_exam_schedule_test` | Build one timed test from vetted questions, in subject sections, against the Wednesday block. |
+| `tracker_exam_update_test` | Edit a booked test (timer, date, block, instructions, questions) or cancel it. Parent's project. |
 | `tracker_exam_list_tests` | Every test with its status — the one waiting for her, the one awaiting marking. |
 | `tracker_exam_get_test` | One test in full: her answers, timing and flags, with the schemes once the sitting is over. |
 | `tracker_exam_mark_test` | Mark a sat test: scores and feedback per question, one `check` attempt per subject. |
@@ -490,7 +491,9 @@ contract — the student's project never calls the bank tools, and
 **A test is one sitting.** `tracker_exam_schedule_test` builds it: vetted
 questions in subject sections, each section with its marks and a suggested
 time, one duration, and the exam-practice block it fulfils. A question is sat
-once. The page at `/exam/<id>` shows her the shape of the paper — sections,
+once. `tracker_exam_update_test` edits a booked test — anything before Start,
+the timer while it runs, the name and notes after — or cancels one not yet
+marked. The page at `/exam/<id>` shows her the shape of the paper — sections,
 marks, minutes — and one **Start** button; the questions are not in the HTML
 until she presses it. Start sets the deadline on the server. From then the
 page shows the questions with an answer box (and a working box for maths and

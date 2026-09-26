@@ -231,8 +231,11 @@ $reply = call($store, 'tracker_exam_schedule_test', array_replace($base, ['name'
 contains('a second test on the date is refused', $reply, 'is already ready on 2026-09-23');
 $reply = call($store, 'tracker_exam_schedule_test', array_replace($base, ['scheduled_for' => '2026-09-30', 'sections' => [['subject' => 'maths', 'question_ids' => [$q1]]]]));
 contains('a question is sat once', $reply, "question #$q1 is scheduled, not vetted");
-$reply = call($store, 'tracker_exam_update_question', ['id' => $q1, 'action' => 'edit', 'fields' => ['marks' => 1]]);
-contains('a scheduled question cannot be edited', $reply, 'part of a test');
+$reply = call($store, 'tracker_exam_update_question', ['id' => $q1, 'action' => 'edit', 'fields' => ['command_word' => 'Solve'], 'note' => 'house style']);
+contains('a scheduled question is edited in place', $reply, "#$q1 edited (command_word) in place; it stays in test #1 as scheduled.");
+check('and keeps its status', $store->examQuestion($q1)['status'], 'scheduled');
+$reply = call($store, 'tracker_exam_update_question', ['id' => $q1, 'action' => 'retire']);
+contains('but cannot be retired while in the test', $reply, 'take it out first with tracker_exam_update_test');
 $reply = call($store, 'tracker_exam_list_tests', []);
 contains('the test lists as waiting', $reply, '#1 Exam practice — week 39 — 2026-09-23 · ready · 4 q · 11 marks · 1 h · block #39 · waiting: /exam/1');
 $today = call($store, 'tracker_today', []);
@@ -433,6 +436,81 @@ check('bold and code render', exam_md('Write **exactly** `print(x)`'), '<p>Write
 check('fenced code renders', exam_md("```\nfor i in range(3):\n    print(i)\n```"), '<pre class="ex-code"><code>for i in range(3):' . "\n" . '    print(i)</code></pre>');
 check('a bracketed superscript', exam_md('2^(n+1)'), '<p>2<sup>n+1</sup></p>');
 check('a numbered list', exam_md("1. first\n2. second"), '<ol><li>first</li><li>second</li></ol>');
+
+echo "\n== L. editing and cancelling a booked test ==\n";
+putenv('TRACKER_NOW=2026-10-06 10:00');
+$reply = call($store, 'tracker_exam_add_questions', ['questions' => [
+    $q('edit-m1', 'maths', ['A17'], 2), $q('edit-m2', 'maths', ['A4'], 3), $q('edit-m3', 'maths', ['A17'], 4),
+    $q('edit-c1', 'computer-science', ['C1'], 1),
+]]);
+[$e1, $e2, $e3, $e4] = ids($reply);
+foreach ([$e1, $e2, $e3, $e4] as $id) {
+    call($store, 'tracker_exam_update_question', ['id' => $id, 'action' => 'vet']);
+}
+$reply = call($store, 'tracker_exam_schedule_test', ['name' => 'Week 41', 'scheduled_for' => '2026-10-07', 'duration_minutes' => 45,
+    'block_key' => 39, 'sections' => [['subject' => 'maths', 'question_ids' => [$e1, $e2]]]]);
+preg_match('/Test #(\d+)/', $reply, $m);
+$tid = (int) $m[1];
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['duration_minutes' => 90, 'name' => 'Week 41 — long paper'], 'note' => 'more time']);
+contains('a ready test takes a new timer', $reply, "Test #$tid edited (duration_minutes, name).");
+check('stored', $store->examTestRow($tid)['duration_minutes'], 90);
+contains('and the reason is noted', (string) $store->examTestRow($tid)['note'], 'edited duration_minutes, name: more time');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['duration_minutes' => 500]]);
+contains('the timer still has its range', $reply, 'duration_minutes');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['sections' => [
+    ['subject' => 'maths', 'question_ids' => [$e1, $e3], 'minutes_guide' => 30],
+    ['subject' => 'computer-science', 'question_ids' => [$e4], 'minutes_guide' => 10],
+]]]);
+contains('the questions can be swapped', $reply, "- maths: Q1 (#$e1), Q2 (#$e3) — 6 marks, guide 30 min");
+contains('and a section added', $reply, "- computer-science: Q3 (#$e4) — 1 mark, guide 10 min");
+check('the dropped question is free again', $store->examQuestion($e2)['status'], 'vetted');
+check('the new one is scheduled', $store->examQuestion($e3)['status'], 'scheduled');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['scheduled_for' => '2026-10-08']]);
+contains('a date the block does not run on is refused', $reply, 'REFUSED');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['scheduled_for' => '2026-10-08', 'block_key' => null]]);
+contains('unless the block is cleared too', $reply, "Test #$tid edited (scheduled_for, block_key).");
+check('moved', $store->examTestRow($tid)['scheduled_for'], '2026-10-08');
+call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['scheduled_for' => '2026-10-07', 'block_key' => 39]]);
+check('and back', [$store->examTestRow($tid)['scheduled_for'], $store->examTestRow($tid)['block_key']], ['2026-10-07', 39]);
+
+putenv('TRACKER_NOW=2026-10-07 14:30');
+$store->startExamTest($tid);
+$started = $store->examTestRow($tid);
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['sections' => [['subject' => 'maths', 'question_ids' => [$e1]]]]]);
+contains('an open test keeps its questions', $reply, 'is open, so fields.sections can no longer change');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['duration_minutes' => 120]]);
+contains('an open test can be given more time', $reply, 'picks up the new deadline');
+check('the deadline moves from the start', $store->examTestRow($tid)['deadline_at'], exam_add_seconds($started['started_at'], 120 * 60));
+$reply = call($store, 'tracker_exam_update_question', ['id' => $e3, 'action' => 'edit', 'fields' => ['mark_scheme_md' => 'B4 corrected']]);
+contains('a question can be corrected mid-sitting', $reply, 'she sees the change when her page next reloads');
+putenv('TRACKER_NOW=2026-10-07 15:00');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['duration_minutes' => 20]]);
+contains('cutting the timer below the time gone closes it', $reply, 'the sitting is now closed');
+check('closed at the new deadline', $store->examTestRow($tid)['closed_at'], exam_add_seconds($started['started_at'], 20 * 60));
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'edit', 'fields' => ['duration_minutes' => 60]]);
+contains('a closed test keeps its timer', $reply, 'is closed, so fields.duration_minutes can no longer change');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $tid, 'action' => 'cancel', 'note' => 'wrong paper']);
+contains('a sat test can be cancelled', $reply, 'cancelled, with the answers saved in it');
+contains('its questions retired', $reply, 'set to retired because she has seen them');
+check('the test is gone', $store->examTestRow($tid), null);
+contains('the question notes say why', (string) $store->examQuestion($e1)['note'], "cancelled after she started it: wrong paper");
+
+putenv('TRACKER_NOW=2026-10-12 10:00');
+$reply = call($store, 'tracker_exam_schedule_test', ['name' => 'Week 42', 'scheduled_for' => '2026-10-14', 'duration_minutes' => 30,
+    'sections' => [['subject' => 'maths', 'question_ids' => [$e2]]]]);
+preg_match('/Test #(\d+)/', $reply, $m);
+$reply = call($store, 'tracker_exam_update_test', ['id' => (int) $m[1], 'action' => 'cancel']);
+contains('an unstarted test cancels back to vetted', $reply, 'set to vetted and free to go into another test');
+check('the question is usable again', $store->examQuestion($e2)['status'], 'vetted');
+$reply = call($store, 'tracker_exam_update_test', ['id' => 1, 'action' => 'cancel']);
+contains('a marked test cannot be cancelled', $reply, 'its attempts are the record');
+$reply = call($store, 'tracker_exam_update_test', ['id' => 1, 'action' => 'edit', 'fields' => ['name' => 'Week 39 (first paper)']]);
+contains('but can be renamed', $reply, 'Test #1 edited (name).');
+$reply = call($store, 'tracker_exam_update_question', ['id' => $q1, 'action' => 'edit', 'fields' => ['marks' => 1]]);
+contains('a marked question cannot drop below its score', $reply, 'cannot go below the 2 already scored');
+$reply = call($store, 'tracker_exam_update_question', ['id' => $q2, 'action' => 'edit', 'fields' => ['model_answer_md' => '2x(3x + 4), fully factorised']]);
+contains('but can otherwise be corrected', $reply, 'The attempt written at marking keeps its copy');
+check('and stays marked', $store->examQuestion($q2)['status'], 'marked');
 
 echo "\n";
 if ($failures > 0) {
