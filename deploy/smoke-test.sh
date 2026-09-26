@@ -934,6 +934,28 @@ if [ "$REMOTE" = 0 ]; then
   contains "and it starts off" "$page" 'role="switch" aria-checked="false"'
   contains "with today's blocks for it to keep time against" "$page" 'id="ttbell-data"'
 
+  # The arrows. Any week on the same board, next included: the labels come
+  # from the code's own calendar, not from a date written here.
+  next_iso="$(php -r 'define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    echo tt_iso_week(tt_add_days(tt_today(), 7));')"
+  this_iso="$(php -r 'define("TRACKER",true); require "php/lib/practice.php"; require "php/lib/store.php";
+    echo tt_iso_week(tt_today());')"
+  contains "the board links to next week" "$page" "href=\"/?week=$next_iso\""
+  code="$("${CURL[@]}" -o "$WORK/next.html" -w '%{http_code}' "$BASE/?week=$next_iso")"
+  check "and next week renders on the index" "$code" "200"
+  nextpage="$(cat "$WORK/next.html")"
+  contains "as the week strip" "$nextpage" 'class="wk"'
+  contains "named by its number" "$nextpage" "<h1>Week $((10#${next_iso#*-W}))</h1>"
+  contains "with a way back" "$nextpage" '<a href="/">this week</a>'
+  lacks "but no bell to ring" "$nextpage" 'id="ttbell"'
+  lacks "and nothing in it is today" "$nextpage" 'class="daytab"'
+  contains "and the subjects still below it" "$nextpage" "<h2>Subjects</h2>"
+  same="$("${CURL[@]}" "$BASE/?week=$this_iso")"
+  contains "this week by name is this week" "$same" "<h1>This week</h1>"
+  contains "bell included" "$same" 'id="ttbell"'
+  junk="$("${CURL[@]}" "$BASE/?week=garbage")"
+  contains "and an impossible week is this week" "$junk" "<h1>This week</h1>"
+
   code="$("${CURL[@]}" -o "$WORK/week.html" -w '%{http_code}' "$BASE/week/2024-W37")"
   check "a past week renders on its own page" "$code" "200"
   week="$(cat "$WORK/week.html")"

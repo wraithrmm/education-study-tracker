@@ -26,7 +26,7 @@ Server-rendered from the database on every request — no regenerate step, no st
 | `/learner` | Parent only. The learner model by status, each statement with its signals and week-by-week history |
 | `/s/{subject}` (parent) | Adds the current week plan card for the subject, with a tick once the review queue has printed it |
 | `/s/{subject}/t/{ref}` | One topic: every status it has held and why, the session behind each change, every marked question it has been examined by, and its materials |
-| `/` (timetable section) | This week's timetable, today marked, every block done / short / missed / excused / extra, plus extras and hours by subject |
+| `/` (timetable section) | This week's timetable, today marked, every block done / short / missed / excused / extra, plus extras and hours by subject · `?week=YYYY-Www` shows another week, next included, on the same board |
 | `/week/{iso-week}` | Any past week judged against the timetable in force then |
 
 The dashboard is public to anyone with the link; the API and the MCP endpoint are

@@ -638,7 +638,7 @@ function tt_evidence_href(array $ev, ?string $subject): ?string
 }
 
 /** The one line under the board. Blocks done, blocks left, hours by subject. */
-function tt_total_line(array $w, array $names): string
+function tt_total_line(array $w, array $names, bool $isThisWeek = true): string
 {
     $c     = $w['counts'];
     // Optional blocks are deliberately absent from the denominator: ticking one
@@ -648,7 +648,8 @@ function tt_total_line(array $w, array $names): string
     $done  = $c['done'] + $c['declared'];
     $soFar = $done + $c['missed'] + $c['excused'] + $c['now'] + $c['pending'];
     $ahead = $c['upcoming'] + $c['day_off'];
-    $parts = ['<b>this week</b>', $done . ' of ' . $soFar . ' blocks so far'];
+    $label = $isThisWeek ? 'this week' : 'week ' . (int) substr($w['week'], 6);
+    $parts = ['<b>' . $label . '</b>', $done . ' of ' . $soFar . ' blocks so far'];
     if ($c['declared']) {
         $parts[] = $c['declared'] . ' marked by hand';
     }
@@ -1059,7 +1060,7 @@ function render_timetable_section(
 
     $body .= tt_design_a($w, $names, $ctl);
 
-    $body .= tt_total_line($w, $names) . tt_legend();
+    $body .= tt_total_line($w, $names, $isThisWeek) . tt_legend();
     if ($isThisWeek) {
         $body .= '<p><small><a href="/week/' . h($w['week']) . '">This week as its own page</a>'
             . ' · <a href="/week/' . h(tt_iso_week(tt_add_days($w['monday'], -7)))
@@ -2162,23 +2163,66 @@ function tt_block_control(array $b, string $date, string $csrf, string $next, st
         . $buttons . '</form></div></details>';
 }
 
-function render_index(Store $store, bool $isParent = false): string
+/**
+ * The index page. `$week` is an optional 'YYYY-Www' from the query string:
+ * absent or impossible, the board is this week, exactly as it always was; a
+ * real one is that week on the same board, with the arrows to flick either
+ * way. Looking ahead is the point of the arrows, so next is always live here,
+ * where /week/{iso} — the report page — deliberately keeps it dead.
+ */
+function render_index(Store $store, bool $isParent = false, ?string $week = null): string
 {
     $subjects = $store->listSubjects();
+
+    $thisMonday = tt_monday(tt_today());
+    $monday     = $week !== null ? tt_week_monday($week) : null;
+    if ($monday === null) {
+        $monday = $thisMonday;
+    }
+    $isThisWeek = $monday === $thisMonday;
+    $iso        = tt_iso_week($monday);
+    // This week's own path stays '/', so /?week=<this week> is the same page
+    // as / — and the parent's controls send her back to whichever she used.
+    $selfPath   = $isThisWeek ? '/' : '/?week=' . $iso;
+
     // The timetable goes above the subjects list: what she is in now is a more
     // urgent question than how far through a syllabus she is. It also takes
     // over the page heading, because that is what the page now leads with.
     $timetable = render_timetable_section(
-        $store, tt_today(), true, $isParent, '/'
+        $store, $monday, $isThisWeek, $isParent, $selfPath
     );
-    $title = $timetable === '' ? 'Subjects' : 'This week';
-    $stamp = '';
-    if ($timetable !== '') {
-        $stamp = '<p class="tt-stamp mono">'
+    if ($isThisWeek) {
+        $title = $timetable === '' ? 'Subjects' : 'This week';
+        $stamp = $timetable === '' ? '' : '<p class="tt-stamp mono">'
             . h(tt_stamp(null, true)) . '</p>';
+    } else {
+        $title = 'Week ' . (int) substr($iso, 6);
+        $stamp = '<p class="tt-stamp mono">' . h(tt_stamp($monday, false)) . '</p>';
     }
-    $body = $timetable
-        . ($timetable === '' ? '' : '<p><small><a href="/exam">Exam practice</a> — the weekly timed paper</small></p><h2>Subjects</h2>');
+
+    // Previous and next, ±7 days through the ISO label, both always links.
+    // "this week" is the way back, and only appears when there is a way back.
+    $nav = '';
+    if ($timetable !== '' || !$isThisWeek) {
+        $prev = tt_iso_week(tt_add_days($monday, -7));
+        $next = tt_iso_week(tt_add_days($monday, 7));
+        $nav  = '<p class="weeknav mono"><a href="/?week=' . h($prev) . '">&larr; ' . h($prev) . '</a> · '
+            . ($isThisWeek ? '' : '<a href="/">this week</a> · ')
+            . '<a href="/?week=' . h($next) . '">' . h($next) . ' &rarr;</a></p>';
+    }
+
+    $body = $timetable;
+    if ($timetable === '' && !$isThisWeek) {
+        // The heading and the arrows stay, so she can flick back out of it.
+        $body = '<p><small>No timetable is in force that week.</small></p>';
+    } elseif ($timetable !== '' && !$isThisWeek && $monday <= tt_today()) {
+        // A week that has started has a report page; one that has not, does not.
+        $body .= '<p><small><a href="/week/' . h($iso) . '">' . h($iso)
+            . ' as its own page</a></small></p>';
+    }
+    if ($timetable !== '' || !$isThisWeek) {
+        $body .= '<p><small><a href="/exam">Exam practice</a> — the weekly timed paper</small></p><h2>Subjects</h2>';
+    }
     if ($subjects) {
         foreach ($subjects as $s) {
             $p    = progressFor($store, $s['slug']);
@@ -2195,13 +2239,14 @@ function render_index(Store $store, bool $isParent = false): string
                 . '</a>';
         }
     } else {
-        $body = '<p><small>No subjects yet. Ask Claude to create one.</small></p>';
+        $body .= '<p><small>No subjects yet. Ask Claude to create one.</small></p>';
     }
 
     return dash_shell(
         'Study trackers',
-        '<header><div><p class="kicker">Study tracker</p><h1>' . h($title) . '</h1></div>'
-        . '<div>' . $stamp . tt_parent_line($store, $isParent, '/') . '</div></header>' . $body
+        '<header class="wkhead"><div><p class="kicker">Study tracker</p><h1>' . h($title) . '</h1>'
+        . $nav . '</div>'
+        . '<div>' . $stamp . tt_parent_line($store, $isParent, $selfPath) . '</div></header>' . $body
     );
 }
 

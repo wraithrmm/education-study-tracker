@@ -582,9 +582,15 @@ if (preg_match('#^/exam/(\d+)(?:/(start|answer|submit))?$#', $path, $m)) {
     }
 }
 
+// ?week=YYYY-Www shows another week on the same board; anything else, or
+// nothing, is this week.
 if ($path === '/') {
     $dashboardGuard();
-    send_html(render_index($store, parent_signed_in($store, $password)));
+    send_html(render_index(
+        $store,
+        parent_signed_in($store, $password),
+        isset($_GET['week']) ? (string) $_GET['week'] : null
+    ));
 }
 
 // The term as a ledger: one row per ISO week, newest first, with ?from= for
