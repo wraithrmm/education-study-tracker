@@ -71,7 +71,7 @@ keeps skill releases apart from anything the service might tag later.
 | `maths-tutor-session` | student | Runs a maths session from the tracker's queue and timetable |
 | `english-tutor-session` | student | The same for English Language and Literature |
 | `cs-tutor-session` | student | The same for computer science, Python 3 |
-| `spanish-maintenance-session` | student | The short Spanish slot, logged as practice |
+| `spanish-maintenance-session` | student | The short Spanish slot, logged as practice and as a session that moves its topics |
 | `retrieval-block-session` | student | Any retrieval block: item selection, interleaving, the blanks script |
 | `exam-practice-session` | student | The weekly timed paper: sitting it, then marking it |
 | `gcse-maths-marker` | parent | Marks an AQA 8300 paper against its scheme |

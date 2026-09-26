@@ -1884,13 +1884,16 @@ final class Store
             );
             $st->execute([$next, $args['evidence'], $watch, $touched, $args['subject_slug'], $args['ref']]);
 
+            // Stamped from the tracker's clock, like every other written_at
+            // and created_at: the shape check and the progress replay compare
+            // this stamp with session dates, and two clocks cannot be compared.
             $st = $this->db->prepare(
-                'INSERT INTO topic_changes (subject_slug, ref, from_status, to_status, evidence, session_id)
-                 VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO topic_changes (subject_slug, ref, from_status, to_status, evidence, session_id, changed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
             $st->execute([
                 $args['subject_slug'], $args['ref'], $existing['status'], $next,
-                $args['evidence'], $args['session_id'] ?? null,
+                $args['evidence'], $args['session_id'] ?? null, tt_now_utc(),
             ]);
         });
 

@@ -109,6 +109,8 @@ The service stores these five; the emoji shorthand used in conversation maps one
 | 🟢 | `secure` | Held up independently |
 | 🔵 | `examready` | Survived a spaced re-test ≥3 weeks after securing |
 
+**The ladder has four rungs, not five.** `gap` and `notstarted` are the same rung (level 0; the forecast scores both 0 points). `developing` is level 1, `secure` 2, `examready` 3. So `notstarted → developing` and `gap → developing` are each **one** level and are permitted in a single session once the developing bar is met. A two-level rise is `gap`/`notstarted → secure` or `developing → examready`. Never revert a `notstarted → developing` move as a two-level jump.
+
 ## Session shapes
 
 Pick based on what she asks; confirm in one line, don't interrogate.
