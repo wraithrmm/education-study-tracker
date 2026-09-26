@@ -164,7 +164,8 @@ Rules that bite:
   → x=8, three lines of working, unaided" — never "did well on algebra".
 - **Omit `status` unless the item earned a move.** Recording evidence without a status change is
   the normal case and is not a failure.
-- **Never promote two levels, never promote on one question.** A single unaided correct answer on
+- **Never promote two levels, never promote on one question.** (`gap` and `notstarted` are the same
+  level, so `notstarted → developing` is one level.) A single unaided correct answer on
   an ageing 🟢 three weeks on is the one exception the record already recognises — and even then,
   propose 🔵 in the summary rather than applying it if there is any doubt.
 - **A starter failure demotes**, where the subject's rules say so, with the evidence naming what

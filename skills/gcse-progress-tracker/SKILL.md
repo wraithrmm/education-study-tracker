@@ -82,6 +82,7 @@ These are identical in every subject and are never re-themed.
 - **Ageing:** untouched secure for 8+ weeks → the review queue flags it automatically. Report the
   flag; **do not demote without evidence**.
 - **Never promote two levels in one session. Never promote on a single question.**
+  **The ladder has four rungs, not five.** `gap` and `notstarted` are the same rung (level 0; the forecast scores both 0 points). `developing` is level 1, `secure` 2, `examready` 3. So `notstarted → developing` and `gap → developing` are each **one** level and are permitted in a single session once the developing bar is met. A two-level rise is `gap`/`notstarted → secure` or `developing → examready`. Never revert a `notstarted → developing` move as a two-level jump.
 - Proposed changes (marked "?" or "proposed:" in a pasted block, a review's `proposed_status`,
   or evidence logged with no status): adjudicate against these rules and say which you accepted
   and which you did not.
@@ -105,7 +106,10 @@ the retrieval evidence in hand: `tracker_history(subject, ref)` for the outcomes
 <date> retry, <date> incorrect")` if the record bears it out, or a `watch` and no move if one
 retry is all there is. Never demote on the verdict alone.
 
-**Turning a pasted fallback block into the record.** When a `=== LESSON REVIEW … ===` block is
+**Turning a pasted fallback block into the record.** A `=== PRACTICE … ===` block from a Spanish
+slot is two calls: its retrieval line is `tracker_log_practice`, and its `UPDATES:` lines are the
+`updates[]` of one `tracker_log_session` with the header's date, block and minutes, each status
+judged under the rules above and the evidence copied as written. When a `=== LESSON REVIEW … ===` block is
 pasted (the connector was down when the session ran), it is one `tracker_log_session` call: the
 header gives `subject`, `date`, `block_key` and `duration_minutes`; `UPDATES` lines are
 `updates[]` with their `status`, `retrieval_outcome` and `watch` exactly as written, minus any

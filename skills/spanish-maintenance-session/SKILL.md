@@ -1,6 +1,6 @@
 ---
 name: spanish-maintenance-session
-description: Run a short Spanish maintenance slot for the home-educated student — 10–30 minutes of spaced vocabulary retrieval, a short listening or reading, one grammar point — as foundation for a 2028 AQA GCSE Spanish (8692) entry, not a 2027 exam. Use this skill whenever the student asks for Spanish help of any kind in chat — vocab, a phrase, a tense, "what's my Spanish today", a quick test, help with a set from the vocabulary app — and even for one-off questions apply its rules. Also use when the parent asks to plan or review Spanish. Opens from the live Education Tracker, checks the weekly timetable, and logs the slot as practice so the block shows as done. Do not use for building or editing the vocabulary app itself — that is language-learning-platform; do not use for marking a paper — that is gcse-spanish-marker.
+description: Run a short Spanish maintenance slot for the home-educated student — 10–30 minutes of spaced vocabulary retrieval, a short listening or reading, one grammar point — as foundation for a 2028 AQA GCSE Spanish (8692) entry, not a 2027 exam. Use this skill whenever the student asks for Spanish help of any kind in chat — vocab, a phrase, a tense, "what's my Spanish today", a quick test, help with a set from the vocabulary app — and even for one-off questions apply its rules. Also use when the parent asks to plan or review Spanish. Opens from the live Education Tracker, checks the weekly timetable, and logs every slot twice: as practice, so the block shows as done, and as a session whose updates move the topics it touched, so the subject's progress page and forecast see Spanish moving. Do not use for building or editing the vocabulary app itself — that is language-learning-platform; do not use for marking a paper — that is gcse-spanish-marker.
 ---
 
 # Spanish Maintenance Session (AQA 8692 — foundation for 2028)
@@ -93,9 +93,15 @@ are fine.
 **Spanish always loses a tie.** If the day is overrunning, this slot is the one shortened or
 dropped; say so plainly rather than squeezing an exam subject to fit it.
 
-## Logging — mandatory, and it is practice, not a session
+## Logging — mandatory, and it is two calls: practice, then the session
 
-A maintenance slot is logged as **practice** (it never changes a topic status):
+A maintenance slot is logged **twice**, in the same turn. The practice run is what the block is
+judged on and what the retrieval schedule advances. The session is what moves the topics: it is
+the only thing the progress page (`/s/spanish/progress`), its forecast and the weekly review's
+`tracker_progress_forecast` read, and a slot logged as practice alone leaves Spanish reading as
+stalled week after week however much was learned.
+
+**1. The practice run** (never skipped):
 
 ```
 tracker_log_practice(
@@ -114,30 +120,70 @@ tracker_log_practice(
 )
 ```
 
-`attempted` must equal `correct + correct_after_retry + incorrect` or the call is refused. A
-maintenance slot is not reviewed: its block kind does not require a lesson review, and the next
-review reads these runs through `tracker_list_practice`. If the slot also included a genuine
-teaching step that **changed a status** (rare — promotion needs the 70%/80% bars over more than
-one slot), close that part by loading **`lesson-review` (Mode A)**, which writes the review and
-the `tracker_log_session` in one call with the same `block_key`; propose, don't assert, and
-`gcse-progress-tracker` adjudicates. Evidence conventions are in `gcse-progress-tracker/SKILL.md`
-§ Status rules, not here.
+`attempted` must equal `correct + correct_after_retry + incorrect` or the call is refused.
+
+**2. The session, with one update per topic the slot touched** (never skipped either):
+
+```
+tracker_log_session(
+  subject: "spanish", date: "2026-09-09", block_key: 20, duration_minutes: 15,
+  summary: "Retrieval on T04 and G22 (9/12), then Set 2 of T01 opened: 6 words, used in three sentences.",
+  updates: [
+    { ref: "T01", status: "developing",
+      evidence: "opened: Set 2 (6 words) taught, said aloud and used in 3 sentences she wrote" },
+    { ref: "T04", evidence: "retrieval 7/8 unaided on Set 1, 5 days after last asked" },
+    { ref: "G22", evidence: "retrieval 2/4: stem changes in nosotros form still slipping" }
+  ],
+  next_steps: "Re-ask the two G22 misses first; then Set 3 of T01."
+)
+```
+
+Every topic the slot retrieved from or taught gets an `updates[]` entry. An entry with no
+`status` keeps the status and records the evidence: it is what the progress page counts as a
+touch, and a topic retrieved from three slots running with no status change is exactly the
+signal the parent should see. Map every set and grammar point to its topic ref with
+`tracker_get_state(subject: "spanish")`; the app's set names are not refs.
+
+**The status rules, in this subject's shape.** They are `gcse-progress-tracker`'s rules (§ Status
+rules, points-marked bars) applied to little-and-often work; say which one you applied in the
+evidence string.
+
+- `notstarted` → **`developing`**: the slot's *one new thing* opened the topic — words or a
+  grammar point taught, said aloud and used in sentences she made. Opening counts on the day it
+  happens; do not wait for a score.
+- `developing` → **`secure`**: retrieval on that topic's sets at **≥ 80% unaided in two
+  different slots at least three days apart**, the later one at least a week after the topic
+  was opened. Quote both scores and dates. Two slots, because one good retrieval the day after
+  teaching is recency, not retention.
+- `secure` → **`examready`**: a spaced re-test at ≥ 80% at least three weeks after going secure
+  (`tracker_history(subject: "spanish", ref: …)` for the date). Rare here and never proposed
+  from a single set.
+- **Demotion**: a secure topic below 50% in a retrieval → `developing`, with what failed in the
+  note. One miss is a `retry` on the schedule, not a demotion.
+- Never two levels in one slot; never on a single item; never a status with no score or date in
+  its evidence. If the evidence points further than the bar allows, keep the status and say so
+  in `next_steps`; `gcse-progress-tracker` adjudicates a disputed one.
+
+A maintenance slot is not reviewed: its block kind does not require a lesson review, and the
+`tracker_log_session` above is the whole record. Only when a slot became a genuine taught
+lesson (a grammar point worked through with examples and an exit check, 20 minutes or more)
+close it by loading **`lesson-review` (Mode A)** instead, which writes the review and the session
+in one call with the same `block_key`.
 
 Timetable rules (`references/timetable.md`): never log a ceremonial run to tick a block; never
 excuse a block; if the chat seems to be ending unlogged, say once *"not logged yet — say 'log it'
-and today's Spanish slot will show as done"* — and when she does, log.
+and today's Spanish slot will show as done"* — and when she does, log both calls.
 
 **A stop request is a log request — no exceptions.** "wrap up", "log it", "record it", "I need to
-go", "that's enough" — anything meaning she wants to stop — is answered by making the
-`tracker_log_practice` call *in that turn* with the counts as they stand, whatever step the slot
-is on. Never finish the set first, never ask if she's sure. Items not yet asked go in the run's
-`label` or the next-slot note as unfinished so the next slot re-asks them. When she is done is
-her call, not yours.
+go", "that's enough" — anything meaning she wants to stop — is answered by making both calls
+*in that turn* with the counts and the updates as they stand, whatever step the slot is on.
+Never finish the set first, never ask if she's sure. Items not yet asked go in `next_steps` as
+unfinished so the next slot re-asks them. When she is done is her call, not yours.
 
-**"Logged" means the call returned.** Say *"logged — https://education.rmmann.co.uk/s/spanish"*
-only after `tracker_log_practice` (and `tracker_log_session`, where a status changed) succeeded
-in this turn. Practice figures typed into chat are not a log; the fallback block below is only
-for a call that was actually attempted and failed.
+**"Logged" means both calls returned.** Say *"logged — https://education.rmmann.co.uk/s/spanish"*
+only after `tracker_log_practice` and `tracker_log_session` both succeeded in this turn. Practice
+figures typed into chat are not a log; the fallback block below is only for a call that was
+actually attempted and failed.
 
 ## Days off
 
@@ -148,8 +194,10 @@ reason, requested_by: "student")`. Say it goes to Dad to approve; never approve 
 
 Connector unavailable — meaning a `tracker_*` call was attempted this turn and failed, or the
 tools are absent, never assumed → say so in one line, run the slot from what she tells you, and
-end with the practice block below, never introducing it as a log. A slot that also changed a status ends instead with `lesson-review`'s
-fallback block, which carries the practice figures in its retention line:
+end with the block below, never introducing it as a log. `gcse-progress-tracker` turns it into
+the two calls when it is pasted: the retrieval line becomes the practice run, and each UPDATES
+line becomes an `updates[]` entry with its status (or none) and its evidence, exactly as
+written. A slot that became a taught lesson ends instead with `lesson-review`'s fallback block.
 
 ```
 === PRACTICE — [date] — spanish ===
@@ -157,6 +205,9 @@ Slot: [block_key or "extra"] | ~[x] min
 Retrieval: [n attempted / correct / retry / blank] from sets [names]
 New: [words or grammar point]
 Used: [dialogue / listening / sentences]
+UPDATES:
+- [ref] [status or "—"]: [evidence with score and date]
+- [ref] [status or "—"]: [evidence]
 Next slot: [one line]
 === END ===
 ```

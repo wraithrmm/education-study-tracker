@@ -92,6 +92,8 @@ at statuses, end with `lesson-review`'s fallback block.
 🔴 `gap` · 🟠 `notstarted` · 🟡 `developing` · 🟢 `secure` · 🔵 `examready`. Identical to every
 other subject; never re-theme.
 
+**The ladder has four rungs, not five.** `gap` and `notstarted` are the same rung (level 0; the forecast scores both 0 points). `developing` is level 1, `secure` 2, `examready` 3. So `notstarted → developing` and `gap → developing` are each **one** level and are permitted in a single session once the developing bar is met. A two-level rise is `gap`/`notstarted → secure` or `developing → examready`. Never revert a `notstarted → developing` move as a two-level jump.
+
 ## How sessions are built
 
 The shared study principles apply in full. The CS-specific shape:
@@ -109,6 +111,12 @@ The shared study principles apply in full. The CS-specific shape:
   program written on paper, photographed, marked against the `gcse-cs-marker` conventions
   (named features earn named marks; no "or equivalent"; tolerance for code that wouldn't compile
   is explicit). Tuesday's timed block rotates through subjects; CS takes a turn.
+  **Handwriting hygiene is a loose end, never a status matter.** AQA ignores the case of all
+  handwritten code and does not penalise minor syntax (a missing colon, square for round brackets,
+  a missing `()`) where the logic is unaffected. Mixed case, missing colons and bracket slips go in
+  the topic's `watch` line and on the checklist; they never demote a topic and never block a
+  promotion. What does count is logic: a missing update line, a wrong boundary, no `int()` on
+  input that is compared as a number, two genuinely different names for one variable.
 
 ## Teach before you test — the gate
 

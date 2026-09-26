@@ -100,6 +100,8 @@ pick up the current tool list (practice, scoreboard and timetable tools included
 🔴 `gap` · 🟠 `notstarted` · 🟡 `developing` · 🟢 `secure` · 🔵 `examready`. Identical to every
 other subject; never re-theme.
 
+**The ladder has four rungs, not five.** `gap` and `notstarted` are the same rung (level 0; the forecast scores both 0 points). `developing` is level 1, `secure` 2, `examready` 3. So `notstarted → developing` and `gap → developing` are each **one** level and are permitted in a single session once the developing bar is met. A two-level rise is `gap`/`notstarted → secure` or `developing → examready`. Never revert a `notstarted → developing` move as a two-level jump.
+
 ## How sessions are built — this matters for her
 
 These are the shared study principles (`gcse-progress-tracker/references/study-principles.md`)
