@@ -57,7 +57,9 @@ row. Absent that file, take what you can from the subject row itself (`spec_code
      `tracker_update_topic` for any status the result justifies.
    - A single correction outside a session → `tracker_update_topic`.
 5. **Verify.** Read back what you wrote (`tracker_history(subject, weeks: 1)`) and confirm it
-   landed. Never report a change you have not seen recorded.
+   landed. Never report a change you have not seen recorded. In the read-back, any line reading
+   `Not started → Not started` for a topic the session *answered on* is a fault: fix it under
+   the touched-means-moved rule below before closing.
 6. **Close** with a 3-line summary: what changed, current trajectory, next checkpoint — naming
    the subject, plus the link <https://education.rmmann.co.uk/s/{slug}>.
 
@@ -86,6 +88,18 @@ These are identical in every subject and are never re-themed.
 - Proposed changes (marked "?" or "proposed:" in a pasted block, a review's `proposed_status`,
   or evidence logged with no status): adjudicate against these rules and say which you accepted
   and which you did not.
+- **A `notstarted` topic she answered on never stays `notstarted`** (study principle 13,
+  parent rule 29 Sep 2026). Adjudicate every `notstarted` ref that carries evidence from a
+  session: answered right at the independent step and at the developing bar → `developing`;
+  answered and below the bar, at any step → `gap`; **set and not answered** → stays
+  `notstarted` and the evidence says so. A session log, a pasted fallback block or a review
+  that leaves an answered-on topic at `notstarted` is corrected here with
+  `tracker_update_topic` and evidence beginning "correction: answered in session N — …".
+  "Only two items" or "thin" is a reason for a `watch` line, never for leaving the status false.
+- **The developing bar needs the three steps** (principle 13): taught with her, confirmed with
+  hints, applied unaided. Evidence for `developing` names the unaided items and their score
+  ("apply: 2/2 unaided — 45+22, 103+93 with carries"). Evidence that shows only a say-back or a
+  guided example is a `gap` with a watch line saying which step is owed, not a `developing`.
 
 **Lesson reviews propose; this skill adjudicates.** A review's `progress[]` entry carries
 `status_seen` (what that lesson's evidence supports) and, where the evidence points further than

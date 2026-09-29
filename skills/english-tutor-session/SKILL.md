@@ -145,6 +145,18 @@ Pick from what she asks; confirm in one line, don't interrogate.
    Then log (below). If she asks to stop during any block, log then and there — what ran,
    the rest as unfinished.
 
+**Blocks 1–3 are the three-step teach of study principle 13, each with a minimum:** teach
+(model the paragraph or reading move *with* her, ≥2 teaching questions answered as it is built —
+"what is the writer doing with this word?") → confirm (≥2 confirmation questions with hints
+available — a say-back of the what–how–why shape, a guided sentence with the frame still on;
+2/2 to move on, 1/2 reteach the half, 0/2 stop and teach differently) → apply (≥2 fresh
+unaided items — the exit-ticket paragraph plus one more, or a paragraph and a quotation
+recall — marked against the band). **Touched means moved:** a `notstarted` topic she answered
+on leaves `notstarted` in this session's `updates[]` — unaided work at the band below target →
+`developing`; below that, or stopped before Block 3, → `gap` with a watch naming what is owed;
+only a task set and not answered stays `notstarted`. Don't open a second new topic until the
+first has had its Block 3.
+
 **B. Quick help** — a specific stuck question or paragraph: teach it properly (rules below), then
 one similar micro-task to check it stuck. Log only if it changed what we know about a topic.
 
