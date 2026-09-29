@@ -92,8 +92,30 @@ session's `updates[]`, adjudicated against the promotion bars.
   demotion in `updates[]` only with evidence like any other change.
 - No evidence either way → no `progress[]` entry for that ref.
 
+**Every `progress[]` evidence string opens with the steps reached** (study principle 13):
+`taught / confirmed / applied` for a fully taught topic, `opened — taught, confirmed` or
+`opened — taught only` for one that stopped short, `set, not answered` for a check she never
+reached. Then the counts: "confirm 2/2 (say-back, 'does 128 fit'); apply 2/2 unaided (226,
+11001001)". A reader must be able to see which steps ran without the transcript.
+
+**A `notstarted` topic she answered on does not stay `notstarted`** — the parent rule of
+29 Sep 2026. In §2 and in `updates[]`, the tutor sets the status in the same call:
+
+| what happened | `status_seen` | `updates[]` |
+|---|---|---|
+| applied unaided at the developing bar | `developing` | `status: developing` |
+| answered, below the bar at any step (wrong say-back, off-target explanation, 1/2 on an explain item, one right of two unaided) | `gap` | `status: gap` |
+| set and not answered | `notstarted` | evidence "set, not answered", no status |
+
+This is not a proposal for adjudication — it is the one case where the review's writer moves
+the status directly, because leaving it is a false record. "Thin evidence" goes in `watch`,
+not in the status. `proposed_status` is still used above `developing` (a developing topic whose
+evidence points to secure on one item).
+
 The audit flags a `status_seen: secure` whose ref did not move and carries no
-`proposed_status`; write one or the other.
+`proposed_status`; write one or the other. It also flags any `progress[]` entry at
+`notstarted` whose evidence contains an answer, and any `developing` move whose evidence
+names no unaided item.
 
 ## 5. Retention and retrieval outcomes
 

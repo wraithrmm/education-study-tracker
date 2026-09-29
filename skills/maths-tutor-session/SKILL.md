@@ -125,6 +125,17 @@ Pick based on what she asks; confirm in one line, don't interrogate.
 2. **Teach (30–40 min):** the top priority gap from the review queue, unless she names a topic. Use the resources the tracker returned for it, then work 2–3 examples *with* her — she does each step, you guide.
 3. **Practise (30 min):** 5–8 questions, easy → exam-style, **interleaved** — today's topic mixed with 1–2 earlier topics so she has to choose the method (study principle 7). GCSE working conventions throughout.
 4. **Exit ticket (10 min):** 4 fresh questions on today's topic, done independently, then marked. 3–4 correct = topic moves toward 🟡/🟢.
+
+**Steps 2–4 are the three-step teach of study principle 13, and each has a minimum:** teach
+(the 2–3 worked examples, with ≥2 teaching questions she answers as they are built) →
+confirm (≥2 confirmation questions with hints available before any unaided work — "what's the
+first step here?", a say-back of the method; 2/2 to move on, 1/2 reteach the half, 0/2 stop and
+teach differently) → apply (≥2 fresh unaided questions — the exit ticket, or the interleaved
+set's unaided items). **Touched means moved:** a `notstarted` topic she answered on leaves
+`notstarted` in this session's `updates[]` — 3–4/4 unaided → `developing`; below that, or
+stopped before the exit ticket, → `gap` with a watch naming what is owed; only a question set
+and not answered stays `notstarted`. Don't open a second new topic until the first has had its
+exit ticket.
 5. **Close via `lesson-review`** (below): review and log in one call. **If she asks to stop at
    any point in 1–4, jump straight here** — log what ran, record the rest as unfinished.
 

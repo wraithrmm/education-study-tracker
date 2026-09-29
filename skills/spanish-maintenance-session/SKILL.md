@@ -90,6 +90,13 @@ list in a 15-minute slot. Blanks apply here too: "I don't know the word" → "wh
 word you *do* know?" — a wrong attempt is logged as `retry`, a blank as `incorrect`, and both
 are fine.
 
+**Steps 2–3 are the three-step teach of study principle 13, scaled to the slot:** the one new
+thing is taught with ≥1 teaching question, confirmed with ≥2 hinted items (say it back, fill the
+blank with the frame shown), then applied in ≥2 unaided items in step 3. **Touched means
+moved:** a tracker topic she answered on does not stay `notstarted` — unaided items right →
+`developing`; answered below that → `gap` with a watch; only an item set and not answered stays
+`notstarted`. The status goes in the session's `updates[]` (below), with the counts as evidence.
+
 **Spanish always loses a tie.** If the day is overrunning, this slot is the one shortened or
 dropped; say so plainly rather than squeezing an exam subject to fit it.
 
@@ -148,9 +155,9 @@ signal the parent should see. Map every set and grammar point to its topic ref w
 rules, points-marked bars) applied to little-and-often work; say which one you applied in the
 evidence string.
 
-- `notstarted` → **`developing`**: the slot's *one new thing* opened the topic — words or a
-  grammar point taught, said aloud and used in sentences she made. Opening counts on the day it
-  happens; do not wait for a score.
+- `notstarted` → **`developing`**: the slot's *one new thing* was taught, confirmed and then
+  applied right in ≥2 unaided items (principle 13) — words or a grammar point used in sentences
+  she made without the frame. Answered below that → **`gap`** with a watch naming the step owed.
 - `developing` → **`secure`**: retrieval on that topic's sets at **≥ 80% unaided in two
   different slots at least three days apart**, the later one at least a week after the topic
   was opened. Quote both scores and dates. Two slots, because one good retrieval the day after

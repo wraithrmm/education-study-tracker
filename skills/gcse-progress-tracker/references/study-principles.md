@@ -129,7 +129,45 @@ like a filing label instead of a piece of work. So, in every session, every subj
 Test before sending: would a teacher who had never seen this tracker say it this way to a
 14-year-old across a desk? If not, rewrite it.
 
+## 13. Teaching is three steps, and a topic she answered on has a status [parent rule, 29 Sep 2026]
+
+A topic is **taught** only when all three of these ran on it, in this order, in the session:
+
+1. **Teach** — the concept built *with* her (worked example line by line, place-value row on
+   paper, model paragraph), with at least two **teaching questions** answered along the way
+   ("does 128 fit into 77?", "what does this line do?").
+2. **Confirm** — at least two **confirmation questions with hints available**: a say-back in her
+   words, a "what will this print", a guided micro-task with the scaffold still on. Two right →
+   step 3. One right → reteach the other half, then re-confirm. None right → stop and teach it
+   differently; nothing that follows counts as evidence on that topic.
+3. **Apply** — at least two **independent questions with no hints**, fresh items, on today's
+   topic, so the record shows she can use it without the tutor beside her. This is the exit
+   ticket or the practice set's unaided items; the score from here is what `updates[]` cites.
+
+A topic that got step 1 only, or steps 1–2 only, is **opened, not taught**. Say so in the
+review (§2 "opened — steps 1–2 ran, no independent item") and plan step 3 for the next
+session. Never set step 3 before step 2 has passed (the tutor skills' gate); never call a topic
+taught on a touch.
+
+**Touched means moved.** Whatever the steps reached, a topic she *answered on* in a session
+does not stay `notstarted`:
+
+- answered, and the independent items (step 3) met the developing bar → `developing`;
+- answered, and below the bar at whatever step was reached (a wrong say-back, an off-target
+  explanation, one right of two, 1/2 on an explain item) → `gap` — the record now *knows* it is
+  a gap rather than untouched, and that is worth recording;
+- **set and not answered** (the check went unanswered at "times up"; she skipped it in a
+  placement) → stays `notstarted`, with the evidence line saying "set, not answered".
+
+Both moves are one level (gap and notstarted share level 0) and are made in the session's
+`updates[]` with `status` set — not left as a proposal. No other movement is arbitrary-free:
+this rule adds no movement beyond gap/developing, and the secure bar is unchanged.
+
 ## Revisions
+
+- **29 Sep 2026 (parent, session CS 58):** principle 13 added — three-step teaching as the
+  definition of "taught", and the touched-means-moved rule after D05 (binary addition, 2/2
+  unaided) and D01 were left `notstarted` by a session that had taught and checked them.
 
 These principles are the fixed frame every tutor skill, the lesson review and the weekly
 synthesis work inside. They are revised only by the parent, only on evidence, and only here.

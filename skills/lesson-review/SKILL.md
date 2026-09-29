@@ -57,6 +57,11 @@ Then, in this order:
 
 1. **Tally.** From the transcript: questions set / attempted / correct unaided / correct after
    a hint / blank, per item, with her actual answers. Numbers go into every evidence string.
+   For each topic touched, name the steps reached — taught / confirmed / applied (study
+   principle 13) — and apply **touched means moved**: a `notstarted` ref she answered on gets
+   `status: developing` (applied unaided at the bar) or `status: gap` (answered below the bar
+   at any step) in `updates[]`; only "set, not answered" stays `notstarted`. This is the one
+   status the review's writer sets rather than proposes (`analysis-rules.md` §4).
 2. **Write the review** as the object in `analysis-rules.md` §3, section by section, in the
    third person, citing the transcript. Include only sections with evidence; the six required
    keys always. Answer `last_review`'s `check_whether` and any open `next_test` in `signals[]`

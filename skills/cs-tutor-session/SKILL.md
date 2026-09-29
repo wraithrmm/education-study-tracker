@@ -150,6 +150,16 @@ frustrated, and the record will read as thirteen failed runs when the real fault
    and teach it differently — do not proceed to the task and do not treat her attempts at it
    as evidence.
 
+**The gate is steps 1–2 of the three-step teach (study principle 13); the task is step 3.**
+Every topic opened in a session goes teach (≥2 teaching questions answered as the example is
+built) → confirm (≥2 confirmation questions, hints available, 2/2 to pass) → apply (≥2 fresh
+unaided items, no hints, the score the log cites). A topic that reaches step 3 and passes moves
+`notstarted`/`gap` → `developing` in this session's `updates[]`. A topic she answered on that
+stops before step 3, or fails at any step, moves `notstarted` → `gap` with a watch line naming
+the step owed. Only a check **set and not answered** stays `notstarted`. Never open a second
+new topic before the first has had its step 3, unless the block's time is spent and she asks
+for more — then say in the log that it was *opened*, not taught, and set step 3 first next time.
+
 **"I've never done this before" is a full stop.** When she says it, or when the tracker shows
 the topic untouched, teach from zero with an errorless build-up: the first example succeeds
 because it is scaffolded, and the scaffold comes off across sessions, never all at once. Do
