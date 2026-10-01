@@ -39,6 +39,11 @@ line and keep the `block_key` for the log. If it doesn't, help anyway and log ho
 as *extra*. A Spanish block missed earlier today is mentioned once, without reproach; the same
 work now, logged with today's date and that `block_key`, counts as it.
 
+Then `tracker_now()` at the start of every turn while the slot runs. Only the clock ends the slot
+or any extra time she asks for — never your estimate of how long a set should have taken. If she
+says she has more time, write the agreed end time in your reply, pass it as `until`, and keep
+giving items until the clock passes it. `duration_minutes` is the clock at close against open.
+
 
 ### Third call, every session: what the last session left
 

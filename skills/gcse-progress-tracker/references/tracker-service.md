@@ -61,6 +61,7 @@ Stored as five values, in order. The emoji shorthand used in chat maps one to on
 | `tracker_list_practice` | `subject`, `source?`, `since?`, `ref?`, `limit?` | Practice runs, newest first |
 | `tracker_practice_stats` | `subject` | The figures behind the practice board |
 | `tracker_today` | `date?` | **Opens every session after the review queue.** Today's timetable blocks with status, current/next block, missed so far |
+| `tracker_now` | `until?` | **Every turn during a session.** The time now (Europe/London), the block she is in with minutes left, and minutes left until `until`. Only the clock ends a chunk, block or agreed extra time — never an estimate |
 | `tracker_week_status` | `week?`, `date?` | Every block of a week with status, evidence ids, extras, hours by subject |
 | `tracker_get_timetable` | `valid_on?` | The stored blocks in force on a date |
 | `tracker_days_off` | `from?`, `to?`, `status?` | Day-off records: requested / approved / declined |

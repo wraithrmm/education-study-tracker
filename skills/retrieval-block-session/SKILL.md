@@ -58,6 +58,11 @@ tracker_today()          # the block, its subjects, its block_key, its minutes
 tracker_week_report()    # every subject's recent movement, evidence, queue tops, practice runs
 ```
 
+Then `tracker_now()` at the start of every turn while the block runs: it says how many minutes
+of the block are left, and that — not the item count — is what ends it. If the items run out
+with time left, add more from the same pool; if the clock runs out with items left, stop and
+log what was done.
+
 `tracker_week_report` is the right opener for a mixed block: one read gives each subject's topic
 movement with the evidence behind it, the top of each review queue and anything sat or practised
 — which is precisely the "recent performance" this block must be built from. Do not call

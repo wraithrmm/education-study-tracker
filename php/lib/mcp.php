@@ -1625,6 +1625,32 @@ function mcp_tools(): array
             'annotations' => $readOnly,
         ],
         [
+            'name'  => 'tracker_now',
+            'title' => 'The clock: what time it is and how long is left',
+            'description' =>
+                "The current time in Europe/London, the timetable block she is in now with its end time and the "
+                . "minutes left in it, and — if you pass `until` — the minutes left until that time. One short line, "
+                . "cheap enough to call on every turn.\n\n"
+                . "USE WHEN: at the start of every turn during a session, before deciding what comes next; before "
+                . "declaring any chunk, block or extra time finished; and when she says she has more time ('I've got "
+                . "another twenty minutes'), to set the end time. You cannot feel time passing: a question you expected "
+                . "to take twenty minutes may have taken five, and only this clock knows which. Never say time is up "
+                . "from your own estimate — only from this clock. Also use it at open and at close so duration_minutes "
+                . "is measured, not guessed.\n\n"
+                . "DO NOT use it to decide whether to help: a block that has ended is not a reason to stop if she wants "
+                . "to carry on, and the clock never overrides her saying she needs to go.\n\n"
+                . 'Args: optional until (HH:MM, Europe/London) — the agreed end time, to get minutes remaining. Read-only.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'until' => ['type' => 'string', 'pattern' => '^\\d{1,2}:\\d{2}$',
+                        'description' => "The end time agreed with her, HH:MM Europe/London, e.g. '11:05'"],
+                ],
+                'required' => [],
+            ],
+            'annotations' => $readOnly,
+        ],
+        [
             'name'  => 'tracker_week_status',
             'title' => 'A whole week, block by block',
             'description' =>
@@ -2279,6 +2305,47 @@ function mcp_tools(): array
 function mcp_call_tool(Store $store, string $name, array $a): array
 {
     switch ($name) {
+        case 'tracker_now': {
+            $now    = tt_now();
+            $nowMin = tt_mins($now->format('H:i'));
+            $line   = 'Now ' . $now->format('H:i') . ' Europe/London, ' . $now->format('D j M');
+            $day    = $store->timetableVersionOn(tt_today()) ? $store->judgeDay(tt_today()) : null;
+            $cur    = null;
+            $next   = null;
+            foreach ($day['blocks'] ?? [] as $b) {
+                if ($b['status'] === 'n/a') {
+                    continue;
+                }
+                if (tt_mins($b['start']) <= $nowMin && $nowMin < tt_mins($b['end'])) {
+                    $cur = $b;
+                } elseif ($next === null && tt_mins($b['start']) > $nowMin) {
+                    $next = $b;
+                }
+            }
+            if ($cur) {
+                $left  = tt_mins($cur['end']) - $nowMin;
+                $line .= '. Block: ' . $cur['label'] . ' (' . $cur['start'] . '–' . $cur['end']
+                    . ', block_key ' . $cur['block_key'] . '), ' . $left . ' min left';
+            } else {
+                $line .= '. Between blocks';
+                if ($next) {
+                    $line .= '; next ' . $next['label'] . ' at ' . $next['start']
+                        . ' (in ' . (tt_mins($next['start']) - $nowMin) . ' min)';
+                }
+            }
+            $until = $a['until'] ?? null;
+            if ($until !== null && $until !== '') {
+                try {
+                    $until = tt_hhmm($until, 'until');
+                } catch (InvalidArgumentException $e) {
+                    throw new McpError($e->getMessage());
+                }
+                $diff  = tt_mins($until) - $nowMin;
+                $line .= '. Until ' . $until . ': '
+                    . ($diff > 0 ? "$diff min left" : ($diff === 0 ? 'time is up now' : 'passed ' . (-$diff) . ' min ago'));
+            }
+            return mcp_text($line . '.');
+        }
         case 'tracker_today': {
             $date = mcp_date($a, 'date', tt_today());
             $day  = $store->judgeDay($date);

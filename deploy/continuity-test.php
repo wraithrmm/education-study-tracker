@@ -504,6 +504,25 @@ call($store, 'tracker_log_session', ['subject' => 'maths', 'date' => '2026-09-25
 $b = block_on($store->judgeWeek('2026-09-21'), '2026-09-25', 28);
 check('a consolidation updating a topic demoted in the prior 21 days is met', [$b['status'], $b['shape']], ['done', 'met']);
 
+echo "\n== the clock ==\n";
+// 2026-09-21 is a Monday; TRACKER_NOW is 10:00, inside the 09:15–10:30 maths block.
+$body = call($store, 'tracker_now', []);
+contains('tracker_now says the time', $body, 'Now 10:00 Europe/London, Mon 21 Sep');
+contains('and the block she is in, with its end time and minutes left', $body,
+    'Block: Maths — new topic (09:15–10:30, block_key 3), 30 min left');
+$body = call($store, 'tracker_now', ['until' => '10:20']);
+contains('an agreed end time gives minutes remaining', $body, 'Until 10:20: 20 min left');
+$body = call($store, 'tracker_now', ['until' => '9:50']);
+contains('a passed end time says so, normalised', $body, 'Until 09:50: passed 10 min ago');
+$body = call($store, 'tracker_now', ['until' => '10:00']);
+contains('an end time that is now says time is up', $body, 'Until 10:00: time is up now');
+$body = call($store, 'tracker_now', ['until' => 'ten past']);
+contains('a bad until is refused', $body, 'REFUSED: until is');
+putenv('TRACKER_NOW=2026-09-21 10:40');
+$body = call($store, 'tracker_now', []);
+contains('between blocks it names the next one', $body, 'Between blocks; next English Literature — set text at 11:00 (in 20 min)');
+putenv('TRACKER_NOW=2026-09-21 10:00');
+
 echo "\n== C. retrieval scheduling ==\n";
 // Two wrong answers on consecutive days.
 foreach (['2026-09-16', '2026-09-17'] as $i => $day) {

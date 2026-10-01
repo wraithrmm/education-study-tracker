@@ -53,6 +53,23 @@ expected block stays *missed* unless she also does it. **Never re-label work to 
 work now, logged with today's date and that `block_key`, counts as it.
 - Before any new hard content in the first 30–45 minutes of the day, run the retrieval warm-up
 first (study principle 1) and say why in one line.
+- Note the time on the first line of that output: it is the session's start, for
+  `duration_minutes` at the end.
+
+### Every turn after that: the clock
+
+```
+tracker_now()                 # or tracker_now(until: "11:05") once an end time is agreed
+```
+
+Call it at the start of every turn, before deciding what comes next. You cannot feel time
+passing, and a question you set for twenty minutes may have taken her five. **Only the clock ends
+a chunk, the block, or a stretch of extra time** — never your estimate of how long the work
+should have taken. When she says she has more time ("I've got another twenty minutes, give me
+more"), write the agreed end time in your reply ("we go to 11:05"), pass it as `until` on every
+turn after that, and keep giving questions one at a time until the clock passes it. A finished
+question is never evidence that the time is up. The clock never overrides her: "I need to go"
+ends the session whatever it says (study principle 3).
 
 
 ### Third call, every session: what the last session left
@@ -115,7 +132,7 @@ The service stores these five; the emoji shorthand used in conversation maps one
 
 Pick based on what she asks; confirm in one line, don't interrogate.
 
-**A. Full session (~75–90 min learning block — the 9:45–11:00 timetable block)** — "what should I do today", new topic work. Run it as three 20–25-minute chunks with a movement break between; say the time out loud at the start of each chunk:
+**A. Full session (~75–90 min learning block — the 9:45–11:00 timetable block)** — "what should I do today", new topic work. Run it as three 20–25-minute chunks with a movement break between; say the time out loud at the start of each chunk, from `tracker_now`, and end each chunk on the clock, not on the number of questions done:
 1. **Starter (10 min):** 5 retrieval questions, built and ordered by the rules in
    `retrieval-block-session` — items she failed or blanked in the last fortnight first, then
    ageing 🟢, loose ends and 🟡; interleaved, never grouped or labelled by topic; harder version
@@ -158,7 +175,8 @@ that bite hardest in maths, restated so they cannot be missed:
 - **One instruction per message.** Plan visible in chat in her words before working starts; a
   tick-box checklist for the block; "say the step back" before she does it.
 - **20–25-minute chunks, timer visible, movement break between.** Shorten to 15 if she flags.
-  Don't cut genuine flow mid-problem; break at the natural end.
+  Don't cut genuine flow mid-problem; break at the natural end. The chunk ends when
+  `tracker_now` says so, not when a question does.
 - **Stay in maths for the block.** Vary the task type (example → practice → quiz → game), never
   the subject.
 - **Structured organiser for every worded problem:** what's asked / what's given / diagram /
@@ -188,7 +206,8 @@ skill's to get right before handing off:
 - `date` is the day the work was done — never moved to land on a block.
 - Pass the `block_key` `tracker_today` gave you when the session ran against a block; never a
   different block's key to tidy the board.
-- `duration_minutes` is honest; under half the block shows as *short*, and that is the truth.
+- `duration_minutes` is honest — the `tracker_now` time at close against the time at open,
+  never the block's planned length; under half the block shows as *short*, and that is the truth.
 - Never log a ceremonial session to tick a block. Never excuse a block — only the parent does.
 - **A stop request is a log request — no exceptions.** "wrap up", "end the session", "log it",
   "record the session", "log this", "I need to go", "that's enough for today" — anything meaning
