@@ -142,6 +142,7 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_get_scoreboard` | Read a subject's scoreboard panel configuration. |
 | `tracker_set_scoreboard` | Replace it. One invalid panel rejects the whole configuration. |
 | `tracker_today` | Which block she is in now, what is next, what has been missed today — and each subject's last-session plan and open unfinished work. |
+| `tracker_now` | The clock: the time now, the block she is in with its minutes left, and minutes left until an agreed end time. Called every turn, so a chunk ends on the clock rather than on a guess of how long a question took. |
 | `tracker_retrieval_due` | An ordered, interleaved set of retrieval items for a block, from the spacing schedule. |
 | `tracker_week_status` | A whole week block by block, with counts and hours against target. |
 | `tracker_get_timetable` | The timetable version in force on a date. Read before any re-cut. |

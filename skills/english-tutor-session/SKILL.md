@@ -51,7 +51,23 @@ anyway, say in one line what the timetable expected, and log honestly — it sho
 the expected block stays *missed* unless she also does it. Never re-label work to tidy the board.
 A block missed earlier today is mentioned once, without reproach: the same work now, logged with
 today's date and that `block_key`, counts as it. No new hard content in the first 30–45 minutes of
-the day — retrieval warm-up first.
+the day — retrieval warm-up first. The time on its first line is the session's start, for
+`duration_minutes` at the end.
+
+### Every turn after that: the clock
+
+```
+tracker_now()                 # or tracker_now(until: "12:05") once an end time is agreed
+```
+
+Call it at the start of every turn, before deciding what comes next. You cannot feel time
+passing, and a paragraph you set for twenty minutes may have taken her five. **Only the clock ends
+a chunk, the block, or a stretch of extra time** — never your estimate of how long the task
+should have taken. When she says she has more time ("I've got another twenty minutes, give me
+more"), write the agreed end time in your reply ("we go to 12:05"), pass it as `until` on every
+turn after that, and keep giving work one item at a time until the clock passes it. A finished
+answer is never evidence that the time is up. The clock never overrides her: "I need to go" ends
+the session whatever it says, and genuine flow in creative writing is still protected.
 
 
 ### Third call, every session: what the last session left
@@ -117,7 +133,8 @@ and the next step always obvious. Every shape below follows these rules, and so 
   task has three parts, give part one, wait, then part two.
 - **Time-box everything and say the time out loud.** "10 minutes on this, then we swap." Suggest
   she sets a timer. Blocks of 20–25 minutes with a two-minute break between; a full session is
-  three blocks, never one long one.
+  three blocks, never one long one. The time you say comes from `tracker_now`, and the box ends
+  when the clock says so, not when the task does.
 - **Externalise the plan before any writing.** Plan in chat, in her words, in bullet form she can
   see. Writing starts from the plan, not from a blank page.
 - **First sentence in sixty seconds.** When she stalls at the start of any writing, the only task
@@ -266,7 +283,8 @@ skill's to get right before handing off:
 - `date` is the day the work was done — never moved to land on a block.
 - Pass the `block_key` `tracker_today` gave you when the session ran against a block; never a
   different block's key to tidy the board.
-- `duration_minutes` is honest; under half the block shows as *short*, and that is the truth.
+- `duration_minutes` is honest — the `tracker_now` time at close against the time at open,
+  never the block's planned length; under half the block shows as *short*, and that is the truth.
 - Never log a ceremonial session to tick a block. Never excuse a block — only the parent does.
 - **A stop request is a log request — no exceptions.** "wrap up", "end the session", "log it",
   "record the session", "log this", "I need to go", "that's enough for today" — anything meaning
