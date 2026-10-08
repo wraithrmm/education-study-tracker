@@ -51,4 +51,10 @@ vetted with a caveat.
 
 17. **Not a near-duplicate** of a vetted or already-sat question on the same ref. The same ref at
     a different tariff, weeks apart, is deliberate; the same question twice is not.
-18. **No two questions in one paper on the same ref.**
+18. **No two questions in one paper share a first topic ref.** A shared secondary ref is allowed
+    and noted in the vetting note.
+19. **Every question in a scheduled paper carries a `why:` tag and a `wk:` tag**, written after
+    scheduling with the question's existing tags re-sent beside them.
+20. **Printed text is original or out of copyright.** Macbeth, A Christmas Carol and the pre-1929
+    anthology poems may be quoted; An Inspector Calls and the modern anthology poems are named by
+    text and moment, and she opens her own copy.

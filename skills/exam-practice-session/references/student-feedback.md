@@ -35,6 +35,11 @@ makes the rest readable:
 For a full-mark answer, say what earned it, briefly. "Full marks — working shown clearly" tells
 her which habit to keep.
 
+For a non-attempt — empty, or "skip" and its kin — the feedback starts **"Not attempted."** and
+gives the first step only: "Not attempted. Start by writing the place values above the digits."
+Not the second step, not the answer; the point is that there was a first step she could have
+taken.
+
 ## Never
 
 - Never the answer, the number, the quotation or the model sentence.

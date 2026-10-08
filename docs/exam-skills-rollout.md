@@ -54,11 +54,16 @@ every note.
 skill packs, in the format of the installed pack. Upload each to the skills
 plugin. Then:
 
-- **Exam question generator** — a new project for the parent. Its instructions
+- **Exam Paper Builder** — a new project for the parent. Its instructions
   are `skills/exam-question-generator/PROJECT.md`. Its knowledge base holds the
   past papers and mark schemes, one pair per paper, named as that file says,
   plus the specification for each subject. It has the Education Tracker
-  connector.
+  connector, and it loads `exam-question-generator` and
+  `gcse-progress-tracker`. It runs **two scheduled tasks**, both in that
+  file: Sunday 18:00 "Build Wednesday's paper", which runs the weekly build
+  unattended and reports, and Tuesday 18:00 "Paper check", which builds a
+  paper if none is ready and otherwise confirms the one that is. Retire any
+  earlier report-only "Bank check" task; the build includes it.
 - **Exam practice** — a new project for Paige. Its instructions are
   `skills/exam-practice-session/PROJECT.md`. Nothing in its knowledge base;
   the connector only.

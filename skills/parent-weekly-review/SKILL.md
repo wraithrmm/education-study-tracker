@@ -10,7 +10,9 @@ One sweep, all five subjects, one screen of output. The Education Tracker (MCP c
 `gcse-progress-tracker/references/timetable.md`, and the status and evidence rules are
 `gcse-progress-tracker/SKILL.md`. This skill reads a lot and writes little: day-off decisions,
 excusals the parent states, and the review tick. It never changes a topic status — anything
-that needs adjudicating is handed to `gcse-progress-tracker` with the evidence.
+that needs adjudicating is handed to `gcse-progress-tracker` with the evidence. For the
+Wednesday paper that hand-off is explicit and mandatory (step 3a below): the marked paper moves
+nothing until it is adjudicated, and Friday is when that happens.
 
 ## Which week
 
@@ -31,6 +33,13 @@ A named week (`2026-W37`) → that week. Say which week at the top of the output
    with answered / untested from the reviews). These are computed from the lesson reviews and
    the synthesis; do not re-derive patterns from session prose, and do not propose tests of your
    own — proposing is the synthesis's job.
+3a. **The Wednesday paper.** If `EXAM PRACTICE` shows a weekly paper (`Exam practice — week
+   NN …`) marked this week, load `gcse-progress-tracker` and run its "Adjudicating the Wednesday
+   paper" **in the same turn, before the output is written** — its reads, its table, its
+   `tracker_update_topic` writes and its read-back. Its moves go into MOVEMENT and the `moved:`
+   line; a demotion goes into "Slipped" as well. A paper `closed` and not marked is reported as
+   unmarked, and it cannot be adjudicated. Then `tracker_exam_list_tests(status: "ready",
+   from: <next Monday>)` — is next Wednesday's paper built?
 4. `tracker_list_subjects()` then, per subject: `tracker_history(subject, weeks: 1)` for the
    sessions logged and every status that moved; `tracker_list_attempts(subject, limit: 3)` for
    anything sat this week (blanks per paper, handwritten pieces); `tracker_review_queue(subject)`
@@ -71,8 +80,11 @@ TIMED / HANDWRITTEN
 - none this week (last: Tue 1 Sep, Lang Q5 — the 40-mark description piece, 25 min sustained, 0 blanks)
 
 EXAM PRACTICE
-- Wed 23 Sep, "Exam practice — week 39" — marked, sat 45 of 45 min, closed by timer: maths 8/12 · lang 9/12 · cs 4/10 (2 blank)
-- technique: Q7 took 11 min of a 4-min guide and scored 1; two blanks in the CS section with 6 min unused
+- Wed 23 Sep, "Exam practice — week 39 · maths, lang, cs" — marked, sat 32 of 45 min, closed by her: maths 8/14 · lang 5/12 · cs 4/10
+- not attempted: 4 questions, 15 marks (portal shows 1 blank)
+- technique: Q7 (the 2-mark estimate) took 11 min of a 2-min guide and scored 0; the 8-mark language question skipped with 13 min unused
+- moved: N1 (order of operations) secure→developing (0/1, knowledge) · S4 (mean of a set) secure→exam-ready (3/3, re-test)
+- next paper: #8 ready for Wed 30 Sep — maths, literature, computer science
 
 MOVEMENT THIS WEEK
 - maths: A17 developing→secure (Mon exit ticket 4/4); A4 evidence only
@@ -122,6 +134,15 @@ Rules for the output:
   Lang 3.5 · CS 3.5 · Spanish 1.75). One line.
 - **Timed/handwritten** reports minutes sustained and blanks from this week's attempts; if none,
   say so and give the last one, so stamina drift is visible.
+- **Exam practice** carries three lines beyond the sitting line. `not attempted:` counts blanks
+  and typed non-attempts together, with their marks, and says what the portal's blank count
+  shows when it differs. `moved:` names every status the adjudication (step 3a) changed, with
+  the topic in plain words and the score behind it — or `moved: nothing — <why>` (evidence
+  only; no second occasion yet; not adjudicated because unmarked). `next paper:` names the
+  `ready` test for next Wednesday with its subjects, or reads `next paper: NOT SCHEDULED` —
+  which is a miss-in-waiting, named at the top of the review beside the missed blocks, not a
+  detail. A demotion from the paper is stated plainly in the "Slipped" material too, with the
+  question's topic in plain words.
 - **Movement** quotes real refs and real evidence from the history, one line per subject.
 - **Reviews** is one line per taught session from `REVIEWS THIS WEEK` — readiness word and
   session id — and names any `REVIEW MISSING` plainly. A missing review is the audit's job, not
