@@ -56,7 +56,11 @@ Written against schema step 14 and the `mcp.php` tool set as of this change.
   project uses to check a paper before the day and the student's never sends.
 - **An edit sends a vetted question back to draft**: what was checked is no
   longer what is stored. A question in a test (scheduled, answered, marked)
-  cannot be edited or retired: what she sat is fixed.
+  is edited in place and keeps its status and its place — the generator
+  relies on this to write its `why:` and `wk:` tags after scheduling — and
+  its marks cannot drop below a score already given; it cannot be retired
+  until it is taken out of the test. What she sat is fixed in the attempt,
+  which keeps the copy it was marked on.
 - **Blanks are derived, never declared.** An answer is blank when nothing but
   whitespace was written in the answer box; working alone is not an answer.
   The attempt's paper carries the count, and the answer column reads `(blank)`.
@@ -219,32 +223,68 @@ timer at the deadline; her hand-in; the parent)→ `closed` →(marking)→
 
 What the skills are written to.
 
-- **`exam-question-generator`** (the parent's project; `skills/exam-question-generator/`):
-  reads `tracker_get_state` per subject for the refs and their statuses, and
-  the past papers and schemes in its knowledge base for the house style;
-  writes questions with `tracker_exam_add_questions` under stable client keys;
-  vets against its checklist with `tracker_exam_update_question`; builds the
-  week's paper with `tracker_exam_schedule_test`, `block_key` from
-  `tracker_get_timetable`. Never pastes a question into a chat the student
-  can see.
+- **`exam-question-generator`** (the parent's Exam Paper Builder project;
+  `skills/exam-question-generator/`): runs the **weekly build unattended** —
+  a Sunday scheduled task, with a Tuesday check — so a `ready` test always
+  exists before the Wednesday block. Reads the block from
+  `tracker_get_timetable` and the day-off records; closes out the last paper
+  (`tracker_exam_list_tests`, carrying an unsat one forward with
+  `tracker_exam_update_test`); reads the flags — `tracker_get_state`,
+  `tracker_review_queue`, `tracker_retrieval_due`, `tracker_signals` for
+  `exam-skills`, the last three papers — and chooses subjects by a fixed
+  rotation and questions by a selection code per flag; writes what the bank
+  lacks with `tracker_exam_add_questions` under stable client keys (tagged
+  `auto` when unattended, at most 12 a run), vets against its checklist with
+  `tracker_exam_update_question`; builds the paper with
+  `tracker_exam_schedule_test`; then records why each question is there as
+  tags `why:<code>` and `wk:<ISO week>` with the flag as the note, through an
+  in-place `tracker_exam_update_question(action: "edit")` on each question
+  (re-sending its existing tags), never in the test's `instructions` or
+  `note`; reads the test back with `include_bank` before reporting. Never
+  pastes a question into a chat the student can see.
+- **`gcse-progress-tracker`** (the parent's projects; `skills/gcse-progress-tracker/`):
+  **adjudicates** the marked paper — in the Friday review, or as the first
+  step of the Sunday build if Friday did not — reading `tracker_exam_get_test`,
+  `tracker_exam_list_questions(tag: "wk:…")` for the `why:` codes, and
+  `tracker_history` per ref, and writing `tracker_update_topic` with evidence
+  beginning `adjudicated paper #<id> Q<label>:`. One paper question is one
+  occasion of unaided evidence and moves a status only where the existing
+  rules let one occasion decide or where it completes evidence already on the
+  trail; a knowledge loss on a secure topic demotes it, a technique loss or a
+  non-attempt moves nothing on the subject topic. Idempotent: a ref whose
+  history already holds the line is skipped.
+- **`parent-weekly-review`** (the parent's project; `skills/parent-weekly-review/`):
+  reads the `EXAM PRACTICE` block of `tracker_week_report`, runs the
+  adjudication above in the same turn for a paper marked that week, reads
+  `tracker_exam_list_tests(status: "ready", from: <next Monday>)`, and
+  reports non-attempts, what moved, and whether next week's paper exists
+  (`NOT SCHEDULED` is named as a miss-in-waiting).
 - **`exam-practice-session`** (the student's project; `skills/exam-practice-session/`):
   *Sit* — `tracker_today` and `tracker_exam_list_tests(status: ready)`, then
   the link and three rules; never a question in the chat. *Mark* — on "ready
   for marking": `tracker_exam_get_test`, mark against each scheme in the
   subject's convention, `tracker_exam_mark_test` with a score, a marker's note
-  and student-safe feedback per question; then one `tracker_log_session` per
-  subject (a `review`, a `retrieval_outcome` per ref, no status change, no
-  `block_key`) and one for `exam-skills` (no `block_key`, no
-  `duration_minutes`) carrying the technique observations and `updates[]` on
-  the T/R/A/S refs. Tells her the marks per section and the feedback lines;
-  never the answers.
-- **Skills outside this repository**, one line each for the parent to apply:
-  `gcse-progress-tracker/references/timetable.md` — add `exam_practice` to the
-  kind list and `exam` to the evidence types; `term-planner` — the kind exists
-  and the Wednesday block carries it; `parent-weekly-review` — read the
-  `EXAM PRACTICE` section of `tracker_week_report`; `retrieval-block-session` —
-  a timed paper is still not its job; the subject tutor skills — a Wednesday
-  afternoon question about the paper goes to `exam-practice-session`.
+  and student-safe feedback per question. An answer that is empty or whose
+  whole text is a refusal to attempt ("skip", "pass", "idk" …) with no working
+  is a **non-attempt**: scored by the scheme, counted with the blanks in the
+  notes and the technique session whatever the portal's blank count says
+  (the service counts only an empty box — Phase 2 item S3 closes that gap).
+  Then one `tracker_log_session` per subject (a `review`, one update per ref
+  with evidence `paper #<test> Q<label>: <score>/<max>, loss=<none|knowledge|
+  technique|not_attempted> — …` and its `retrieval_outcome`, **no promotion
+  or demotion** except a `notstarted` ref she answered on, which moves under
+  the parent rule; no `block_key`) and one for `exam-skills` (no `block_key`,
+  no `duration_minutes`) carrying the technique observations and `updates[]`
+  on the T/R/A/S refs. Tells her the marks per section and the feedback lines;
+  never the answers. Never sees the bank, `include_bank` or the `why:` tags.
+- **The other skills in this repository** that the paper touches:
+  `gcse-progress-tracker/references/timetable.md` and `block-kinds.md` carry
+  `exam_practice` and the `exam` evidence type; `term-planner` owns the block
+  and records a change of paper length in the Builder project's
+  instructions; `weekly-synthesis` writes the technique test design onto the
+  `exam-…` signal the build reads; `retrieval-block-session` — a timed paper
+  is still not its job; the subject tutor skills — a Wednesday afternoon
+  question about the paper goes to `exam-practice-session`.
 
 ## 8. Known limits
 

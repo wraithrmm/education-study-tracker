@@ -83,7 +83,10 @@ These are identical in every subject and are never re-themed.
   saying what failed.
 - **Ageing:** untouched secure for 8+ weeks → the review queue flags it automatically. Report the
   flag; **do not demote without evidence**.
-- **Never promote two levels in one session. Never promote on a single question.**
+- **Never promote two levels in one session. Never promote on a single question.** A question
+  on the Wednesday paper is one occasion of unaided evidence and moves a status only where
+  "Adjudicating the Wednesday paper" below says an existing rule already lets one occasion
+  decide, or where it completes evidence already on the trail.
   **The ladder has four rungs, not five.** `gap` and `notstarted` are the same rung (level 0; the forecast scores both 0 points). `developing` is level 1, `secure` 2, `examready` 3. So `notstarted → developing` and `gap → developing` are each **one** level and are permitted in a single session once the developing bar is met. A two-level rise is `gap`/`notstarted → secure` or `developing → examready`. Never revert a `notstarted → developing` move as a two-level jump.
 - Proposed changes (marked "?" or "proposed:" in a pasted block, a review's `proposed_status`,
   or evidence logged with no status): adjudicate against these rules and say which you accepted
@@ -132,6 +135,66 @@ of the same name (`lesson-review/references/analysis-rules.md` §3 lists them). 
 reinterpret; if a line will not validate, fix the field and say what you changed. Then verify
 with `tracker_history(subject, weeks: 1)` and confirm the review landed
 (`tracker_list_lesson_reviews(subject, limit: 1)`).
+
+### Adjudicating the Wednesday paper
+
+The weekly timed paper (`exam_practice` block, built by `exam-question-generator` in the
+parent's Exam Paper Builder project, marked by `exam-practice-session` in hers) is marked
+without status moves: the marking records facts, and this subsection turns them into moves.
+It runs **in the parent's project only** — in the Friday `parent-weekly-review`, for a paper
+marked that week, and as the first step of the Sunday build if Friday did not do it.
+
+**Reads**, all before writing:
+
+- `tracker_exam_get_test(id)` — every question with its label, first topic ref, marks, score,
+  her answer, and the marker's `note`, which says what the loss was: knowledge, technique or
+  not attempted.
+- `tracker_exam_list_questions(tag: "wk:<ISO week>")` — the `why:` code and the note behind
+  each question: what evidence the build chose it to supply.
+- `tracker_get_state(subject)` — the status each first ref holds now.
+- `tracker_history(subject, ref)` — the marking's own evidence line (`paper #<id> Q<label>:
+  <score>/<max>, loss=…`), the secure date, prior unaided evidence on the trail, and whether an
+  `adjudicated paper #<id>` line is already there.
+
+**The table.** A paper question is **one occasion** of unaided evidence on its first topic ref.
+It promotes only where the rules above already allow one occasion to decide, or where it
+completes evidence already on the trail. Never two levels.
+
+| Status before | On the paper | Move | Why this is allowed |
+|---|---|---|---|
+| `notstarted` | answered, at the bar | → `developing` | parent rule 29 Sep: touched means moved (the marking will usually have done this already) |
+| `notstarted` | attempted, below the bar | → `gap` | same rule |
+| `notstarted` / `gap` | not attempted | none; evidence "set, not attempted" | same rule |
+| `gap` | at the bar | → `developing` | one level, bar met unaided |
+| `developing` | at the bar **and** the trail holds another unaided success at the secure bar, on a different day, within 28 days | → `secure` | two independent occasions; the paper supplies the second |
+| `developing` | at the bar, no second occasion | none; `watch` says what is still owed | never on a single question |
+| `developing` | a mark lost to knowledge | none; `watch` updated; retrieval `incorrect` | no demotion to `gap` on one question |
+| `secure` | at the bar, secure for 21+ days | → `examready` | the spaced re-test rule ("a mixed check counts") |
+| `secure` | at the bar, secure under 21 days | none; evidence only | too soon |
+| `secure` / `examready` | a mark lost to **knowledge** | → `developing`, saying what failed | the demotion rule above |
+| any | marks lost to **technique** only | none on the subject topic | it belongs to `exam-skills` |
+| any | not attempted (blank, or a non-attempt such as "skip") | none on the subject topic | avoidance belongs to `exam-skills` |
+
+"At the bar", for points-marked work: full marks, or marks lost only to technique where the
+knowledge was shown. For band-marked work: the target band's descriptor, and the "twice, on
+different tasks" rule below still decides `secure`. The `stretch` question (`why:stretch`)
+never demotes. `loss=` comes from the marker's note; if the marker did not say, read the answer
+and decide, and say in the evidence that you did.
+
+**The write.** One `tracker_update_topic(subject, ref, status?, evidence, watch?)` per first
+ref with a move or a loose end to update, evidence beginning
+`adjudicated paper #<id> Q<label>:` followed by the score, the `why:` code and the rule applied —
+`adjudicated paper #7 Q3: 0/1, why:retest, knowledge loss on a secure topic → developing (order
+of operations)` — and a `watch` that says what is still owed, or that the loose end is closed.
+A ref with no move and nothing to update gets no write: the marking's evidence already stands.
+
+**Idempotence.** Before writing, read `tracker_history(subject, ref)` and skip a ref whose
+history already holds that `adjudicated paper #<id>` line. The Friday review and the Sunday build
+may both reach a paper; the second finds nothing to do.
+
+**Read back** with `tracker_history(subject, weeks: 1)` and confirm every move landed before
+reporting it. The report names each move with the question's topic in plain words, never by
+code alone.
 
 ### Where the bar sits depends on how the subject is marked
 

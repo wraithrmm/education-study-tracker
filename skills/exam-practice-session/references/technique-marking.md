@@ -7,7 +7,10 @@ what she did. This is the material of the `exam-skills` session.
 
 Ask: **could she have earned it with what she already knew, if she had read or written
 differently?** If yes, it is technique and belongs here. If she did not know the content, it is
-knowledge and belongs in that subject's session.
+knowledge and belongs in that subject's session. If nothing was written — empty, or a typed
+non-attempt — it is neither: `not_attempted`, and it belongs here as avoidance or pacing. This
+answer is the `loss=` value in every per-subject evidence string, and the adjudicator decides
+status moves from it: only a `knowledge` loss can demote a topic.
 
 | What happened | Technique error | `exam-skills` ref | Review `error_type` |
 |---|---|---|---|
@@ -21,6 +24,7 @@ knowledge and belongs in that subject's session.
 | Extended answer with points but no development | band not reached | A3 | `procedure` |
 | SPaG costing AO4 marks on a question that carries them | SPaG | A4 | `procedure` |
 | Blank with time left | avoidance | A5 | `undetermined` |
+| A typed non-attempt ("skip", "pass", "idk", "?", "-") with no working | avoidance | A5 | `undetermined` |
 | Blank with no time left | pacing | T2, T3 | `rushed` |
 | One question took more than twice its guide and scored under half | time hog | T3 | `persistence` |
 | Section overran its guide and the next section suffered | pacing | T2 | `pace` |
@@ -39,8 +43,10 @@ Every evidence string carries them. From `tracker_exam_get_test`:
 - **per question**: minutes against its own time guide, flagged or not, blank or not;
 - **the time hog**: the question with the worst (time ÷ guide) among those scoring under half.
   Name it, its marks, its time. There is usually exactly one and it is the week's example.
-- **blanks with time left**: any blank on a paper closed by her early, or where the section
-  finished inside its guide. That combination is the one worth naming out loud.
+- **blanks and non-attempts with time left**: any blank or typed non-attempt on a paper closed
+  by her early, or where the section finished inside its guide. That combination is the one
+  worth naming out loud. Count non-attempts yourself from the answer text; the portal's blank
+  count sees only an empty box.
 
 Per-question time is what the page measured while the question had focus. It survives a reload
 but not a closed laptop, and it does not count thinking done while staring at another question.

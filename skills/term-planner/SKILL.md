@@ -35,10 +35,16 @@ by a checkpoint result, never silently.
 
 `exam_practice` is a block kind like any other: one a week, Wednesday afternoon, subject
 `exam-skills`. It is the only block the student starts herself, so moving it moves a link she
-follows — re-cut it like any other block and tell her the new time. Its length is the paper's
-length: 45 minutes through the knowledge-building phase, 60 from the transition phase, 90 in the
-final phase as handwriting stamina allows. A scheduled test that has not been sat does not block
-a re-cut; the test carries its own `block_key` and the paper simply follows the block.
+follows — re-cut it like any other block and tell her the new time. The paper itself is built by
+the Sunday scheduled task in the parent's Exam Paper Builder project (`exam-question-generator`),
+which reads the block from the timetable and the day-off records each run: moving or removing
+the block, or a booked day off on a Wednesday, is what the build reads, so a re-cut needs no
+separate word to it. Its length is the paper's length: 45 minutes through the knowledge-building
+phase, 60 from the transition phase, 90 in the final phase as handwriting stamina allows.
+Lengthening the paper (45 → 60 → 90) is a parent decision; the planner records it in the Builder
+project's instructions, and the build never changes the length on its own. A scheduled test that
+has not been sat does not block a re-cut; the test carries its own `block_key` and the paper
+simply follows the block.
 
 Before proposing any change to the block set — a phase shift, a moved block, a different
 kind — read the last four weekly syntheses: `tracker_list_week_syntheses(limit: 4)`, then

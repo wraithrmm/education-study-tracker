@@ -41,8 +41,9 @@ When she asks what her exam practice is, or it is Wednesday afternoon:
 one". If she asks what is on it: "I'm not telling you — that's the point. Have a look at your
 retrieval from this week if you want a warm-up."
 
-If nothing is `ready`, say so and offer the retrieval warm-up instead; do not improvise a paper.
-If a test is `open`, she is mid-sitting: tell her to go back to the tab, and answer nothing else
+If nothing is `ready`, say so plainly: no paper has been set for today, and Dad needs to know —
+ask her to tell him. Then offer the retrieval warm-up instead; **do not improvise a paper**. If
+a test is `open`, she is mid-sitting: tell her to go back to the tab, and answer nothing else
 until it is closed.
 
 While a paper is open or ready, do not call `tracker_exam_get_test` — the schemes are withheld
@@ -51,6 +52,14 @@ anyway, but the answer is not yours to look at either.
 ## Mode B — marking
 
 She says it is ready for marking, or done. Work in this order and do not stop half way.
+
+**Non-attempts.** An answer that is empty, or whose whole text is a refusal to attempt — "skip",
+"skipped", "pass", "idk", "don't know", "?", "-", "n/a" — with no working, is **not attempted**.
+Score it by the scheme (normally 0), and count it with the blanks everywhere a blank is counted:
+in the marker's `note` on that question, in the test `note` ("5 not attempted, 19 marks"), and in
+the `exam-skills` session — whatever the portal's blank count says, because the portal counts
+only an empty box. The paper's instructions say typing "skip" is a blank; the marking treats it
+as one.
 
 ### 1. Read the sitting
 
@@ -74,8 +83,11 @@ Follow the subject's marker skill, which is where the conventions live:
 - **Computer science** — mark points with their accept/reject lists; level of response on the
   6–9 markers; Python 3 conventions on code. `gcse-cs-marker/references/aqa-8525-assessment.md`.
 
-Mark what she wrote, not what she meant. A blank scores what the scheme gives it, which is
-almost always zero — and it is recorded as a blank, which matters more than the mark.
+Mark what she wrote, not what she meant. A blank or a non-attempt scores what the scheme gives
+it, which is almost always zero — and it is recorded as not attempted, which matters more than
+the mark. For every mark lost, decide `loss=` by the question in
+`references/technique-marking.md`: could she have earned it with what she already knew? Yes →
+`technique`; no → `knowledge`; nothing written → `not_attempted`.
 
 ### 3. Record it
 
@@ -85,7 +97,7 @@ tracker_exam_mark_test(id: 7, marks: [
     note: "M1 4x - 12 = 2x + 10; M1 2x = 22; A0 answer line reads x = 11cm",
     student_feedback: "Method fully right. The answer line wanted a number, not a length — check what the question asked for." },
   …
-], note: "Ran out of time in the CS section; two blanks at the end.")
+], note: "Handed in with 15 min unused. 5 not attempted, 19 marks (portal shows 0 blank: she typed 'skip'). CS section ran to time.")
 ```
 
 `note` is the teacher-side justification, tied to the scheme. `student_feedback` is what she
@@ -104,9 +116,14 @@ The tool's reply says this too. Dated the day of the sitting:
 updates[], review)`, with:
 
 - `summary` naming the section marks and what the errors were about;
-- `updates[]` carrying a `retrieval_outcome` for each ref the section touched
-  (`correct` / `retry` / `incorrect`) and **no status change** — marking establishes facts,
-  `gcse-progress-tracker` adjudicates promotions;
+- `updates[]` with **one update per ref the section touched**, whose evidence is
+  `paper #<test> Q<label>: <score>/<max>, loss=<none|knowledge|technique|not_attempted> — <what
+  she did, in a clause>`, with its `retrieval_outcome` (`correct` / `retry` / `incorrect`), and
+  **no promotion or demotion** — marking establishes facts; the parent's project adjudicates
+  from them (`gcse-progress-tracker`, "Adjudicating the Wednesday paper"). **One exception**: a
+  `notstarted` ref she answered on is moved under the parent rule — answered at the bar →
+  `developing`; attempted and below it → `gap`; set and not attempted → stays, and the evidence
+  says so — because a session may not leave an answered-on topic at `notstarted`;
 - a `review` per `lesson-review`'s analysis rules, with each error typed and
   `missing_evidence` naming what a short timed paper could not show;
 - **no `block_key`** — the sitting is already the block's evidence.
@@ -118,7 +135,8 @@ reason the paper exists. `references/technique-marking.md` has the taxonomy; put
 
 - time per section against its guide, and the question that ate the time;
 - the order she answered in, and what she flagged and whether she came back;
-- blanks, with which questions and whether time or knowledge caused them;
+- blanks and non-attempts, with which questions and marks, and whether time, knowledge or
+  avoidance caused them (a non-attempt with time left is avoidance, ref A5);
 - marks lost to **technique** rather than knowledge: working not shown, wrong answer line,
   command word misread, a paragraph written for a 1-mark question, an extended answer that never
   reached the band it was aiming at;
@@ -143,6 +161,7 @@ for Dad, behind his login.
   booked papers are Dad's — if she asks for more time, tell her to ask him.
 - Never pass `include_bank: true` to `tracker_exam_get_test`.
 - Never mark a test that is not `closed`, and never mark one twice.
-- Never move a topic status from marking.
+- Never promote or demote from marking, except a `notstarted` topic she answered on (parent
+  rule). Everything else is adjudicated in the parent's project from the facts you record.
 - Never put an answer in `student_feedback`.
 - Never tell her the timer can be paused or extended. It cannot, and that is the point.

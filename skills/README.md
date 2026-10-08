@@ -79,7 +79,7 @@ keeps skill releases apart from anything the service might tag later.
 | `gcse-cs-marker` | parent | Marks 8525, both components |
 | `gcse-spanish-marker` | parent | Marks 8692, all four components |
 | `progress-forecast` | parent | Reads the aimline, the cone and the stall signals for a subject, and says what each asks for |
-| `exam-question-generator` | parent | Writes, vets and schedules the weekly paper's questions |
+| `exam-question-generator` | parent | Builds the weekly paper from the tracker's flags; writes, vets and schedules its questions |
 | `gcse-progress-tracker` | either | Topic state, promotion bars, grade projection; holds the shared references |
 | `gcse-tracker-dashboard` | parent | Creates and extends subjects, configures the dashboard |
 | `lesson-review` | either | The written half of one session; the nightly audit |
@@ -94,7 +94,9 @@ duplicated anywhere.
 
 Two skills also carry a `PROJECT.md`: the custom instructions and knowledge-base layout for the
 Claude project that skill belongs to. It is documentation for setting the project up, not part
-of the skill, and Claude never loads it.
+of the skill, and Claude never loads it. `exam-question-generator`'s names the two scheduled
+tasks its project runs — the Sunday build and the Tuesday check — and the standing decisions
+the build works to.
 
 ## The service contract
 

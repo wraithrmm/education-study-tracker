@@ -479,12 +479,32 @@ to keep to time, when to leave a question and come back, and never to leave
 a blank. `docs/exam-skills.md` is the contract; `docs/exam-skills-rollout.md`
 is what to do after deploying it.
 
-**The bank is the parent's.** Questions are written in the parent's
-exam-question project — past papers and mark schemes in its knowledge base —
+**The bank is the parent's.** Questions are written in the parent's Exam
+Paper Builder project — past papers and mark schemes in its knowledge base —
 and stored with `tracker_exam_add_questions`, each tagged by subject and
 topic ref, with a mark scheme in that paper's own code system. Every question
 lands as a draft; `tracker_exam_update_question` vets it, and only a vetted
-question can go into a test. On the portal the bank (`/exam/bank`) is behind
+question can go into a test.
+
+**The paper builds itself.** A scheduled task in that project runs the
+weekly build every Sunday evening, after the Saturday synthesis, and a
+Tuesday evening check is the safety net: by Wednesday there is always a
+`ready` test, or a report saying why not. The build reads the tracker's
+flags — loose ends, evidence a `developing` topic still owes, a `secure`
+topic untested for three weeks, a retrieval due, the technique target the
+last paper set — chooses three subjects by a fixed rotation (one exam
+subject sits out each week, the one that sat out longest ago), chooses each
+question for one of those reasons and records it on the question as a
+`why:` tag, writes and vets what the bank lacks, schedules against the
+Wednesday block, and reads the paper back before it reports.
+
+**The marked paper moves her record.** Marking records facts and moves
+nothing (a `notstarted` topic she answered on aside); the Friday review then
+adjudicates the paper under `gcse-progress-tracker`'s rules — one question is
+one occasion of unaided evidence, so it promotes only where an existing rule
+lets one occasion decide, and a mark lost for a knowledge reason on a
+`secure` topic demotes it — and the Sunday build adjudicates first if Friday
+did not. On the portal the bank (`/exam/bank`) is behind
 the parent's login; on the connector, which has one identity, it is by
 contract — the student's project never calls the bank tools, and
 `tracker_exam_get_test` withholds the schemes until the sitting is over.
