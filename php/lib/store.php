@@ -495,7 +495,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 15;
+    private const SCHEMA_VERSION = 16;
 
     private function migrate(): void
     {
@@ -538,6 +538,26 @@ final class Store
 
     private function migrateStep(int $v): void
     {
+        if ($v === 16) {
+            // Homework: the test row's second mode. `mode` tells a timed
+            // sitting from a sheet done on paper, `due_on` is the day the
+            // sheet is due, and `not_attempted` lets the marker declare a
+            // non-attempt — on paper there is no empty box to derive it
+            // from, and in a sitting "skip" typed into the box is one too.
+            if (!$this->hasColumn('exam_tests', 'mode')) {
+                $this->db->exec("ALTER TABLE exam_tests ADD COLUMN mode TEXT NOT NULL DEFAULT 'sitting' "
+                    . exam_check_sql('mode', EXAM_MODES));
+            }
+            if (!$this->hasColumn('exam_tests', 'due_on')) {
+                $this->db->exec('ALTER TABLE exam_tests ADD COLUMN due_on TEXT');
+            }
+            if (!$this->hasColumn('exam_answers', 'not_attempted')) {
+                $this->db->exec('ALTER TABLE exam_answers ADD COLUMN not_attempted INTEGER NOT NULL DEFAULT 0');
+            }
+            $this->db->exec('CREATE INDEX IF NOT EXISTS idx_exam_tests_due ON exam_tests(due_on)');
+            return;
+        }
+
         if ($v === 15) {
             // The progress goal: the point the aimline is drawn to. Null means
             // every step on exam day, which is the strictest reading; the
@@ -900,10 +920,13 @@ final class Store
                marked_at        TEXT,
                sit_token        TEXT,
                note             TEXT,
-               created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+               created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+               mode             TEXT    NOT NULL DEFAULT 'sitting' " . exam_check_sql('mode', EXAM_MODES) . ",
+               due_on           TEXT
              )"
         );
         $this->db->exec('CREATE INDEX IF NOT EXISTS idx_exam_tests_date ON exam_tests(scheduled_for)');
+        $this->db->exec('CREATE INDEX IF NOT EXISTS idx_exam_tests_due ON exam_tests(due_on)');
         $this->db->exec(
             "CREATE TABLE IF NOT EXISTS exam_test_questions (
                test_id               INTEGER NOT NULL REFERENCES exam_tests(id) ON DELETE CASCADE,
@@ -929,6 +952,7 @@ final class Store
                marker_note         TEXT,
                student_feedback    TEXT,
                attempt_question_id INTEGER,
+               not_attempted       INTEGER NOT NULL DEFAULT 0,
                PRIMARY KEY (test_id, question_id)
              )"
         );
@@ -3588,13 +3612,15 @@ final class Store
         // A sat exam-practice test. Closed or marked counts; so does one still
         // open past its deadline — the timer ended it whether or not anyone
         // has loaded the page since — read as an inference, never a write.
+        // A homework is not evidence of its own: its attempts are, once it
+        // is marked, and they appear as extras on the day she handed it in.
         // `at` is 00:00 on purpose: the sitting is the block's evidence and
         // must bind before any session written about it on a later day,
         // which the binding pass sorts at 00:00 too.
         foreach ($this->all(
             "SELECT id, name, block_key, started_at, deadline_at, closed_at, duration_minutes, status
              FROM exam_tests
-             WHERE started_at IS NOT NULL
+             WHERE mode = 'sitting' AND started_at IS NOT NULL
                AND (status IN ('closed', 'marked') OR (status = 'open' AND deadline_at <= ?))
                AND started_at BETWEEN ? AND ?",
             [tt_now_utc(), tt_add_days($from, -1) . ' 00:00:00', tt_add_days($to, 1) . ' 23:59:59']
@@ -6260,6 +6286,10 @@ final class Store
     // questions in subject sections with one duration; the sitting runs from
     // Start to a server-set deadline; marking turns it into one ordinary
     // attempt per subject so every existing report reads it unchanged.
+    //
+    // A homework is the same row in its other mode: shown from the day it is
+    // set, done on paper, handed in (ready → closed, never open), marked from
+    // the photographs into the same attempts.
 
     private function hydrateExamQuestion(array $r): array
     {
@@ -6380,13 +6410,18 @@ final class Store
     public function addExamTest(array $t, array $rows): int
     {
         return $this->transaction(function () use ($t, $rows): int {
+            $mode = (string) ($t['mode'] ?? 'sitting');
+            if (!in_array($mode, EXAM_MODES, true)) {
+                throw new InvalidArgumentException("mode must be one of " . implode(', ', EXAM_MODES));
+            }
             $st = $this->db->prepare(
-                'INSERT INTO exam_tests (name, scheduled_for, block_key, duration_minutes, instructions, status, note, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO exam_tests (name, scheduled_for, block_key, duration_minutes, instructions, status, note, created_at, mode, due_on)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $st->execute([
                 $t['name'], $t['scheduled_for'], $t['block_key'] ?? null, (int) $t['duration_minutes'],
                 $t['instructions'] ?? null, 'ready', $t['note'] ?? null, tt_now_utc(),
+                $mode, $mode === 'homework' ? ($t['due_on'] ?? $t['scheduled_for']) : null,
             ]);
             $id = (int) $this->db->lastInsertId();
             $ins = $this->db->prepare(
@@ -6410,7 +6445,7 @@ final class Store
      */
     public function updateExamTest(int $id, array $fields): void
     {
-        $allowed = ['name', 'scheduled_for', 'block_key', 'duration_minutes', 'instructions', 'note', 'deadline_at'];
+        $allowed = ['name', 'scheduled_for', 'block_key', 'duration_minutes', 'instructions', 'note', 'deadline_at', 'due_on'];
         $sets = [];
         $vals = [];
         foreach ($fields as $col => $val) {
@@ -6504,6 +6539,8 @@ final class Store
         $r['id']               = (int) $r['id'];
         $r['block_key']        = $r['block_key'] === null ? null : (int) $r['block_key'];
         $r['duration_minutes'] = (int) $r['duration_minutes'];
+        $r['mode']             = (string) ($r['mode'] ?? 'sitting');
+        $r['due_on']           = $r['due_on'] ?? null;
         return $r;
     }
 
@@ -6537,6 +6574,7 @@ final class Store
             $a['time_spent_seconds']  = (int) $a['time_spent_seconds'];
             $a['score']               = $a['score'] === null ? null : (float) $a['score'];
             $a['attempt_question_id'] = $a['attempt_question_id'] === null ? null : (int) $a['attempt_question_id'];
+            $a['not_attempted']       = (int) ($a['not_attempted'] ?? 0) === 1;
             $answers[$a['question_id']] = $a;
         }
         $sections = [];
@@ -6548,7 +6586,9 @@ final class Store
             $q['position'] = (int) $r['position'];
             $q['answer']   = $answers[$q['id']] ?? null;
             if (!isset($sections[$section])) {
-                $sections[$section] = ['subject' => $section, 'minutes_guide' => $guide, 'questions' => []];
+                // The section carries the mode, so exam_section_totals()
+                // counts a homework's blanks the marker's way.
+                $sections[$section] = ['subject' => $section, 'minutes_guide' => $guide, 'mode' => $t['mode'], 'questions' => []];
             }
             $sections[$section]['questions'][] = $q;
         }
@@ -6560,7 +6600,10 @@ final class Store
         return $t;
     }
 
-    /** @return array<int,array> newest scheduled first */
+    /**
+     * @param  array{status?:?string,from?:?string,to?:?string,mode?:?string,due_from?:?string,due_to?:?string,limit?:int} $filter
+     * @return array<int,array> newest scheduled first
+     */
     public function listExamTests(array $filter = []): array
     {
         $where  = [];
@@ -6568,6 +6611,18 @@ final class Store
         if (!empty($filter['status'])) {
             $where[]  = 'status = ?';
             $params[] = $filter['status'];
+        }
+        if (!empty($filter['mode'])) {
+            $where[]  = 'mode = ?';
+            $params[] = $filter['mode'];
+        }
+        if (!empty($filter['due_from'])) {
+            $where[]  = 'due_on >= ?';
+            $params[] = $filter['due_from'];
+        }
+        if (!empty($filter['due_to'])) {
+            $where[]  = 'due_on <= ?';
+            $params[] = $filter['due_to'];
         }
         if (!empty($filter['from'])) {
             $where[]  = 'scheduled_for >= ?';
@@ -6594,21 +6649,105 @@ final class Store
         }, $rows);
     }
 
-    /** Tests scheduled between two dates inclusive. */
+    /** Timed sittings scheduled between two dates inclusive, oldest first. Homework is not among them. */
     public function examTestsBetween(string $from, string $to): array
     {
-        return array_reverse($this->listExamTests(['from' => $from, 'to' => $to]));
+        return array_reverse($this->listExamTests(['from' => $from, 'to' => $to, 'mode' => 'sitting']));
     }
 
-    /** The one test on a date in any of the statuses, or null. */
+    /** Homework due between two dates inclusive, oldest due first. */
+    public function examHomeworkBetween(string $from, string $to): array
+    {
+        $rows = $this->listExamTests(['due_from' => $from, 'due_to' => $to, 'mode' => 'homework']);
+        usort($rows, static fn(array $x, array $y): int => [$x['due_on'], $x['id']] <=> [$y['due_on'], $y['id']]);
+        return $rows;
+    }
+
+    /**
+     * Homework that is set or handed in and not yet marked: what she owes,
+     * oldest due first. `$dueBy` narrows it to work due on or before a date.
+     *
+     * @return array<int,array>
+     */
+    public function examHomeworkOwed(?string $dueBy = null): array
+    {
+        $rows = array_filter(
+            $this->listExamTests(['mode' => 'homework']),
+            static fn(array $t): bool => in_array($t['status'], ['ready', 'closed'], true)
+                && ($dueBy === null || (string) $t['due_on'] <= $dueBy)
+        );
+        $rows = array_values($rows);
+        usort($rows, static fn(array $x, array $y): int => [$x['due_on'], $x['id']] <=> [$y['due_on'], $y['id']]);
+        return $rows;
+    }
+
+    /** The one timed sitting on a date in any of the statuses, or null. Homework never clashes with a paper. */
     public function examTestOnDate(string $date, array $statuses): ?array
     {
-        foreach ($this->listExamTests(['from' => $date, 'to' => $date]) as $t) {
+        foreach ($this->listExamTests(['from' => $date, 'to' => $date, 'mode' => 'sitting']) as $t) {
             if (in_array($t['status'], $statuses, true)) {
                 return $t;
             }
         }
         return null;
+    }
+
+    /**
+     * An unmarked homework due on a date that has a section for any of the
+     * subjects, or null. One homework per subject per due date.
+     *
+     * @param array<int,string> $subjects
+     */
+    public function examHomeworkClash(string $dueOn, array $subjects, ?int $exceptId = null): ?array
+    {
+        foreach ($this->listExamTests(['due_from' => $dueOn, 'due_to' => $dueOn, 'mode' => 'homework']) as $t) {
+            if ($t['id'] === $exceptId || !in_array($t['status'], ['ready', 'closed'], true)) {
+                continue;
+            }
+            $sections = array_column(
+                $this->all('SELECT DISTINCT section FROM exam_test_questions WHERE test_id = ?', [$t['id']]), 'section'
+            );
+            $shared = array_values(array_intersect($sections, $subjects));
+            if ($shared) {
+                $t['shared_subjects'] = $shared;
+                return $t;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Homework: ready → closed, by her from the page or by the parent, at
+     * now or at a stated local date (the parent marking on Monday a sheet
+     * done on Saturday). Idempotent: a homework already handed in is
+     * returned as it is. A sitting never comes through here.
+     */
+    public function handInHomework(int $id, string $by, ?string $onDate = null): array
+    {
+        return $this->transaction(function () use ($id, $by, $onDate): array {
+            $t = $this->examTestRow($id);
+            if (!$t || !exam_is_homework($t)) {
+                throw new InvalidArgumentException("exam test $id is not a homework");
+            }
+            if ($t['status'] !== 'ready') {
+                return $t;
+            }
+            if (!in_array($by, ['student', 'parent'], true)) {
+                throw new InvalidArgumentException('a homework is handed in by the student or the parent');
+            }
+            $at = tt_now_utc();
+            if ($onDate !== null && $onDate !== tt_today()) {
+                // Midday local on the stated day, so the date reads right in every zone it is shown in.
+                $at = (new DateTimeImmutable($onDate . ' 12:00', tt_zone()))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+            }
+            $this->db->prepare("UPDATE exam_tests SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ?")
+                ->execute([$at, $by, $id]);
+            $this->db->prepare(
+                "UPDATE exam_questions SET status = 'answered'
+                 WHERE status = 'scheduled' AND id IN (SELECT question_id FROM exam_test_questions WHERE test_id = ?)"
+            )->execute([$id]);
+            return $this->examTestRow($id);
+        });
     }
 
     /** ready → open. The deadline is the server's, set once, never moved. */
@@ -6618,6 +6757,9 @@ final class Store
             $t = $this->examTestRow($id);
             if (!$t || $t['status'] !== 'ready') {
                 throw new InvalidArgumentException('only a ready test can be started');
+            }
+            if (exam_is_homework($t)) {
+                throw new InvalidArgumentException('a homework has no Start: it is handed in, not sat');
             }
             $start = tt_now_utc();
             $st = $this->db->prepare(
@@ -6701,22 +6843,28 @@ final class Store
      * The marks, one row per question. Every question of the test must be
      * present; the tool checks that before calling.
      *
-     * @param array<int,array{question_id:int,score:float,note?:?string,student_feedback?:?string}> $marks
+     * A mark may carry `answer` — for a homework, the marker's transcription
+     * of what she wrote on paper; a sitting never sends one, and a null here
+     * leaves what she typed untouched — and `not_attempted`, the marker's
+     * declaration that nothing was tried.
+     *
+     * @param array<int,array{question_id:int,score:float,note?:?string,student_feedback?:?string,answer?:?string,not_attempted?:bool}> $marks
      */
     public function saveExamMarks(int $testId, array $marks): void
     {
         $st = $this->db->prepare(
             'INSERT INTO exam_answers (test_id, question_id, answer, working, flagged, time_spent_seconds, saved_at,
-                                       score, marker_note, student_feedback)
-             VALUES (?, ?, NULL, NULL, 0, 0, ?, ?, ?, ?)
+                                       score, marker_note, student_feedback, not_attempted)
+             VALUES (?, ?, ?, NULL, 0, 0, ?, ?, ?, ?, ?)
              ON CONFLICT(test_id, question_id) DO UPDATE SET
+               answer = COALESCE(excluded.answer, exam_answers.answer),
                score = excluded.score, marker_note = excluded.marker_note,
-               student_feedback = excluded.student_feedback'
+               student_feedback = excluded.student_feedback, not_attempted = excluded.not_attempted'
         );
         foreach ($marks as $m) {
             $st->execute([
-                $testId, (int) $m['question_id'], tt_now_utc(), (float) $m['score'],
-                $m['note'] ?? null, $m['student_feedback'] ?? null,
+                $testId, (int) $m['question_id'], $m['answer'] ?? null, tt_now_utc(), (float) $m['score'],
+                $m['note'] ?? null, $m['student_feedback'] ?? null, (int) !empty($m['not_attempted']),
             ]);
         }
     }

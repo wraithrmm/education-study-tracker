@@ -1,0 +1,112 @@
+{
+  "_about": "This weekend's homework (set Fri 9 Oct 2026, due Sun 11 Oct), as the two tool calls that put it on the tracker once homework mode is deployed. Step 1 banks the six questions; step 2 vets them; step 3 sets the sheet. Run from the parent's tracker chat: \"Read docs/homework-seed.json and run its three steps with the tracker_exam_* tools, then show me /exam/<id>.\" If the sheet has already been done on paper, mark it from the photographs straight after with tracker_exam_mark_test (handed_in_on: the day she did it) — marking a set homework hands it in.",
+  "step_1_tracker_exam_add_questions": {
+    "questions": [
+      {
+        "client_key": "maths-A9-hw-20261011-1",
+        "subject": "maths",
+        "topic_refs": ["A9-A10", "A1-A3"],
+        "marks": 2,
+        "paper_style": "8300/1H",
+        "command_word": "Work out",
+        "calculator": false,
+        "time_guide_seconds": 180,
+        "tags": ["non-calc", "linear-graphs", "substitution", "hw:2026-10-11"],
+        "question_md": "A line has the equation y = 3x + 4\n\nWork out y when x = 0, when x = 1, when x = 2 and when x = 5\n\nWrite each sum.\n\n[2 marks]",
+        "mark_scheme_md": "B2 for all four values correct: 4, 7, 10, 19\n\nB1 for two or three correct, or for all four substitutions written as sums (3 × 0 + 4 etc.) with one arithmetic slip",
+        "model_answer_md": "x = 0: 3 × 0 + 4 = 4\nx = 1: 3 × 1 + 4 = 7\nx = 2: 3 × 2 + 4 = 10\nx = 5: 3 × 5 + 4 = 19",
+        "source_note": "Written for the 9 Oct weekend sheet; substitution into y = mx + c, modelled on 8300/1F-style one-step items."
+      },
+      {
+        "client_key": "maths-A9-hw-20261011-2",
+        "subject": "maths",
+        "topic_refs": ["A9-A10"],
+        "marks": 2,
+        "paper_style": "8300/1H",
+        "command_word": "Write",
+        "calculator": false,
+        "time_guide_seconds": 180,
+        "tags": ["non-calc", "linear-graphs", "gradient-intercept", "hw:2026-10-11"],
+        "question_md": "A line starts at 9 when x = 0\n\nIt goes up 6 every time x goes up 1\n\nWrite the equation of the line.\n\nThe line passes through (2, 21). Check your equation with x = 2 and write the sum.\n\n[2 marks]",
+        "mark_scheme_md": "B1 for y = 6x + 9 (accept y = 9 + 6x)\n\nB1 for the check written as a sum: 6 × 2 + 9 = 21\n\nA swapped equation y = 9x + 6 scores 0 for the first mark; the check mark is still available if the sum is written and the mismatch noticed",
+        "model_answer_md": "Gradient 6, start value 9, so y = 6x + 9\nCheck: 6 × 2 + 9 = 12 + 9 = 21 ✓",
+        "source_note": "Written for the 9 Oct weekend sheet: the Tuesday error was the gradient and the start value swapped."
+      },
+      {
+        "client_key": "maths-A9-hw-20261011-3",
+        "subject": "maths",
+        "topic_refs": ["A9-A10"],
+        "marks": 3,
+        "paper_style": "8300/1H",
+        "command_word": "Work out",
+        "calculator": false,
+        "time_guide_seconds": 240,
+        "tags": ["non-calc", "linear-graphs", "gradient-from-two-points", "hw:2026-10-11"],
+        "question_md": "A line passes through (0, 4) and (2, 14)\n\nWork out the gradient and write the sums you did.\n\nWrite the equation of the line.\n\nCheck it with x = 2 and write the sum.\n\n[3 marks]",
+        "mark_scheme_md": "M1 for (14 − 4) ÷ (2 − 0) or 10 ÷ 2 seen\n\nA1 for gradient 5 and y = 5x + 4\n\nB1 for the check written as a sum: 5 × 2 + 4 = 14\n\nM1 is for the gradient sum written, whatever the arithmetic",
+        "model_answer_md": "Gradient = (14 − 4) ÷ (2 − 0) = 10 ÷ 2 = 5\nStarts at 4 when x = 0, so y = 5x + 4\nCheck: 5 × 2 + 4 = 14 ✓",
+        "source_note": "Written for the 9 Oct weekend sheet; gradient from two points with the intercept given, 8300/1H style."
+      },
+      {
+        "client_key": "maths-A9-hw-20261011-4",
+        "subject": "maths",
+        "topic_refs": ["A9-A10", "A17"],
+        "marks": 3,
+        "paper_style": "8300/1H",
+        "command_word": "Work out",
+        "calculator": false,
+        "time_guide_seconds": 300,
+        "tags": ["non-calc", "linear-graphs", "intercept-by-substitution", "hw:2026-10-11"],
+        "question_md": "A line passes through (1, 6) and (4, 18)\n\nWork out the gradient.\n\nSubstitute one of the points to find the start value, and write that line.\n\nWrite the equation of the line.\n\nCheck it with the other point.\n\n[3 marks]",
+        "mark_scheme_md": "M1 for (18 − 6) ÷ (4 − 1) = 12 ÷ 3 = 4\n\nM1 for substituting a point: 6 = 4 × 1 + c or 18 = 4 × 4 + c, leading to c = 2\n\nA1 for y = 4x + 2 with the check 4 × 4 + 2 = 18 (or 4 × 1 + 2 = 6) written",
+        "model_answer_md": "Gradient = (18 − 6) ÷ (4 − 1) = 12 ÷ 3 = 4\nUsing (1, 6): 6 = 4 × 1 + c, so c = 2\ny = 4x + 2\nCheck with (4, 18): 4 × 4 + 2 = 18 ✓",
+        "source_note": "Written for the 9 Oct weekend sheet; the first item where the start value is not given, 8300/1H style."
+      },
+      {
+        "client_key": "maths-A9-hw-20261011-5",
+        "subject": "maths",
+        "topic_refs": ["A9-A10", "A17"],
+        "marks": 3,
+        "paper_style": "8300/1H",
+        "command_word": "Work out",
+        "calculator": false,
+        "time_guide_seconds": 300,
+        "tags": ["non-calc", "linear-graphs", "unscaffolded", "hw:2026-10-11"],
+        "question_md": "Work out the equation of the straight line that passes through (2, 11) and (5, 17)\n\n[3 marks]",
+        "mark_scheme_md": "M1 for (17 − 11) ÷ (5 − 2) = 6 ÷ 3 = 2\n\nM1 for substituting a point: 11 = 2 × 2 + c, c = 7 (or 17 = 2 × 5 + c)\n\nA1 for y = 2x + 7\n\nNo scaffold is printed: the marks are for the same three lines as the scaffolded items",
+        "model_answer_md": "Gradient = (17 − 11) ÷ (5 − 2) = 6 ÷ 3 = 2\n11 = 2 × 2 + c, so c = 7\ny = 2x + 7\nCheck: 2 × 5 + 7 = 17 ✓",
+        "source_note": "Written for the 9 Oct weekend sheet; the unscaffolded version of item 4, as 8300/1H prints it."
+      },
+      {
+        "client_key": "maths-A9-hw-20261011-6",
+        "subject": "maths",
+        "topic_refs": ["A9-A10", "A5"],
+        "marks": 2,
+        "paper_style": "8300/1H",
+        "command_word": "Write",
+        "calculator": false,
+        "time_guide_seconds": 180,
+        "tags": ["non-calc", "linear-graphs", "rearranging", "hw:2026-10-11"],
+        "question_md": "A line has the equation 2y = 8x + 6\n\nWrite it in the form y = …\n\nThen write down its gradient and its start value (where it crosses the y-axis).\n\n[2 marks]",
+        "mark_scheme_md": "B1 for y = 4x + 3\n\nB1 for gradient 4 and start value 3 (both needed)\n\ny = 8x + 6 with gradient 8 and start value 6 scores 0: the whole right-hand side must be halved",
+        "model_answer_md": "Divide every term by 2: y = 4x + 3\nGradient 4, crosses the y-axis at 3",
+        "source_note": "Written for the 9 Oct weekend sheet; rearranging into y = mx + c, 8300/1H style."
+      }
+    ]
+  },
+  "step_2_tracker_exam_update_question": {
+    "_for_each_id_from_step_1": { "action": "vet", "note": "checked against the exam-question-generator checklist; weekend sheet 9 Oct" }
+  },
+  "step_3_tracker_exam_schedule_test": {
+    "name": "Straight lines: weekend homework",
+    "mode": "homework",
+    "scheduled_for": "2026-10-09",
+    "due_on": "2026-10-11",
+    "duration_minutes": 25,
+    "instructions": "On Tuesday the two numbers in a line's equation were getting swapped. On Thursday and Friday you got them right first time. These six questions make that stick.\n\nOn paper, by hand. No calculator and no notes.\nAbout 25 minutes. Set a timer you can see.\nWrite every line of working. The marks are for the lines, not only the answer.\nIf one looks hard, write the gradient sum. That is always a safe first line.\n\nTotal: 15 marks. When you finish, photograph every page and give the photos to Dad.",
+    "note": "Set 9 Oct in the parent's tracker chat on the A9-A10 loose end (gradient and start value swapped on Tue 6 Oct; right first time Thu and Fri).",
+    "sections": [
+      { "subject": "maths", "question_ids": ["<the six ids from step 1, in order>"], "minutes_guide": 25 }
+    ]
+  }
+}

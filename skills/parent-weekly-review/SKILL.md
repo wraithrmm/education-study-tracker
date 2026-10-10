@@ -23,9 +23,11 @@ A named week (`2026-W37`) → that week. Say which week at the top of the output
 
 1. `tracker_week_status(week)` — every block with status, extras, hours by subject, counts.
 2. `tracker_days_off(status: "requested")` — pending requests, any date.
-3. `tracker_week_report(week)` — read five of its blocks. `EXAM PRACTICE` (one line per
+3. `tracker_week_report(week)` — read six of its blocks. `EXAM PRACTICE` (one line per
    Wednesday sitting: status, minutes sat against the duration, who closed it, and once marked
-   the section marks with blanks). `REVIEWS THIS WEEK` (one line per
+   the section marks with blanks). `HOMEWORK` (one line per sheet due that week: set, handed in
+   or marked, with its marks and non-attempts once marked; `OVERDUE, nothing handed in` is a
+   miss in waiting and `READY FOR MARKING` is the parent's to do before the review is written). `REVIEWS THIS WEEK` (one line per
    taught session: readiness and one-sentence, plus any `REVIEW MISSING`). `SIGNAL MOVEMENT`
    (signals opened, strengthened, resolved or refuted). `SYNTHESIS` (whether this week's
    synthesis has been saved, its version and stage — on a Friday it will not have been; it runs
@@ -40,6 +42,10 @@ A named week (`2026-W37`) → that week. Say which week at the top of the output
    line; a demotion goes into "Slipped" as well. A paper `closed` and not marked is reported as
    unmarked, and it cannot be adjudicated. Then `tracker_exam_list_tests(status: "ready",
    from: <next Monday>)` — is next Wednesday's paper built?
+3b. **Homework.** A sheet `HOMEWORK` shows marked this week is adjudicated the same way, in the
+   same turn, with evidence lines `adjudicated homework #<id> Q<label>:`
+   (`gcse-progress-tracker/references/homework.md`). A sheet handed in and not marked is
+   reported as unmarked; one overdue is reported under MISSED with its due date.
 4. `tracker_list_subjects()` then, per subject: `tracker_history(subject, weeks: 1)` for the
    sessions logged and every status that moved; `tracker_list_attempts(subject, limit: 3)` for
    anything sat this week (blanks per paper, handwritten pieces); `tracker_review_queue(subject)`
@@ -85,6 +91,11 @@ EXAM PRACTICE
 - technique: Q7 (the 2-mark estimate) took 11 min of a 2-min guide and scored 0; the 8-mark language question skipped with 13 min unused
 - moved: N1 (order of operations) secure→developing (0/1, knowledge) · S4 (mean of a set) secure→exam-ready (3/3, re-test)
 - next paper: #8 ready for Wed 30 Sep — maths, literature, computer science
+
+HOMEWORK
+- due Sun 27 Sep, "Straight lines: weekend homework" (maths, 15 marks) — marked, handed in Sat: 12/15, 1 not attempted
+- moved: A9-A10 (straight-line equations) developing→secure (Q3 and Q5 at the bar, second unaided occasion)
+- out: none · overdue: none
 
 MOVEMENT THIS WEEK
 - maths: A17 developing→secure (Mon exit ticket 4/4); A4 evidence only

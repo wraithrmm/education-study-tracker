@@ -123,24 +123,32 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
         ],
         [
             'name'  => 'tracker_exam_schedule_test',
-            'title' => 'Build a timed test from vetted questions',
+            'title' => 'Build a timed test, or set a homework, from vetted questions',
             'description' =>
-                "Creates one timed test for a date: vetted questions in subject sections, one duration, one timer. The test is 'ready' and hidden until she presses Start on the portal.\n\n"
-                . "USE WHEN: the parent's exam-question project is building the week's Wednesday paper. "
-                . "Sections are sat in the order given; every question must be vetted, belong to its section's subject and be unused (a question is sat once). "
-                . "Each section's minutes_guide is the time she is advised to give it; the guides should add up to the duration less a few minutes' reading time. "
-                . "Pass the exam-practice block_key from tracker_get_timetable so the sitting fulfils the block. One ready or open test per date.\n\n"
-                . 'Args: name, scheduled_for, duration_minutes (' . EXAM_MIN_MINUTES . '-' . EXAM_MAX_MINUTES . '), sections[] of { subject, question_ids[], minutes_guide? }, optional block_key, instructions, note.',
+                "Creates one test for a date from vetted questions in subject sections. In its default mode, 'sitting', it is the timed paper: one duration, one timer, 'ready' and hidden until she presses Start on the portal. "
+                . "In mode 'homework' it is a sheet: the questions show on /exam/{id} from scheduled_for (the day it is set), she does it on paper by due_on, photographs the pages and hands them in, and the parent marks from the photographs with tracker_exam_mark_test. No timer, no answer boxes.\n\n"
+                . "USE WHEN: the parent's exam-question project is building the week's Wednesday paper (sitting), or the parent's tracker project is setting homework on a topic the week showed up (homework). "
+                . "Sections are in the order given; every question must be vetted, belong to its section's subject and be unused (a question is met once, in a paper or a homework, never both). "
+                . "Each section's minutes_guide is the time she is advised to give it; for a sitting the guides should add up to the duration less a few minutes' reading time.\n\n"
+                . "Sitting: pass the exam-practice block_key from tracker_get_timetable so the sitting fulfils the block; one ready or open sitting per date; duration " . EXAM_MIN_MINUTES . '-' . EXAM_MAX_MINUTES . " minutes.\n"
+                . "Homework: due_on is required (on or after scheduled_for); duration_minutes is the guide she reads ('about 25 minutes', " . HOMEWORK_MIN_MINUTES . '-' . HOMEWORK_MAX_MINUTES . "); no block_key — homework sits outside the timetable and its marked attempt appears as an extra row on the day she hands it in; one unmarked homework per subject per due date. "
+                . "Instructions are read by her on the sheet, so for a homework they may say why it was set ('On Tuesday the two numbers were getting swapped…'), the rules (on paper, no calculator, every line of working) and what to do when done (photograph every page and hand them in). "
+                . "Tag each question hw:<due_on> through tracker_exam_update_question so the bank shows what each sheet drew on.\n\n"
+                . 'Args: name, scheduled_for, duration_minutes, sections[] of { subject, question_ids[], minutes_guide? }, optional mode (sitting|homework), due_on (homework), block_key (sitting), instructions, note.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'name'             => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120,
-                        'description' => "e.g. 'Exam practice — week 39'"],
+                        'description' => "e.g. 'Exam practice — week 39' or 'Straight lines: weekend homework'"],
+                    'mode'             => ['type' => 'string', 'enum' => EXAM_MODES, 'default' => 'sitting',
+                        'description' => 'sitting (timed, on the portal) or homework (on paper, by a due date)'],
                     'scheduled_for'    => $isoDate,
-                    'duration_minutes' => ['type' => 'integer', 'minimum' => EXAM_MIN_MINUTES, 'maximum' => EXAM_MAX_MINUTES],
+                    'due_on'           => $isoDate,
+                    'duration_minutes' => ['type' => 'integer', 'minimum' => HOMEWORK_MIN_MINUTES, 'maximum' => HOMEWORK_MAX_MINUTES,
+                        'description' => 'Sitting: the timer, ' . EXAM_MIN_MINUTES . '-' . EXAM_MAX_MINUTES . '. Homework: the guide she reads, ' . HOMEWORK_MIN_MINUTES . '-' . HOMEWORK_MAX_MINUTES . '.'],
                     'block_key'        => ['type' => 'integer', 'minimum' => 1],
                     'instructions'     => ['type' => 'string', 'maxLength' => 2000,
-                        'description' => 'Shown before Start and during the sitting: marks per section, calculator rules, reminders'],
+                        'description' => 'Sitting: shown before Start and during it — marks per section, calculator rules, reminders. Homework: the sheet\'s head — why it was set, the rules, what to do when done.'],
                     'note'             => ['type' => 'string', 'maxLength' => 500],
                     'sections'         => [
                         'type'     => 'array',
@@ -164,30 +172,34 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
         ],
         [
             'name'  => 'tracker_exam_update_test',
-            'title' => 'Edit or cancel a scheduled test',
+            'title' => 'Edit, hand in or cancel a scheduled test',
             'description' =>
-                "Changes a test after it was scheduled, or cancels it.\n\n"
+                "Changes a test or homework after it was scheduled, hands a homework in, or cancels it.\n\n"
                 . "USE WHEN: the parent's exam-question project wants a booked paper changed — a longer or shorter timer, a different date or block, new instructions, questions swapped in or out — or a paper dropped. "
                 . "Parent's tool: the student's exam project never calls it.\n\n"
                 . "action \"edit\" takes a fields object. What a test may change depends on how far it has gone:\n"
                 . "- ready (not started): anything — name, scheduled_for, duration_minutes (" . EXAM_MIN_MINUTES . '-' . EXAM_MAX_MINUTES . "), block_key (null to clear), instructions, note, and sections (the whole new list, validated as in tracker_exam_schedule_test; questions already in this test may stay, questions dropped go back to vetted).\n"
                 . "- open (she is sitting it): name, instructions, note and duration_minutes — the deadline moves to start + the new duration and her page picks it up within 20 seconds. A duration that puts the deadline in the past ends the sitting now.\n"
                 . "- closed or marked: name, instructions and note.\n"
+                . "A homework that is set (ready) may change name, scheduled_for, due_on, duration_minutes (the guide), instructions, note and sections; handed in or marked, name, instructions and note. Its mode cannot change.\n"
                 . "To change a question's own text or mark scheme, use tracker_exam_update_question — that works inside a test too.\n\n"
-                . "action \"cancel\" deletes a test that is not marked, with any answers saved in it. Questions from a test she never started go back to vetted; from one she started they are retired (she has seen them) unless requeue is true. A marked test cannot be cancelled: its attempts are the record.\n\n"
-                . 'Args: id, action (edit|cancel), fields? (for edit), requeue? (for cancel), note? (why, kept on the record).',
+                . "action \"hand_in\" is for a homework only: set → handed in, by the parent, when the photographs arrive. Optional fields.handed_in_on dates it (default today). tracker_exam_mark_test hands a set homework in itself, so this is only needed to record the hand-in before marking.\n\n"
+                . "action \"cancel\" deletes a test that is not marked, with any answers saved in it. Questions from a paper she never started, or a homework not yet shown to her, go back to vetted; from a paper she started, or a homework shown on or before today, they are retired (she has seen them) unless requeue is true. A marked test cannot be cancelled: its attempts are the record.\n\n"
+                . 'Args: id, action (edit|hand_in|cancel), fields? (for edit, or handed_in_on for hand_in), requeue? (for cancel), note? (why, kept on the record).',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'id'      => ['type' => 'integer', 'minimum' => 1],
-                    'action'  => ['type' => 'string', 'enum' => ['edit', 'cancel']],
+                    'action'  => ['type' => 'string', 'enum' => ['edit', 'hand_in', 'cancel']],
                     'fields'  => [
                         'type'       => 'object',
-                        'description' => 'For edit: the columns to change',
+                        'description' => 'For edit: the columns to change. For hand_in: optionally handed_in_on.',
                         'properties' => [
                             'name'             => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
                             'scheduled_for'    => $isoDate,
-                            'duration_minutes' => ['type' => 'integer', 'minimum' => EXAM_MIN_MINUTES, 'maximum' => EXAM_MAX_MINUTES],
+                            'due_on'           => $isoDate,
+                            'handed_in_on'     => $isoDate,
+                            'duration_minutes' => ['type' => 'integer', 'minimum' => HOMEWORK_MIN_MINUTES, 'maximum' => HOMEWORK_MAX_MINUTES],
                             'block_key'        => ['type' => ['integer', 'null'], 'minimum' => 1],
                             'instructions'     => ['type' => 'string', 'maxLength' => 2000],
                             'note'             => ['type' => 'string', 'maxLength' => 500],
@@ -205,17 +217,18 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
         ],
         [
             'name'  => 'tracker_exam_list_tests',
-            'title' => 'List exam-practice tests',
+            'title' => 'List exam-practice tests and homework',
             'description' =>
-                "Every test, newest first: id, name, date, status, questions, marks, and when it was sat.\n\n"
-                . "USE WHEN: the student asks what her exam practice is (status 'ready' is the one waiting for her; give her the link /exam/{id}), "
-                . "when a project needs to know whether a sitting is closed and awaiting marking, or for the weekly review. "
+                "Every test and homework, newest first: id, name, mode, date (and due date), status, questions, marks, and when it was sat or handed in.\n\n"
+                . "USE WHEN: the student asks what her exam practice is (a 'ready' sitting is the one waiting for her; give her the link /exam/{id}) or what her homework is (mode 'homework', status 'ready' — the sheet is on the same link), "
+                . "when a project needs to know whether a sitting or a homework is closed and awaiting marking, or for the weekly review. "
                 . "Safe in either project: it names tests, never questions.\n\n"
-                . 'Args: optional status (' . implode('|', EXAM_TEST_STATUSES) . '), from, to (dates), limit.',
+                . 'Args: optional status (' . implode('|', EXAM_TEST_STATUSES) . '), mode (' . implode('|', EXAM_MODES) . '), from, to (dates, on scheduled_for), limit.',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'status' => $testStatus,
+                    'mode'   => ['type' => 'string', 'enum' => EXAM_MODES],
                     'from'   => $isoDate,
                     'to'     => $isoDate,
                     'limit'  => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20],
@@ -228,9 +241,10 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
             'name'  => 'tracker_exam_get_test',
             'title' => 'Read one test in full',
             'description' =>
-                "One test: its sections and questions, and once it has been sat, every answer she typed, her working, which questions she flagged, how long each took, and which were left blank — with the mark schemes and model answers beside them for marking.\n\n"
-                . "USE WHEN: the student's exam project has been told the test is ready for marking (status 'closed'), or a marked test is being reviewed. "
-                . "The mark schemes are withheld while the test is 'ready' or 'open' — a sitting in progress must not have its answers in any chat — unless include_bank is true, which is the parent's project checking a paper before the day.\n\n"
+                "One test: its sections and questions, and once it has been sat, every answer she typed, her working, which questions she flagged, how long each took, and which were left blank — with the mark schemes and model answers beside them for marking. "
+                . "For a homework: the sheet as set, and once marked, what the marker transcribed from the photographs with each score.\n\n"
+                . "USE WHEN: the student's exam project has been told the test is ready for marking (status 'closed'), the parent is marking a homework from the photographs, or a marked test is being reviewed. "
+                . "The mark schemes are withheld while the test is 'ready' or 'open' — a sitting in progress must not have its answers in any chat — unless include_bank is true, which is the parent's project checking a paper before the day or marking a homework she has handed in.\n\n"
                 . 'Args: id, optional include_bank.',
             'inputSchema' => [
                 'type'       => 'object',
@@ -245,19 +259,23 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
         ],
         [
             'name'  => 'tracker_exam_mark_test',
-            'title' => 'Mark a sat test',
+            'title' => 'Mark a sat test or a handed-in homework',
             'description' =>
                 "Records a mark, a marker's note and a line of student feedback for every question of a closed test, then writes one ordinary attempt per subject (kind 'check', one paper, every question with its topic ref) so the attempt pages, the per-topic breakdown and the weekly review read the sitting like any other marked work.\n\n"
-                . "USE WHEN: the student's exam project has marked every answer of a closed test against its stored scheme, in the subject's own convention. "
+                . "USE WHEN: the student's exam project has marked every answer of a closed test against its stored scheme, in the subject's own convention; or the parent's project has marked a homework from the photographs she handed in. "
                 . "Every question must be marked in one call; a score may not exceed the question's marks; a blank scores what the scheme says (usually 0) and is counted as a blank. "
+                . "not_attempted declares a non-attempt the portal cannot see — 'skip' or 'idk' typed in a box, or nothing on the page for that question — and it is counted with the blanks. "
                 . "student_feedback is what she will read on the portal: the topic and a method hint, never the answer. note is the marker's and stays parent-side.\n\n"
-                . "After this call, log the sessions: one tracker_log_session per subject that had questions, carrying a review, with NO block_key; and one for exam-skills carrying the technique observations, with NO block_key and NO duration_minutes — the sitting itself is already the block's evidence and its hours.\n\n"
-                . 'Args: id, marks[] of { question_id, score, note?, student_feedback? }, optional note for the test.',
+                . "Homework: a set homework is handed in by this call (closed by the parent, dated handed_in_on or today); each mark may carry answer, the marker's transcription of what she wrote, which she sees on the page beside her score. "
+                . "The attempt is coded homework #<id> and dated the hand-in day. After the call, log ONE tracker_log_session per subject with a review (one update per ref with the paper evidence line and its retrieval_outcome), NO block_key and NO duration_minutes. No exam-skills session: a homework is not a timed sitting.\n\n"
+                . "Sitting: after this call, log the sessions: one tracker_log_session per subject that had questions, carrying a review, with NO block_key; and one for exam-skills carrying the technique observations, with NO block_key and NO duration_minutes — the sitting itself is already the block's evidence and its hours.\n\n"
+                . 'Args: id, marks[] of { question_id, score, note?, student_feedback?, not_attempted?, answer? (homework) }, optional note for the test, handed_in_on (homework).',
             'inputSchema' => [
                 'type'       => 'object',
                 'properties' => [
                     'id'    => ['type' => 'integer', 'minimum' => 1],
                     'note'  => ['type' => 'string', 'maxLength' => 1000],
+                    'handed_in_on' => $isoDate,
                     'marks' => [
                         'type'     => 'array',
                         'minItems' => 1,
@@ -271,6 +289,10 @@ function mcp_exam_tools(array $readOnly, array $write, array $isoDate, array $su
                                     'description' => 'Why the marks went the way they did — parent side'],
                                 'student_feedback' => ['type' => 'string', 'maxLength' => EXAM_FEEDBACK_MAX,
                                     'description' => 'Topic and method hint for her; never the answer'],
+                                'not_attempted'    => ['type' => 'boolean', 'default' => false,
+                                    'description' => 'Nothing was tried: counted with the blanks'],
+                                'answer'           => ['type' => 'string', 'maxLength' => EXAM_QUESTION_MAX,
+                                    'description' => 'Homework only: what she wrote, read from the photograph'],
                             ],
                             'required'   => ['question_id', 'score'],
                         ],
@@ -324,7 +346,25 @@ function mcp_exam_section_lines(array $test, bool $withAnswers, bool $withScheme
                 . ($q['time_guide_seconds'] ? ', guide ' . (int) round($q['time_guide_seconds'] / 60) . ' min' : '')
                 . ')';
             $lines[] = '  ' . str_replace("\n", "\n  ", trim((string) $q['question_md']));
-            if ($withAnswers) {
+            if ($withAnswers && exam_is_homework($test)) {
+                // On paper: there is no typed answer, only what the marker
+                // read off the photograph and whether anything was tried.
+                $a = $q['answer'];
+                if ($a === null || $a['score'] === null) {
+                    $lines[] = '  ANSWER: on paper — not yet marked';
+                } else {
+                    $lines[] = !empty($a['not_attempted'])
+                        ? '  ANSWER: NOT ATTEMPTED'
+                        : (!exam_is_blank($a['answer']) ? '  WROTE: ' . str_replace("\n", "\n    ", trim((string) $a['answer'])) : '  ANSWER: on paper, not transcribed');
+                    $lines[] = '  scored ' . num($a['score']) . '/' . $q['marks'];
+                    if ($a['marker_note']) {
+                        $lines[] = '  NOTE: ' . $a['marker_note'];
+                    }
+                    if ($a['student_feedback']) {
+                        $lines[] = '  FEEDBACK: ' . $a['student_feedback'];
+                    }
+                }
+            } elseif ($withAnswers) {
                 $a = $q['answer'];
                 if ($a === null || exam_is_blank($a['answer'])) {
                     $lines[] = '  ANSWER: (blank)' . ($a && !exam_is_blank($a['working']) ? ' — working only: ' . trim((string) $a['working']) : '');
@@ -337,6 +377,7 @@ function mcp_exam_section_lines(array $test, bool $withAnswers, bool $withScheme
                 if ($a !== null) {
                     $lines[] = '  time ' . (int) round($a['time_spent_seconds'] / 60) . ' min'
                         . ($a['flagged'] ? ', flagged to come back to' : '')
+                        . (!empty($a['not_attempted']) ? ', NOT ATTEMPTED' : '')
                         . ($a['score'] !== null ? ', scored ' . num($a['score']) . '/' . $q['marks'] : '');
                     if ($a['score'] !== null && $a['marker_note']) {
                         $lines[] = '  NOTE: ' . $a['marker_note'];
@@ -360,6 +401,24 @@ function mcp_exam_section_lines(array $test, bool $withAnswers, bool $withScheme
 /** The header lines of a test. */
 function mcp_exam_test_head(array $t): array
 {
+    if (exam_is_homework($t)) {
+        $lines = ['Homework #' . $t['id'] . ' "' . $t['name'] . '" — set ' . $t['scheduled_for'] . ', due ' . $t['due_on']
+            . ' · ' . $t['status'] . ' (' . exam_status_word($t) . ')'
+            . ' · ' . $t['question_count'] . ' question' . ($t['question_count'] === 1 ? '' : 's')
+            . ' · ' . exam_marks_word($t['marks']) . ' · about ' . exam_minutes_word($t['duration_minutes'])
+            . ' · on paper · /exam/' . $t['id']];
+        if ($t['closed_at']) {
+            $lines[] = 'Handed in ' . tt_local((string) $t['closed_at'])[0] . ' by ' . $t['closed_by']
+                . ($t['marked_at'] ? ', marked ' . tt_local((string) $t['marked_at'])[0] : '') . '.';
+        }
+        if ($t['instructions']) {
+            $lines[] = 'Instructions: ' . $t['instructions'];
+        }
+        if ($t['note']) {
+            $lines[] = 'Note: ' . $t['note'];
+        }
+        return $lines;
+    }
     $lines = ['Test #' . $t['id'] . ' "' . $t['name'] . '" — ' . $t['scheduled_for'] . ' · ' . $t['status']
         . ' · ' . $t['question_count'] . ' question' . ($t['question_count'] === 1 ? '' : 's')
         . ' · ' . exam_marks_word($t['marks']) . ' · ' . exam_minutes_word($t['duration_minutes'])
@@ -721,27 +780,60 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if ($date === null) {
                 throw new McpError('scheduled_for is required (YYYY-MM-DD).');
             }
-            $duration = mcp_num($a, 'duration_minutes', true, EXAM_MIN_MINUTES, EXAM_MAX_MINUTES);
-            $duration = (int) $duration;
+            $mode = mcp_str($a, 'mode', false, 0, 10) ?? 'sitting';
+            if (!in_array($mode, EXAM_MODES, true)) {
+                throw new McpError('mode must be ' . implode(' or ', EXAM_MODES) . '.');
+            }
+            $homework = $mode === 'homework';
+            $duration = (int) ($homework
+                ? mcp_num($a, 'duration_minutes', true, HOMEWORK_MIN_MINUTES, HOMEWORK_MAX_MINUTES)
+                : mcp_num($a, 'duration_minutes', true, EXAM_MIN_MINUTES, EXAM_MAX_MINUTES));
             $instr    = mcp_str($a, 'instructions', false, 0, 2000);
             $note     = mcp_str($a, 'note', false, 0, 500);
             $blockKey = isset($a['block_key']) ? (int) $a['block_key'] : null;
-            if ($blockKey !== null) {
-                mcp_check_block($store, $blockKey, $date, EXAM_SUBJECT);
-            }
-            $clash = $store->examTestOnDate($date, ['ready', 'open']);
-            if ($clash) {
-                throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
+            $dueOn    = mcp_date($a, 'due_on', null);
+            if ($homework) {
+                if ($dueOn === null) {
+                    throw new McpError('a homework needs due_on (YYYY-MM-DD): the day it is due.');
+                }
+                if ($dueOn < $date) {
+                    throw new McpError("due_on $dueOn is before scheduled_for $date; a homework is due on or after the day it is set.");
+                }
+                if ($blockKey !== null) {
+                    throw new McpError('a homework takes no block_key: it sits outside the timetable, and its marked attempt appears as an extra row on the day she hands it in.');
+                }
+            } else {
+                if ($dueOn !== null) {
+                    throw new McpError('due_on is for mode homework; a sitting has scheduled_for and its timer.');
+                }
+                if ($blockKey !== null) {
+                    mcp_check_block($store, $blockKey, $date, EXAM_SUBJECT);
+                }
+                $clash = $store->examTestOnDate($date, ['ready', 'open']);
+                if ($clash) {
+                    throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
+                }
             }
             [$clean, $guides, $marks] = mcp_exam_clean_sections($store, $a['sections'] ?? null, null);
+            if ($homework) {
+                $clash = $store->examHomeworkClash($dueOn, array_column($clean, 'subject'));
+                if ($clash) {
+                    throw new McpError("homework #{$clash['id']} \"{$clash['name']}\" is already " . exam_status_word($clash)
+                        . " for " . implode('/', $clash['shared_subjects']) . " due $dueOn. One homework per subject per due date; "
+                        . 'edit it with tracker_exam_update_test, or choose another due date.');
+                }
+            }
             $rows = exam_labels($clean);
             $id   = $store->addExamTest([
-                'name' => $name, 'scheduled_for' => $date, 'block_key' => $blockKey,
+                'name' => $name, 'scheduled_for' => $date, 'block_key' => $blockKey, 'mode' => $mode, 'due_on' => $dueOn,
                 'duration_minutes' => $duration, 'instructions' => $instr, 'note' => $note,
             ], $rows);
-            $lines = ["Test #$id \"$name\" scheduled for $date: " . count($rows) . ' question' . (count($rows) === 1 ? '' : 's')
-                . ', ' . exam_marks_word($marks) . ', ' . exam_minutes_word($duration)
-                . ($blockKey ? ", block #$blockKey" : ', no block named') . '.'];
+            $lines = [$homework
+                ? "Homework #$id \"$name\" set for $date, due $dueOn: " . count($rows) . ' question' . (count($rows) === 1 ? '' : 's')
+                    . ', ' . exam_marks_word($marks) . ', about ' . exam_minutes_word($duration) . ', on paper.'
+                : "Test #$id \"$name\" scheduled for $date: " . count($rows) . ' question' . (count($rows) === 1 ? '' : 's')
+                    . ', ' . exam_marks_word($marks) . ', ' . exam_minutes_word($duration)
+                    . ($blockKey ? ", block #$blockKey" : ', no block named') . '.'];
             foreach ($clean as $s) {
                 $labels = [];
                 $sMarks = 0;
@@ -753,6 +845,14 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                 }
                 $lines[] = '- ' . $s['subject'] . ': ' . implode(', ', $labels) . ' — ' . exam_marks_word($sMarks)
                     . ($s['minutes_guide'] !== null ? ', guide ' . $s['minutes_guide'] . ' min' : '');
+            }
+            if ($homework) {
+                $lines[] = '';
+                $lines[] = "The sheet is on /exam/$id from $date: the questions in full, the instructions, a tick per question. "
+                    . 'She works on paper, photographs every page and hands them in; the page has a "handed in" button and so do you. '
+                    . "Mark from the photographs with tracker_exam_get_test(id: $id, include_bank: true) then tracker_exam_mark_test. "
+                    . "Tag the questions hw:$dueOn with tracker_exam_update_question (action edit, re-sending each question's tags).";
+                return mcp_text(implode("\n", $lines));
             }
             if ($guides > $duration) {
                 $lines[] = "WARNING: the section guides add up to $guides min, more than the $duration-minute duration.";
@@ -772,46 +872,78 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if (!$t) {
                 throw new McpError("no exam test #$id.");
             }
-            $t     = $store->lazyCloseExamTest($t);
-            $stamp = tt_today();
+            $t        = $store->lazyCloseExamTest($t);
+            $stamp    = tt_today();
+            $homework = exam_is_homework($t);
+            $what     = $homework ? 'Homework' : 'Test';
 
             if ($action === 'cancel') {
                 if ($t['status'] === 'marked') {
-                    throw new McpError("test #$id is marked; its attempts are the record and it cannot be cancelled. "
+                    throw new McpError("$what #$id is marked; its attempts are the record and it cannot be cancelled. "
                         . 'Rename it or add a note with action "edit", or correct the attempts with tracker_amend_session.');
                 }
-                $seen    = $t['status'] !== 'ready';
+                // A homework shows its questions from the day it is set, so
+                // one set on or before today has been seen as surely as a
+                // paper she pressed Start on.
+                $seen    = $t['status'] !== 'ready' || ($homework && $t['scheduled_for'] <= $stamp);
                 $requeue = !$seen || !empty($a['requeue']);
                 $status  = $requeue ? 'vetted' : 'retired';
                 $qids    = $store->cancelExamTest($id, $status,
-                    "$stamp test #$id \"{$t['name']}\" cancelled" . ($seen ? ' after she started it' : '') . ($why ? ': ' . $why : ''));
-                return mcp_text("Test #$id \"{$t['name']}\" ({$t['scheduled_for']}, was {$t['status']}) cancelled"
-                    . ($seen ? ', with the answers saved in it' : '') . '. '
+                    "$stamp " . strtolower($what) . " #$id \"{$t['name']}\" cancelled"
+                    . ($seen ? ($homework ? ' after she could see it' : ' after she started it') : '') . ($why ? ': ' . $why : ''));
+                return mcp_text("$what #$id \"{$t['name']}\" ({$t['scheduled_for']}, was {$t['status']}) cancelled"
+                    . ($seen && !$homework ? ', with the answers saved in it' : '') . '. '
                     . count($qids) . ' question' . (count($qids) === 1 ? '' : 's')
                     . ($qids ? ' (#' . implode(', #', $qids) . ')' : '') . ' set to ' . $status
                     . ($requeue ? ' and free to go into another test.' : ' because she has seen them; pass requeue: true to reuse them.'));
             }
+            if ($action === 'hand_in') {
+                if (!$homework) {
+                    throw new McpError("test #$id is a timed sitting; it is handed in from her page, by the timer, or by the parent's button on the page.");
+                }
+                if ($t['status'] !== 'ready') {
+                    return mcp_text("Homework #$id is already " . exam_status_word($t) . '.');
+                }
+                $fields = is_array($a['fields'] ?? null) ? $a['fields'] : [];
+                $on     = mcp_date($fields, 'handed_in_on', null) ?? mcp_date($a, 'handed_in_on', null);
+                if ($on !== null && $on > $stamp) {
+                    throw new McpError("handed_in_on $on is in the future.");
+                }
+                $row = $store->handInHomework($id, 'parent', $on);
+                if ($why !== null) {
+                    $store->updateExamTest($id, ['note' => trim(($t['note'] ? $t['note'] . "\n" : '') . "$stamp handed in: $why")]);
+                }
+                return mcp_text("Homework #$id \"{$t['name']}\" handed in, dated " . tt_local((string) $row['closed_at'])[0]
+                    . ". Mark it from the photographs: tracker_exam_get_test(id: $id, include_bank: true), then tracker_exam_mark_test.");
+            }
             if ($action !== 'edit') {
-                throw new McpError('action must be edit or cancel.');
+                throw new McpError('action must be edit, hand_in or cancel.');
             }
 
             $fields = is_array($a['fields'] ?? null) ? $a['fields'] : [];
             if (!$fields) {
                 throw new McpError('edit needs a fields object naming what to change.');
             }
-            $byStatus = [
-                'ready'  => ['name', 'scheduled_for', 'duration_minutes', 'block_key', 'instructions', 'note', 'sections'],
-                'open'   => ['name', 'duration_minutes', 'instructions', 'note'],
-                'closed' => ['name', 'instructions', 'note'],
-                'marked' => ['name', 'instructions', 'note'],
-            ];
+            $byStatus = $homework
+                ? [
+                    'ready'  => ['name', 'scheduled_for', 'due_on', 'duration_minutes', 'instructions', 'note', 'sections'],
+                    'closed' => ['name', 'instructions', 'note'],
+                    'marked' => ['name', 'instructions', 'note'],
+                ]
+                : [
+                    'ready'  => ['name', 'scheduled_for', 'duration_minutes', 'block_key', 'instructions', 'note', 'sections'],
+                    'open'   => ['name', 'duration_minutes', 'instructions', 'note'],
+                    'closed' => ['name', 'instructions', 'note'],
+                    'marked' => ['name', 'instructions', 'note'],
+                ];
             $allowed = $byStatus[$t['status']] ?? [];
             foreach (array_keys($fields) as $col) {
                 if (!in_array($col, $byStatus['ready'], true)) {
-                    throw new McpError("fields.$col is not a test field (fields: " . implode(', ', $byStatus['ready']) . ').');
+                    throw new McpError("fields.$col is not a " . strtolower($what) . ' field (fields: ' . implode(', ', $byStatus['ready']) . ').'
+                        . ($col === 'mode' ? ' A test\'s mode is fixed: cancel it and schedule the other kind.' : ''));
                 }
                 if (!in_array($col, $allowed, true)) {
-                    throw new McpError("test #$id is {$t['status']}, so fields.$col can no longer change (a {$t['status']} test may change "
+                    throw new McpError("$what #$id is " . ($homework ? exam_status_word($t) : $t['status']) . ", so fields.$col can no longer change (it may change "
                         . implode(', ', $allowed) . '). To rebuild it, cancel it and schedule a new one.');
                 }
             }
@@ -827,7 +959,9 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                 $set['note'] = mcp_str($fields, 'note', false, 0, 500);
             }
             if (array_key_exists('duration_minutes', $fields)) {
-                $set['duration_minutes'] = (int) mcp_num($fields, 'duration_minutes', true, EXAM_MIN_MINUTES, EXAM_MAX_MINUTES);
+                $set['duration_minutes'] = (int) ($homework
+                    ? mcp_num($fields, 'duration_minutes', true, HOMEWORK_MIN_MINUTES, HOMEWORK_MAX_MINUTES)
+                    : mcp_num($fields, 'duration_minutes', true, EXAM_MIN_MINUTES, EXAM_MAX_MINUTES));
                 if ($t['status'] === 'open') {
                     $set['deadline_at'] = exam_add_seconds((string) $t['started_at'], $set['duration_minutes'] * 60);
                 }
@@ -838,16 +972,29 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                 if ($date === null) {
                     throw new McpError('fields.scheduled_for must be a date (YYYY-MM-DD).');
                 }
-                $clash = $store->examTestOnDate($date, ['ready', 'open']);
-                if ($clash && $clash['id'] !== $id) {
-                    throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
+                if (!$homework) {
+                    $clash = $store->examTestOnDate($date, ['ready', 'open']);
+                    if ($clash && $clash['id'] !== $id) {
+                        throw new McpError("test #{$clash['id']} \"{$clash['name']}\" is already {$clash['status']} on $date. One test per date.");
+                    }
                 }
                 $set['scheduled_for'] = $date;
+            }
+            $dueOn = $t['due_on'];
+            if (array_key_exists('due_on', $fields)) {
+                $dueOn = mcp_date($fields, 'due_on', null);
+                if ($dueOn === null) {
+                    throw new McpError('fields.due_on must be a date (YYYY-MM-DD).');
+                }
+                $set['due_on'] = $dueOn;
+            }
+            if ($homework && $dueOn < $date) {
+                throw new McpError("due_on $dueOn is before scheduled_for $date; a homework is due on or after the day it is set.");
             }
             $blockKey = array_key_exists('block_key', $fields)
                 ? ($fields['block_key'] === null ? null : (int) $fields['block_key'])
                 : $t['block_key'];
-            if (array_key_exists('block_key', $fields) || array_key_exists('scheduled_for', $fields)) {
+            if (!$homework && (array_key_exists('block_key', $fields) || array_key_exists('scheduled_for', $fields))) {
                 if ($blockKey !== null) {
                     mcp_check_block($store, $blockKey, $date, EXAM_SUBJECT);
                 }
@@ -855,9 +1002,20 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             }
             $rows = null;
             $guides = 0;
+            $clean  = null;
             if (array_key_exists('sections', $fields)) {
                 [$clean, $guides] = mcp_exam_clean_sections($store, $fields['sections'], $id);
                 $rows = exam_labels($clean);
+            }
+            if ($homework && (array_key_exists('due_on', $fields) || $clean !== null)) {
+                $subjects = $clean !== null
+                    ? array_column($clean, 'subject')
+                    : array_column($store->examTest($id)['sections'], 'subject');
+                $clash = $store->examHomeworkClash((string) $dueOn, $subjects, $id);
+                if ($clash) {
+                    throw new McpError("homework #{$clash['id']} \"{$clash['name']}\" is already " . exam_status_word($clash)
+                        . ' for ' . implode('/', $clash['shared_subjects']) . " due $dueOn. One homework per subject per due date.");
+                }
             }
             if ($why !== null) {
                 $set['note'] = trim((($set['note'] ?? $t['note']) ? ($set['note'] ?? $t['note']) . "\n" : '')
@@ -872,7 +1030,7 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             });
             $row   = $store->lazyCloseExamTest($store->examTestRow($id));
             $fresh = $store->examTest($id);
-            $lines = ["Test #$id edited (" . implode(', ', array_keys($fields)) . ').'];
+            $lines = ["$what #$id edited (" . implode(', ', array_keys($fields)) . ').'];
             $lines = array_merge($lines, mcp_exam_test_head($fresh));
             if ($rows !== null) {
                 $lines = array_merge($lines, mcp_exam_section_summary($fresh));
@@ -894,8 +1052,13 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if ($status !== null && !in_array($status, EXAM_TEST_STATUSES, true)) {
                 throw new McpError('status must be one of ' . implode(', ', EXAM_TEST_STATUSES) . '.');
             }
+            $mode = mcp_str($a, 'mode', false, 0, 10);
+            if ($mode !== null && !in_array($mode, EXAM_MODES, true)) {
+                throw new McpError('mode must be ' . implode(' or ', EXAM_MODES) . '.');
+            }
             $filter = [
                 'status' => $status,
+                'mode'   => $mode,
                 'from'   => mcp_date($a, 'from', null),
                 'to'     => mcp_date($a, 'to', null),
                 'limit'  => (int) ($a['limit'] ?? 20),
@@ -907,10 +1070,20 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             }
             $rows = $store->listExamTests($filter);
             if (!$rows) {
-                return mcp_text('No exam-practice tests' . ($status ? " with status $status" : '') . '.');
+                return mcp_text('No ' . ($mode === 'homework' ? 'homework' : ($mode === 'sitting' ? 'exam-practice tests' : 'exam-practice tests or homework'))
+                    . ($status ? " with status $status" : '') . '.');
             }
             $lines = [];
             foreach ($rows as $t) {
+                if (exam_is_homework($t)) {
+                    $lines[] = sprintf('#%d %s — homework · set %s, due %s · %s · %d q · %s · about %s%s',
+                        $t['id'], $t['name'], $t['scheduled_for'], $t['due_on'], exam_status_word($t), $t['question_count'],
+                        exam_marks_word($t['marks']), exam_minutes_word($t['duration_minutes']),
+                        $t['closed_at'] ? ' · handed in ' . tt_local((string) $t['closed_at'])[0] . ' by ' . $t['closed_by'] : '')
+                        . ($t['status'] === 'closed' ? ' · READY FOR MARKING from the photographs (tracker_exam_get_test include_bank, then tracker_exam_mark_test)' : '')
+                        . ($t['status'] === 'ready' ? " · sheet: /exam/{$t['id']}" . ($t['due_on'] < tt_today() ? ' · OVERDUE' : '') : '');
+                    continue;
+                }
                 $when = '';
                 if ($t['started_at']) {
                     [$d, $at] = tt_local((string) $t['started_at']);
@@ -938,16 +1111,25 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             $includeBank = !empty($a['include_bank']);
             $sat         = in_array($t['status'], ['closed', 'marked'], true);
             $withSchemes = $sat || $includeBank;
+            $homework    = exam_is_homework($t);
             $lines = mcp_exam_test_head($t);
             if (!$sat && !$includeBank) {
-                $lines[] = 'The mark schemes are withheld until the sitting is over: the test is ' . $t['status'] . '. '
-                    . '(The parent\'s project may pass include_bank: true to check the paper before the day.)';
+                $lines[] = $homework
+                    ? 'The mark schemes are withheld while the homework is out: it is ' . exam_status_word($t) . '. '
+                        . '(The parent\'s project passes include_bank: true to mark it from the photographs.)'
+                    : 'The mark schemes are withheld until the sitting is over: the test is ' . $t['status'] . '. '
+                        . '(The parent\'s project may pass include_bank: true to check the paper before the day.)';
             }
             if ($t['status'] === 'closed') {
-                $lines[] = 'READY FOR MARKING: mark every question against its scheme in the subject\'s own convention, then call tracker_exam_mark_test.';
+                $lines[] = $homework
+                    ? 'READY FOR MARKING: read every page she handed in, mark each question against its scheme in the subject\'s own convention, then call tracker_exam_mark_test with a score, a note, feedback and what she wrote (answer) per question; not_attempted where nothing was tried.'
+                    : 'READY FOR MARKING: mark every question against its scheme in the subject\'s own convention, then call tracker_exam_mark_test.';
+            }
+            if ($homework && $t['status'] === 'ready' && $includeBank) {
+                $lines[] = 'Set and not yet handed in. tracker_exam_mark_test hands it in and marks it in one call once the photographs are here.';
             }
             $lines = array_merge($lines, mcp_exam_section_lines($t, $sat, $withSchemes));
-            if ($sat) {
+            if ($sat && !$homework) {
                 $order = [];
                 foreach ($t['sections'] as $s) {
                     foreach ($s['questions'] as $q) {
@@ -972,9 +1154,25 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             if (!$t) {
                 throw new McpError("no exam test #$id.");
             }
-            $t = $store->lazyCloseExamTest($t);
+            $t        = $store->lazyCloseExamTest($t);
+            $homework = exam_is_homework($t);
+            $what     = $homework ? 'homework' : 'test';
             if ($t['status'] === 'marked') {
-                throw new McpError("test #$id is already marked. The attempts it wrote are the record; correct one with tracker_amend_session or by logging a note.");
+                throw new McpError("$what #$id is already marked. The attempts it wrote are the record; correct one with tracker_amend_session or by logging a note.");
+            }
+            $handedOn = mcp_date($a, 'handed_in_on', null);
+            if ($handedOn !== null && !$homework) {
+                throw new McpError('handed_in_on is for a homework; a sitting is dated by its Start.');
+            }
+            if ($handedOn !== null && $handedOn > tt_today()) {
+                throw new McpError("handed_in_on $handedOn is in the future.");
+            }
+            if ($homework && $t['status'] === 'ready') {
+                // The photographs arriving is the hand-in: marking a set
+                // homework closes it first, dated as told or today.
+                $t = $store->handInHomework($id, 'parent', $handedOn);
+            } elseif ($handedOn !== null && $t['closed_at'] !== null && tt_local((string) $t['closed_at'])[0] !== $handedOn) {
+                throw new McpError("homework #$id was handed in on " . tt_local((string) $t['closed_at'])[0] . "; handed_in_on $handedOn does not match.");
             }
             if ($t['status'] !== 'closed') {
                 throw new McpError("test #$id is {$t['status']}; only a closed test can be marked."
@@ -1010,11 +1208,17 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                     throw new McpError("$at scores " . num($score) . " on question #$qid (Q{$byQ[$qid]['label']}), which carries "
                         . exam_marks_word($byQ[$qid]['marks']) . '.');
                 }
+                $written = mcp_str($m, 'answer', false, 0, EXAM_QUESTION_MAX);
+                if ($written !== null && !$homework) {
+                    throw new McpError("$at.answer: a sitting's answers are what she typed; only a homework takes the marker's transcription.");
+                }
                 $marks[$qid] = [
                     'question_id'      => $qid,
                     'score'            => $score,
                     'note'             => mcp_str($m, 'note', false, 0, 500),
                     'student_feedback' => mcp_str($m, 'student_feedback', false, 0, EXAM_FEEDBACK_MAX),
+                    'not_attempted'    => !empty($m['not_attempted']),
+                    'answer'           => $written === null || trim($written) === '' ? null : trim($written),
                 ];
             }
             $missing = array_diff(array_keys($byQ), array_keys($marks));
@@ -1025,7 +1229,7 @@ function mcp_exam_call(Store $store, string $name, array $a): array
 
             $sitDate = exam_sat_date($t);
             $satMin  = $t['sat_minutes'];
-            $result  = $store->transaction(function () use ($store, $t, $marks, $sitDate, $satMin, $testNote): array {
+            $result  = $store->transaction(function () use ($store, $t, $marks, $sitDate, $satMin, $testNote, $homework): array {
                 $store->saveExamMarks($t['id'], array_values($marks));
                 $out = [];
                 foreach ($t['sections'] as $s) {
@@ -1037,13 +1241,21 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                     foreach ($s['questions'] as $q) {
                         $m   = $marks[$q['id']];
                         $ans = $q['answer'];
-                        $blank = $ans === null || exam_is_blank($ans['answer']);
+                        // In a sitting a blank is the empty box or a declared
+                        // non-attempt; on paper only the marker can say.
+                        $blank = $homework
+                            ? $m['not_attempted']
+                            : ($ans === null || exam_is_blank($ans['answer']) || $m['not_attempted']);
                         if ($blank) {
                             $blanks++;
                         }
-                        $written = $blank ? '' : trim((string) $ans['answer']);
-                        if ($ans !== null && !exam_is_blank($ans['working'] ?? null)) {
-                            $written .= ($written === '' ? '' : "\n\n") . "Working:\n" . trim((string) $ans['working']);
+                        if ($homework) {
+                            $written = $m['answer'] ?? '';
+                        } else {
+                            $written = $ans === null || exam_is_blank($ans['answer']) ? '' : trim((string) $ans['answer']);
+                            if ($ans !== null && !exam_is_blank($ans['working'] ?? null)) {
+                                $written .= ($written === '' ? '' : "\n\n") . "Working:\n" . trim((string) $ans['working']);
+                            }
                         }
                         $qs[] = [
                             'number'    => $q['label'],
@@ -1051,7 +1263,9 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                             'max'       => (float) $q['marks'],
                             'topic_ref' => $q['topic_refs'][0] ?? null,
                             'question'  => mb_substr(trim((string) $q['question_md']), 0, 1000),
-                            'answer'    => $blank && $written === '' ? '(blank)' : mb_substr($written, 0, 1000),
+                            'answer'    => $written === ''
+                                ? ($blank ? ($homework ? '(not attempted)' : '(blank)') : '(on paper)')
+                                : mb_substr($written, 0, 1000),
                             'note'      => $m['note'] === null ? null : mb_substr($m['note'], 0, 500),
                         ];
                         $score += $m['score'];
@@ -1060,13 +1274,16 @@ function mcp_exam_call(Store $store, string $name, array $a): array
                     $attemptId = $store->addAttempt([
                         'subject_slug' => $s['subject'],
                         'date'         => $sitDate,
-                        'name'         => $t['name'] . ' — ' . ($subject['name'] ?? $s['subject']) . ' section',
+                        'name'         => $t['name'] . ($homework ? '' : ' — ' . ($subject['name'] ?? $s['subject']) . ' section'),
                         'kind'         => 'check',
                         'tier'         => mcp_exam_tier($subject ?? []),
-                        'note'         => 'Exam Skills test #' . $t['id'] . ', typed on the portal, sat '
-                            . ($satMin ?? $t['duration_minutes']) . ' min for the whole paper.',
+                        'note'         => $homework
+                            ? 'Homework #' . $t['id'] . ', on paper, handed in ' . $sitDate . ', marked from the photographs. Guide: about '
+                                . $t['duration_minutes'] . ' min.'
+                            : 'Exam Skills test #' . $t['id'] . ', typed on the portal, sat '
+                                . ($satMin ?? $t['duration_minutes']) . ' min for the whole paper.',
                         'papers'       => [[
-                            'code'      => 'exam-skills #' . $t['id'],
+                            'code'      => ($homework ? 'homework #' : 'exam-skills #') . $t['id'],
                             'score'     => $score,
                             'max'       => $max,
                             'blanks'    => $blanks,
@@ -1088,28 +1305,46 @@ function mcp_exam_call(Store $store, string $name, array $a): array
             });
 
             $fresh = $store->examTest($id);
-            $lines = ["Test #$id \"{$t['name']}\" marked. Sat $sitDate" . ($satMin !== null ? ", $satMin of {$t['duration_minutes']} min" : '') . '.'];
+            $lines = [$homework
+                ? "Homework #$id \"{$t['name']}\" marked. Handed in $sitDate" . ($t['due_on'] !== $sitDate ? " (due {$t['due_on']})" : '') . '.'
+                : "Test #$id \"{$t['name']}\" marked. Sat $sitDate" . ($satMin !== null ? ", $satMin of {$t['duration_minutes']} min" : '') . '.'];
             $lines[] = '';
             $lines[] = 'One attempt per subject (kind check, never grade-converted):';
             foreach ($result as $r) {
                 $lines[] = "- {$r['subject']}: " . num($r['score']) . '/' . num($r['max']) . " over {$r['questions']} question"
-                    . ($r['questions'] === 1 ? '' : 's') . ", {$r['blanks']} blank — attempt #{$r['attempt_id']}, /s/{$r['subject']}/a/{$r['attempt_id']}";
+                    . ($r['questions'] === 1 ? '' : 's') . ", {$r['blanks']} " . ($homework ? 'not attempted' : 'blank')
+                    . " — attempt #{$r['attempt_id']}, /s/{$r['subject']}/a/{$r['attempt_id']}";
             }
             $lines[] = '';
             $lines[] = 'Question by question:';
             foreach ($fresh['sections'] as $s) {
                 foreach ($s['questions'] as $q) {
                     $ans = $q['answer'];
+                    if ($homework) {
+                        $lines[] = sprintf('- Q%s %s %s %s/%d · %s%s',
+                            $q['label'], $s['subject'], implode('/', $q['topic_refs']),
+                            num($ans['score']), $q['marks'],
+                            $ans['not_attempted'] ? 'NOT ATTEMPTED' : 'attempted',
+                            $ans['marker_note'] ? ' — ' . $ans['marker_note'] : '');
+                        continue;
+                    }
                     $lines[] = sprintf('- Q%s %s %s %s/%d · %s · %d min%s%s',
                         $q['label'], $s['subject'], implode('/', $q['topic_refs']),
                         num($ans['score']), $q['marks'],
-                        exam_is_blank($ans['answer']) ? 'BLANK' : 'attempted',
+                        exam_is_blank($ans['answer']) ? 'BLANK' : ($ans['not_attempted'] ? 'NOT ATTEMPTED' : 'attempted'),
                         (int) round($ans['time_spent_seconds'] / 60),
                         $ans['flagged'] ? ', flagged' : '',
                         $ans['marker_note'] ? ' — ' . $ans['marker_note'] : '');
                 }
             }
             $lines[] = '';
+            if ($homework) {
+                $lines[] = 'Now log ONE tracker_log_session per subject above, dated ' . $sitDate . ', with a review (errors typed per question, one update per ref with evidence '
+                    . "\"homework #$id Q<label>: <score>/<max>, loss=<none|knowledge|technique|not_attempted> — …\" and its retrieval_outcome; no status change except under the parent rule), "
+                    . 'NO block_key and NO duration_minutes. No ' . EXAM_SUBJECT . ' session: a homework is not a timed sitting.';
+                $lines[] = 'Then tell her the marks and the feedback lines; the page shows them too. Adjudicate the refs in the Friday review as for a paper.';
+                return mcp_text(implode("\n", $lines));
+            }
             $lines[] = 'Now log the sessions, dated ' . $sitDate . ':';
             $lines[] = '- one tracker_log_session per subject above, with a review (errors typed per question, a retrieval_outcome per ref, no status change) and NO block_key;';
             $lines[] = '- one tracker_log_session for ' . EXAM_SUBJECT . ' with the technique observations (time per section against its guide, order, flags, blanks, marks lost to technique rather than knowledge), with NO block_key and NO duration_minutes — the sitting is already the block\'s evidence and its hours.';

@@ -637,6 +637,29 @@ function tt_evidence_href(array $ev, ?string $subject): ?string
     };
 }
 
+/**
+ * Homework she owes, under this week's board: set or handed in and not yet
+ * marked, each a link to its sheet. The weekend has no blocks, so this is
+ * where a sheet due on Sunday is visible from the board at all. Nothing
+ * when nothing is out.
+ */
+function tt_homework_line(Store $store, array $names): string
+{
+    $owed = $store->examHomeworkOwed();
+    if (!$owed) {
+        return '';
+    }
+    $items = [];
+    foreach ($owed as $hw) {
+        $full = $store->examTest((int) $hw['id']);
+        $subs = implode(', ', array_map(static fn($s) => ex_name($names, $s['subject']), $full['sections']));
+        $items[] = '<a href="/exam/' . (int) $hw['id'] . '">' . h($hw['name']) . '</a> <small>' . h($subs)
+            . ' · due ' . h(tt_pretty((string) $hw['due_on'])) . ' · ' . h(exam_status_word($hw))
+            . ($hw['status'] === 'ready' && $hw['due_on'] < tt_today() ? ' · <b>overdue</b>' : '') . '</small>';
+    }
+    return '<p class="tt-homework"><small><b>Homework</b></small> ' . implode(' <small>·</small> ', $items) . '</p>';
+}
+
 /** The one line under the board. Blocks done, blocks left, hours by subject. */
 function tt_total_line(array $w, array $names, bool $isThisWeek = true): string
 {
@@ -1062,6 +1085,7 @@ function render_timetable_section(
 
     $body .= tt_total_line($w, $names, $isThisWeek) . tt_legend();
     if ($isThisWeek) {
+        $body .= tt_homework_line($store, $names);
         $body .= '<p><small><a href="/week/' . h($w['week']) . '">This week as its own page</a>'
             . ' · <a href="/week/' . h(tt_iso_week(tt_add_days($w['monday'], -7)))
             . '">last week</a></small></p>';

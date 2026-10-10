@@ -491,7 +491,7 @@ if ($path === '/exam') {
     send_html(render_exam_index($store, parent_signed_in($store, $password)));
 }
 
-if (preg_match('#^/exam/(\d+)(?:/(start|answer|submit))?$#', $path, $m)) {
+if (preg_match('#^/exam/(\d+)(?:/(start|answer|submit|handin))?$#', $path, $m)) {
     $examId = (int) $m[1];
     $action = $m[2] ?? null;
     $test   = $store->examTestRow($examId);
@@ -516,9 +516,22 @@ if (preg_match('#^/exam/(\d+)(?:/(start|answer|submit))?$#', $path, $m)) {
     }
     $b = body();
 
+    if ($action === 'handin') {
+        // Homework: she says the pages are done and handed over, or the
+        // parent records it. The same trust as Start — anyone with the
+        // link — and as reversible as marking is not: the hand-in itself
+        // writes no marks. A sitting is handed in through submit.
+        if (!exam_is_homework($test) || $test['status'] !== 'ready') {
+            parent_redirect("/exam/$examId");
+        }
+        $store->handInHomework($examId, $isParent ? 'parent' : 'student');
+        parent_redirect("/exam/$examId");
+    }
+
     if ($action === 'start') {
-        // Only the day's paper opens for her; the parent can open any.
-        if ($test['status'] !== 'ready') {
+        // Only the day's paper opens for her; the parent can open any. A
+        // homework has no Start: its questions are already on the page.
+        if ($test['status'] !== 'ready' || exam_is_homework($test)) {
             parent_redirect("/exam/$examId");
         }
         if ($test['scheduled_for'] !== tt_today() && !$isParent) {

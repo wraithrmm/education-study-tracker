@@ -31,3 +31,9 @@ Rules that cut across kinds:
   alone reads `done_shape_unmet`. So the technique session written after marking carries **no
   `block_key` and no `duration_minutes`**: the sitting is already the block's evidence and its
   hours, and a session claiming the block would take it and double the hours.
+- **Homework is outside the timetable.** A sheet (`tracker_exam_schedule_test` in `mode:
+  "homework"`) takes no `block_key`, is not `exam` evidence, and ticks nothing. Its marked
+  attempt (`homework #<id>`, a `check`, dated the day she handed it in) appears as an **extra**
+  row on that day — usually a Saturday or Sunday, which have no blocks. The subject session
+  logged after marking carries no `block_key` and no `duration_minutes`. `gcse-progress-tracker/
+  references/homework.md` is the contract.

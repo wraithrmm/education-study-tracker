@@ -14,6 +14,7 @@ Grade-conversion facts shared by every subject: `references/exam-grading-common.
 Per-subject targets, checkpoints and quirks: `references/subjects/<slug>.md`.
 The shared teaching rules every tutor skill applies: `references/study-principles.md`.
 The weekly timetable and how blocks are judged done/missed: `references/timetable.md`.
+Homework — setting a sheet from the bank, marking it from photographs: `references/homework.md`.
 
 > The old loop — regenerate a `03-TOPIC-STATE.md` and ask a human to swap the file into project
 > knowledge — is retired. The service holds the state and writing to it is a tool call. If anyone
@@ -195,6 +196,18 @@ may both reach a paper; the second finds nothing to do.
 **Read back** with `tracker_history(subject, weeks: 1)` and confirm every move landed before
 reporting it. The report names each move with the question's topic in plain words, never by
 code alone.
+
+### Setting and marking homework
+
+A loose end the week left on a taught topic can be set as **homework**: four to six bank
+questions on a sheet at `/exam/<id>`, done on paper over a weekend, handed in as photographs and
+marked from them in this project. It is the Wednesday paper's bank and marking without the
+sitting — `tracker_exam_schedule_test(mode: "homework", due_on, …)`, then
+`tracker_exam_mark_test` from the photographs, then one subject session per sheet with no
+`block_key`, no `duration_minutes` and no `exam-skills` session. `references/homework.md` has
+the five calls to set one, the marking shape, and how it is adjudicated: under the paper table
+above, with evidence lines beginning `adjudicated homework #<id> Q<label>:`. `tracker_today`
+and the `HOMEWORK` block of `tracker_week_report` say what is out, overdue, or ready for marking.
 
 ### Where the bar sits depends on how the subject is marked
 

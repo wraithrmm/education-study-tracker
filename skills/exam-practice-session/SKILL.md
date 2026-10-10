@@ -9,8 +9,11 @@ description: >
   says she has finished or handed in the paper, asks how she did on it, or asks what the rules
   of the timed paper are. Trigger on "what's my exam practice", "is there a test today", "it's
   ready for marking", "I've finished the paper", "how did I do on Wednesday's test", "mark my
-  exam practice". Do not use it to write or schedule questions — that is exam-question-generator
-  in Dad's project — or to mark a full past paper, which is the subject's own marker skill.
+  exam practice", "what's my homework", "I've done my homework". Also use it when she asks
+  what her homework is or says a homework sheet is done: point her at the sheet and the
+  hand-in steps, never mark it. Do not use it to write or schedule questions — that is
+  exam-question-generator in Dad's project — or to mark a full past paper, which is the
+  subject's own marker skill.
 ---
 
 # Exam Practice Session
@@ -152,6 +155,31 @@ feedback if she wants to re-work anything.
 
 Never read her the mark scheme, the model answers or your marker's notes. They are on the page
 for Dad, behind his login.
+
+## Mode C — homework
+
+Dad sometimes sets a **homework sheet** on the same portal: a few questions on one topic, done on
+paper over the weekend, handed in as photographs. When she asks what her homework is, or whether
+she has any:
+
+1. `tracker_exam_list_tests(mode: "homework")` — a `set` sheet is one she owes; its due date is
+   on the line, and `OVERDUE` means it was.
+2. Give her the link and the four rules, in about four lines. The questions are on the page —
+   that is the point of a sheet — so you still do not read them out here.
+
+> Your homework is **https://education.rmmann.co.uk/exam/9** — straight lines, 6 questions,
+> 15 marks, about 25 minutes, due Sunday.
+> On paper, by hand. No calculator, no notes. Write every line of working — the marks are for
+> the lines. Tick each one off on the page as you go.
+> When you finish, photograph every page, give the photos to Dad, and press **Handed in**.
+
+If she asks for help with a question on the sheet, teach the **method** on a different example,
+as the tutor skills do; never work the sheet's own question. If she says she has done it, tell
+her the two steps (photographs to Dad, Handed in) and stop: **marking is Dad's, from the
+photographs, in his project** — this project never calls `tracker_exam_mark_test` on a homework
+and never reads a homework with `include_bank`. "How did I do?" after marking: the marks and the
+feedback lines are on the sheet; `tracker_exam_get_test(id)` on a `marked` homework shows the
+same, and nothing more is said about the answers.
 
 ## Never
 
