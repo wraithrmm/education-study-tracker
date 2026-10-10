@@ -1,12 +1,15 @@
 <?php
 /**
  * Exam skills on the pages: the list of tests, the timed sitting, the
- * closed and marked views, and the parent's question bank.
+ * closed and marked views, the homework sheet, and the parent's question
+ * bank.
  *
- * Two rules hold everywhere here. The questions of a test are in the HTML
- * only while the test is open — before Start the page shows the shape of
- * the paper and nothing else, and once the timer has ended it shows what
- * she wrote. And every render that is not the parent's goes through
+ * Two rules hold everywhere here. The questions of a timed test are in the
+ * HTML only while the test is open — before Start the page shows the shape
+ * of the paper and nothing else, and once the timer has ended it shows what
+ * she wrote. (A homework is the opposite on purpose: its questions are on
+ * the page from the day it is set, because the page is the sheet she works
+ * from.) And every render that is not the parent's goes through
  * exam_student_view(), so a mark scheme cannot leak by a template
  * forgetting to leave it out.
  */
@@ -93,8 +96,39 @@ const DASH_EXAM_CSS = <<<'CSS'
 .ex-bank td{font-size:.85rem}
 .ex-bank .ex-text{font-size:.9rem;margin:.2rem 0}
 .ex-bank details summary{cursor:pointer;color:var(--muted);font-size:.8rem}
-@media print{.ex-bar,.ex-nav,.ex-finish{display:none}}
+/* Homework: the sheet */
+.ex-status.set{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+.ex-status.homework{background:#e0f2fe;border-color:#7dd3fc;color:#0c4a6e}
+.hw-front ul li{margin:.2rem 0}
+.hw-due{font-weight:700}
+.hw-overdue{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:10px;padding:.6rem .9rem;margin-top:.8rem}
+.ex-q .hw-tick{display:inline-flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer;color:var(--ink);
+  text-transform:none;letter-spacing:0;margin:0}
+.ex-q .hw-tick input{width:1.15rem;height:1.15rem}
+.ex-q.is-done{border-color:#6ee7b7;box-shadow:inset 4px 0 0 #10b981}
+.ex-q.is-done .ex-text{opacity:.7}
+.hw-wrote{white-space:pre-wrap;background:#fafaf9;border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;font-size:.95rem;margin:.2rem 0 .4rem}
+.hw-wrote small{display:block;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem}
+.tt-homework{margin:.6rem 0 0;font-size:.95rem}
+.tt-homework a{font-weight:600}
+@media print{.ex-bar,.ex-nav,.ex-finish,.hw-tick,.kicker,.tt-signin{display:none}.ex-q{break-inside:avoid}}
 CSS;
+
+/**
+ * The sheet's ticks. Hers, in her browser only, like the bell: a tick
+ * writes nothing to the record, because what counts is the paper she
+ * hands in. Keyed by test id so two sheets never share ticks.
+ */
+const HOMEWORK_TICK_JS = <<<'JS'
+(function(){var root=document.getElementById('hwsheet');if(!root)return;
+var key='hw-ticks-'+root.getAttribute('data-hw');var st={};
+try{st=JSON.parse(localStorage.getItem(key)||'{}')||{};}catch(e){st={};}
+function paint(c){var q=c.closest('.ex-q');if(q)q.classList.toggle('is-done',c.checked);}
+Array.prototype.forEach.call(root.querySelectorAll('.hw-tick input'),function(c){
+  var id=c.getAttribute('data-q');c.checked=!!st[id];paint(c);
+  c.addEventListener('change',function(){st[id]=c.checked;try{localStorage.setItem(key,JSON.stringify(st));}catch(e){}paint(c);});});
+})();
+JS;
 
 /**
  * The sitting's script. Plain JavaScript, no library. The clock is the
@@ -179,11 +213,21 @@ paint();tick();
 })();
 JS;
 
-/** The status as a chip. */
+/** A question's status as a chip, or a sitting's. */
 function ex_status(string $s): string
 {
     $word = ['ready' => 'waiting', 'open' => 'in progress', 'closed' => 'handed in', 'marked' => 'marked'][$s] ?? $s;
     return '<span class="ex-status ' . h($s) . '">' . h($word) . '</span>';
+}
+
+/** A test's status as a chip, in the words of its mode: a homework is set, not waiting. */
+function ex_test_status(array $t): string
+{
+    if (!exam_is_homework($t)) {
+        return ex_status((string) $t['status']);
+    }
+    $klass = $t['status'] === 'ready' ? 'set' : (string) $t['status'];
+    return '<span class="ex-status homework">homework</span> <span class="ex-status ' . h($klass) . '">' . h(exam_status_word($t)) . '</span>';
 }
 
 /** The names of the tracked subjects, slug → name, with a fallback to the slug. */
@@ -216,7 +260,8 @@ function render_exam_index(Store $store, bool $isParent): string
     $tests = $store->listExamTests(['limit' => 60]);
     $body  = '<header><div><p class="kicker"><a href="/">← This week</a></p><h1>Exam practice</h1>'
         . '<p><small>A timed paper in exam conditions, once a week. The questions stay hidden until you press Start; '
-        . 'the timer runs from then and cannot be paused.</small></p></div>'
+        . 'the timer runs from then and cannot be paused. Homework set on paper is listed here too, with its due date: '
+        . 'open the sheet, do it by hand, photograph every page and hand them in.</small></p></div>'
         . ($isParent ? '<div><p class="tt-signin"><small><a href="/exam/bank">Question bank</a> · <a href="/">board</a></small></p></div>' : '')
         . '</header>';
     if (!$tests) {
@@ -224,18 +269,24 @@ function render_exam_index(Store $store, bool $isParent): string
     }
     $body .= '<div class="ex-list">';
     foreach ($tests as $t) {
+        $hw  = exam_is_homework($t);
         $sub = [];
         $sub[] = $t['question_count'] . ' question' . ($t['question_count'] === 1 ? '' : 's');
         $sub[] = exam_marks_word($t['marks']);
-        $sub[] = exam_minutes_word($t['duration_minutes']);
-        if ($t['started_at']) {
+        $sub[] = ($hw ? 'about ' : '') . exam_minutes_word($t['duration_minutes']);
+        if ($hw && $t['closed_at']) {
+            $sub[] = 'handed in ' . tt_local((string) $t['closed_at'])[0];
+        } elseif ($t['started_at']) {
             [$d, $at] = tt_local((string) $t['started_at']);
             $sub[] = 'sat ' . $at . ($t['sat_minutes'] !== null ? ', ' . $t['sat_minutes'] . ' min' : '');
         }
+        $when = $hw
+            ? 'due ' . h((string) $t['due_on']) . ($t['status'] === 'ready' && $t['due_on'] < tt_today() ? ' <b>overdue</b>' : '')
+            : h($t['scheduled_for']);
         $body .= '<a class="item" href="/exam/' . (int) $t['id'] . '" style="text-decoration:none">'
-            . '<div class="grow"><strong>' . h($t['name']) . '</strong> ' . ex_status($t['status'])
-            . '<div><small>' . h($t['scheduled_for']) . ' · ' . h(implode(' · ', $sub)) . '</small></div></div>'
-            . '<div class="num"><small>' . ($t['status'] === 'ready' ? 'open it →' : ($t['status'] === 'marked' ? 'see marks →' : '→')) . '</small></div>'
+            . '<div class="grow"><strong>' . h($t['name']) . '</strong> ' . ex_test_status($t)
+            . '<div><small>' . $when . ' · ' . h(implode(' · ', $sub)) . '</small></div></div>'
+            . '<div class="num"><small>' . ($t['status'] === 'ready' ? ($hw ? 'open the sheet →' : 'open it →') : ($t['status'] === 'marked' ? 'see marks →' : '→')) . '</small></div>'
             . '</a>';
     }
     $body .= '</div>';
@@ -250,6 +301,9 @@ function render_exam_test(Store $store, array $test, bool $isParent): string
 {
     $names = ex_names($store);
     $view  = $isParent ? $test : exam_student_view($test);
+    if (exam_is_homework($test)) {
+        return hw_render($store, $view, $names, $isParent);
+    }
     return match ($test['status']) {
         'ready'  => ex_render_front($store, $view, $names, $isParent),
         'open'   => ex_render_sitting($view, $names, $isParent),
@@ -257,12 +311,137 @@ function render_exam_test(Store $store, array $test, bool $isParent): string
     };
 }
 
+/**
+ * /exam/{id} for a homework, in every state. The questions are on the page
+ * from the day it is set — the page is the sheet she works from, on paper —
+ * under the instructions, with a tick per question that lives in her
+ * browser only. Handed in: the same sheet, waiting for marks. Marked: each
+ * question with its score, what the marker read off her page, and the
+ * feedback line. The parent additionally sees the scheme, the model answer,
+ * the marker's note and the bank line, through the same gate as a paper.
+ */
+function hw_render(Store $store, array $t, array $names, bool $isParent): string
+{
+    $id      = (int) $t['id'];
+    $status  = (string) $t['status'];
+    $marked  = $status === 'marked';
+    $today   = tt_today();
+    $overdue = $status === 'ready' && (string) $t['due_on'] < $today;
+    $sub     = 'set ' . h(tt_pretty((string) $t['scheduled_for'])) . ' · due <span class="hw-due">' . h(tt_pretty((string) $t['due_on'])) . '</span> · '
+        . ex_test_status($t) . ' · about ' . h(exam_minutes_word($t['duration_minutes'])) . ' · ' . h(exam_marks_word($t['marks']));
+    $body = ex_head($t['name'], $sub);
+
+    $totalScore = 0.0;
+    $totalMax   = 0.0;
+    foreach ($t['sections'] as $s) {
+        $tot = exam_section_totals($s);
+        $totalMax   += $tot['max'];
+        $totalScore += $tot['score'] ?? 0;
+    }
+
+    if ($marked) {
+        $body .= '<div class="ex-totals"><div class="card"><p class="label">Whole sheet</p><p class="big">'
+            . h(num($totalScore)) . '<small> / ' . h(num($totalMax)) . '</small></p></div>';
+        foreach ($t['sections'] as $s) {
+            $tot = exam_section_totals($s);
+            $body .= '<div class="card"><p class="label">' . h(ex_name($names, $s['subject'])) . '</p><p class="big">'
+                . h(num((float) $tot['score'])) . '<small> / ' . h(num($tot['max'])) . '</small></p>'
+                . ($tot['blanks'] ? '<small>' . $tot['blanks'] . ' not attempted</small>' : '') . '</div>';
+        }
+        $body .= '</div>';
+        if ($t['note'] && $isParent) {
+            $body .= '<div class="flag">' . h((string) $t['note']) . '</div>';
+        }
+    } elseif ($status === 'closed') {
+        $body .= '<div class="flag">Handed in ' . h(tt_pretty(tt_local((string) $t['closed_at'])[0]))
+            . '. Dad marks it from your photographs; the marks and feedback appear here once it is marked.</div>';
+    } else {
+        $body .= '<div class="ex-front hw-front"><h2>Before you start</h2>';
+        if ($t['instructions']) {
+            $body .= '<div class="instr">' . h((string) $t['instructions']) . '</div>';
+        }
+        $body .= '<ul><li><b>On paper, by hand.</b> The page is the sheet; the work goes on paper.</li>'
+            . '<li>About <b>' . h(exam_minutes_word($t['duration_minutes'])) . '</b>. Set a timer you can see.</li>'
+            . '<li>Tick each question here when it is done. The ticks are yours and stay in this browser.</li>'
+            . '<li>When you finish, photograph every page and give the photos to Dad, then press <b>Handed in</b> at the bottom.</li></ul>';
+        $body .= '</div>';
+        if ($overdue) {
+            $body .= '<div class="hw-overdue">This was due ' . h(tt_pretty((string) $t['due_on'])) . '. It still counts — do it, photograph it, hand it in.</div>';
+        }
+    }
+
+    $body .= '<div id="hwsheet" data-hw="' . $id . '">';
+    foreach ($t['sections'] as $s) {
+        $tot = exam_section_totals($s);
+        $body .= '<section class="ex-section"><h2>' . h(ex_name($names, $s['subject']))
+            . ' <small>' . h(exam_marks_word($tot['max'])) . '</small></h2>';
+        $attemptId = null;
+        foreach ($s['questions'] as $q) {
+            $a   = $q['answer'];
+            $qid = (int) $q['id'];
+            $body .= '<div class="ex-q" data-q="' . $qid . '" id="q' . $qid . '"><div class="ex-qhead"><span class="qn">' . h($q['label']) . '</span>';
+            if ($marked && $a !== null && isset($a['score'])) {
+                $lost  = (float) $q['marks'] - (float) $a['score'];
+                $klass = $lost <= 0 ? 'full' : ((float) $a['score'] > 0 ? 'part' : 'none');
+                $body .= '<span class="ex-score ' . $klass . '">' . h(num((float) $a['score'])) . ' / ' . (int) $q['marks'] . '</span>';
+            } else {
+                $body .= '<span class="qm">' . h(exam_marks_word($q['marks'])) . ($q['calculator'] ? ' · calculator' : ' · no calculator')
+                    . ($q['time_guide_seconds'] ? ' · about ' . max(1, (int) round($q['time_guide_seconds'] / 60)) . ' min' : '') . '</span>';
+            }
+            $body .= '</div><div class="ex-text">' . exam_md($q['question_md']) . '</div>';
+            if ($status === 'ready') {
+                $body .= '<label class="hw-tick"><input type="checkbox" data-q="' . $qid . '"> Done</label>';
+            }
+            if ($marked && $a !== null) {
+                if (!empty($a['not_attempted'])) {
+                    $body .= '<div class="ex-ans blank">Not attempted</div>';
+                } elseif (!exam_is_blank($a['answer'] ?? null)) {
+                    $body .= '<div class="hw-wrote"><small>What you wrote, as read from the photo</small>' . h((string) $a['answer']) . '</div>';
+                }
+                if (!empty($a['student_feedback'])) {
+                    $body .= '<div class="ex-fb">' . h((string) $a['student_feedback']) . '</div>';
+                }
+            }
+            if ($isParent) {
+                $body .= '<div class="ex-parent"><b>Mark scheme</b><div class="ex-text">' . exam_md($q['mark_scheme_md'] ?? '') . '</div>';
+                if (!empty($q['model_answer_md'])) {
+                    $body .= '<b>Model answer</b><div class="ex-text">' . exam_md($q['model_answer_md']) . '</div>';
+                }
+                if ($marked && !empty($a['marker_note'])) {
+                    $body .= '<b>Marker\'s note</b>' . h((string) $a['marker_note']);
+                }
+                $body .= '<b>Bank</b>#' . $qid . ' · ' . h(implode('/', $q['topic_refs']))
+                    . ($q['paper_style'] ? ' · ' . h($q['paper_style']) : '')
+                    . (!empty($q['source_note']) ? ' · ' . h((string) $q['source_note']) : '') . '</div>';
+            }
+            if ($marked && $a !== null && $a['attempt_question_id'] !== null && $attemptId === null) {
+                $attemptId = $store->attemptIdOfQuestion((int) $a['attempt_question_id']);
+            }
+            $body .= '</div>';
+        }
+        if ($attemptId !== null) {
+            $body .= '<p><small><a href="/s/' . h($s['subject']) . '/a/' . $attemptId . '">This homework on the '
+                . h(ex_name($names, $s['subject'])) . ' record</a></small></p>';
+        }
+        $body .= '</section>';
+    }
+    $body .= '</div>';
+
+    if ($status === 'ready') {
+        $body .= '<div class="ex-finish hw-finish"><form method="post" action="/exam/' . $id . '/handin">'
+            . '<p>Finished? Photograph <b>every page</b> and give the photos to Dad. Then press this, so the record knows the sheet is in.</p>'
+            . '<button type="submit">Handed in</button></form></div>';
+        $body .= '<script>' . HOMEWORK_TICK_JS . '</script>';
+    }
+    return dash_shell($t['name'] . ' — homework', $body);
+}
+
 /** Before Start: the shape of the paper and one button. No question text. */
 function ex_render_front(Store $store, array $t, array $names, bool $isParent): string
 {
     $today   = tt_today();
     $canSit  = $t['scheduled_for'] === $today || $isParent;
-    $body    = ex_head($t['name'], h($t['scheduled_for']) . ' · ' . ex_status($t['status']) . ' · '
+    $body    = ex_head($t['name'], h($t['scheduled_for']) . ' · ' . ex_test_status($t) . ' · '
         . h(exam_minutes_word($t['duration_minutes'])) . ' · ' . h(exam_marks_word($t['marks'])));
     $body .= '<div class="ex-front"><h2>Before you start</h2><ul>';
     foreach ($t['sections'] as $s) {
@@ -365,7 +544,7 @@ function ex_render_after(Store $store, array $t, array $names, bool $isParent): 
     $id     = (int) $t['id'];
     $marked = $t['status'] === 'marked';
     [$d, $at] = tt_local((string) $t['started_at']);
-    $sub = h($d) . ' · ' . ex_status($t['status']) . ' · sat ' . h((string) ($t['sat_minutes'] ?? $t['duration_minutes']))
+    $sub = h($d) . ' · ' . ex_test_status($t) . ' · sat ' . h((string) ($t['sat_minutes'] ?? $t['duration_minutes']))
         . ' of ' . (int) $t['duration_minutes'] . ' min'
         . ($t['closed_by'] === 'timer' ? ' · time ran out' : ($t['closed_by'] === 'student' ? ' · handed in early' : ''));
     $body = ex_head($t['name'], $sub);

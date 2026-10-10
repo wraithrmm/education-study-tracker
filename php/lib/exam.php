@@ -13,6 +13,10 @@
  *   test     — one Wednesday sitting: a set of vetted questions in subject
  *              sections, one duration, one timer.
  *   sitting  — the test between Start and the deadline.
+ *   homework — the same row in its other mode: a set of vetted questions she
+ *              reads on the page from the day it is set, works on paper, and
+ *              hands in as photographs. No timer, no answer boxes; the marks
+ *              come from the parent reading the pages against the schemes.
  */
 declare(strict_types=1);
 
@@ -31,6 +35,19 @@ const EXAM_TEST_STATUSES = ['ready', 'open', 'closed', 'marked'];
 
 /** Who ended the sitting. The timer needs nobody. */
 const EXAM_CLOSED_BY = ['timer', 'student', 'parent'];
+
+/**
+ * The two shapes a test row takes. A `sitting` is the timed paper: hidden
+ * until Start, typed, closed by the clock. `homework` is the sheet: shown
+ * from the day it is set, done on paper, handed in as photographs, marked
+ * from them. A homework never passes through `open`: `ready` is "set" and
+ * `closed` is "handed in".
+ */
+const EXAM_MODES = ['sitting', 'homework'];
+
+/** A homework's duration is a guide ("about 25 minutes"), not a timer. */
+const HOMEWORK_MIN_MINUTES = 5;
+const HOMEWORK_MAX_MINUTES = 180;
 
 /** Seconds after the deadline in which an in-flight save is still taken. */
 const EXAM_GRACE_SECONDS = 10;
@@ -107,13 +124,52 @@ function exam_sat_minutes(array $test): ?int
     return max(1, (int) round(($end - $start) / 60));
 }
 
-/** The local date the sitting happened on — the date every record of it carries. */
+/**
+ * The local date the sitting happened on — the date every record of it
+ * carries. A homework's date is the day it was handed in; until then, the
+ * day it is due.
+ */
 function exam_sat_date(array $test): string
 {
+    if (exam_is_homework($test)) {
+        if (!empty($test['closed_at'])) {
+            return tt_local((string) $test['closed_at'])[0];
+        }
+        return (string) ($test['due_on'] ?? $test['scheduled_for']);
+    }
     if (!empty($test['started_at'])) {
         return tt_local((string) $test['started_at'])[0];
     }
     return (string) $test['scheduled_for'];
+}
+
+function exam_is_homework(array $test): bool
+{
+    return ($test['mode'] ?? 'sitting') === 'homework';
+}
+
+/** The status in the words of the mode: a homework is set and handed in, never open. */
+function exam_status_word(array $test): string
+{
+    $s = (string) ($test['status'] ?? '');
+    if (exam_is_homework($test)) {
+        return ['ready' => 'set', 'closed' => 'handed in', 'marked' => 'marked'][$s] ?? $s;
+    }
+    return ['ready' => 'waiting', 'open' => 'in progress', 'closed' => 'handed in', 'marked' => 'marked'][$s] ?? $s;
+}
+
+/**
+ * Whether a question went unanswered. In a sitting a blank is derived: an
+ * empty answer box, or a marker declaring a non-attempt ("skip", "idk").
+ * In a homework there is no box — what she wrote is on paper — so only the
+ * marker's declaration counts, and a question not yet marked is not blank.
+ */
+function exam_answer_blank(?array $answer, string $mode = 'sitting'): bool
+{
+    if ($mode === 'homework') {
+        return $answer !== null && !empty($answer['not_attempted']);
+    }
+    return $answer === null || exam_is_blank($answer['answer'] ?? null) || !empty($answer['not_attempted']);
 }
 
 /** A blank is nothing written, or only whitespace. Working alone is not an answer. */
@@ -290,7 +346,11 @@ function exam_minutes_word(int $m): string
     return $h . ' h' . ($r ? ' ' . $r . ' min' : '');
 }
 
-/** Section totals of a hydrated test: marks available, scored, blanks, guide minutes. */
+/**
+ * Section totals of a hydrated test: marks available, scored, blanks, guide
+ * minutes. The section carries its test's mode, so a homework's blanks are
+ * the marker's non-attempts and a sitting's are the empty boxes.
+ */
 function exam_section_totals(array $section): array
 {
     $max = 0.0;
@@ -305,7 +365,7 @@ function exam_section_totals(array $section): array
         } else {
             $score += (float) $ans['score'];
         }
-        if ($ans === null || exam_is_blank($ans['answer'] ?? null)) {
+        if (exam_answer_blank($ans, (string) ($section['mode'] ?? 'sitting'))) {
             $blanks++;
         }
     }

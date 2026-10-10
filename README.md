@@ -2,7 +2,7 @@
 
 A small self-hosted service that holds GCSE topic state for any number of subjects and exposes it three ways:
 
-- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week. `/s/<subject>/progress` is the subject over time: coverage replayed day by day, the straight line it has to follow to its goal, the cone of where the last weeks' pace lands it, and the weeks that stalled. `/exam` is the weekly timed exam-practice paper: `/exam/<id>` is one sitting, hidden until Start, timed, then marked; `/exam/bank` is the parent's question bank.
+- **A dashboard** at `/s/<subject>`, server-rendered from the database on every request. No regenerate-and-republish cycle. Attempts, sessions and topics are links: `/s/<subject>/a/<id>` is one sitting question by question, `/s/<subject>/session/<id>` is one session and what it changed, `/s/<subject>/t/<ref>` is one topic's whole history, and `/s/<subject>/practice` is the practice scoreboard. `/week/<iso>` is one week judged against the timetable — blocks, hours, movement and the margin note written against it — and `/weeks` is the term as a ledger, one row per week. `/s/<subject>/progress` is the subject over time: coverage replayed day by day, the straight line it has to follow to its goal, the cone of where the last weeks' pace lands it, and the weeks that stalled. `/exam` is the weekly timed exam-practice paper and the homework: `/exam/<id>` is one sitting, hidden until Start, timed, then marked — or one homework sheet, shown from the day it is set, done on paper, handed in as photographs and marked from them; `/exam/bank` is the parent's question bank.
 - **A JSON API** at `/api/subjects` for scheduled jobs, token-guarded.
 - **An MCP endpoint** at `/mcp`, so Claude can read the state at the start of a session and write status changes at the end.
 
@@ -171,11 +171,11 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_exam_add_questions` | Bank exam-style questions with their mark schemes, tagged by subject and topic. Parent's project. |
 | `tracker_exam_list_questions` | The bank, one line per question. Parent's project. |
 | `tracker_exam_update_question` | Vet, edit or retire a question. Editable at any status; inside a test it is corrected in place. |
-| `tracker_exam_schedule_test` | Build one timed test from vetted questions, in subject sections, against the Wednesday block. |
-| `tracker_exam_update_test` | Edit a booked test (timer, date, block, instructions, questions) or cancel it. Parent's project. |
-| `tracker_exam_list_tests` | Every test with its status — the one waiting for her, the one awaiting marking. |
-| `tracker_exam_get_test` | One test in full: her answers, timing and flags, with the schemes once the sitting is over. |
-| `tracker_exam_mark_test` | Mark a sat test: scores and feedback per question, one `check` attempt per subject. |
+| `tracker_exam_schedule_test` | Build one timed test from vetted questions, in subject sections, against the Wednesday block — or, in mode `homework`, set a sheet with a due date. |
+| `tracker_exam_update_test` | Edit a booked test or homework (timer or guide, dates, block, instructions, questions), hand a homework in, or cancel it. Parent's project. |
+| `tracker_exam_list_tests` | Every test and homework with its status — the one waiting for her, the sheet she owes, the one awaiting marking. |
+| `tracker_exam_get_test` | One test in full: her answers, timing and flags, with the schemes once the sitting is over; a homework's sheet and transcriptions. |
+| `tracker_exam_mark_test` | Mark a sat test, or a homework from the photographs: scores and feedback per question, one `check` attempt per subject. |
 
 Every description leads with a `USE WHEN` line naming the situations that should trigger it, so the model reaches for a tool because the moment calls for it rather than inferring relevance from a description of mechanics.
 
@@ -526,6 +526,19 @@ the server; nothing lives in the browser. At zero the page locks and hands
 in; the server closes the test at the deadline whether or not any page was
 open, and refuses a save more than ten seconds late. There is no pause and
 no extension.
+
+**Homework is the same bank on paper.** `tracker_exam_schedule_test` with
+`mode: "homework"` sets a sheet: vetted questions, a due date, a time guide,
+and instructions she is meant to read — why it was set, the rules, what to
+do when done. The page at `/exam/<id>` shows the questions from the day it is
+set, because the page is the sheet; she works on paper, ticks each question
+in her browser, photographs every page, hands the photos over and presses
+**Handed in**. The parent marks from the photographs in the tracker chat with
+`tracker_exam_mark_test`, transcribing what she wrote and declaring any
+non-attempt; the attempt is coded `homework #<id>`, dated the hand-in day,
+and appears as an extra on that day, since the weekend has no blocks. No
+timer, no answer boxes, no `exam-skills` session. A question is met once,
+in a paper or a sheet, never both. `docs/exam-skills.md` §9 is the contract.
 
 **Marking writes attempts.** In her exam-practice project she says the test
 is ready for marking. `tracker_exam_get_test` gives every answer beside its

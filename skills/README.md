@@ -73,7 +73,7 @@ keeps skill releases apart from anything the service might tag later.
 | `cs-tutor-session` | student | The same for computer science, Python 3 |
 | `spanish-maintenance-session` | student | The short Spanish slot, logged as practice and as a session that moves its topics |
 | `retrieval-block-session` | student | Any retrieval block: item selection, interleaving, the blanks script |
-| `exam-practice-session` | student | The weekly timed paper: sitting it, then marking it |
+| `exam-practice-session` | student | The weekly timed paper: sitting it, then marking it; pointing her at a homework sheet |
 | `gcse-maths-marker` | parent | Marks an AQA 8300 paper against its scheme |
 | `gcse-english-marker` | parent | Marks 8700 and 8702 against level descriptors |
 | `gcse-cs-marker` | parent | Marks 8525, both components |

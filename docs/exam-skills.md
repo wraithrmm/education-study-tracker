@@ -8,7 +8,8 @@ for the parent's project, `exam-practice-session` for the student's) is written
 to §7 and shipped as files under `skills/` in this repository, to be uploaded to
 the skills plugin by hand; the rest of the pack lives with the skills.
 
-Written against schema step 14 and the `mcp.php` tool set as of this change.
+Written against schema step 14 and the `mcp.php` tool set as of this change;
+§9 adds homework mode, schema step 16.
 
 ## 0. Implementation notes — where the service decided
 
@@ -61,9 +62,12 @@ Written against schema step 14 and the `mcp.php` tool set as of this change.
   its marks cannot drop below a score already given; it cannot be retired
   until it is taken out of the test. What she sat is fixed in the attempt,
   which keeps the copy it was marked on.
-- **Blanks are derived, never declared.** An answer is blank when nothing but
-  whitespace was written in the answer box; working alone is not an answer.
-  The attempt's paper carries the count, and the answer column reads `(blank)`.
+- **Blanks are derived, never declared** — in a sitting, as first built: an
+  answer is blank when nothing but whitespace was written in the answer box;
+  working alone is not an answer. The attempt's paper carries the count, and
+  the answer column reads `(blank)`. Step 16 (§9) adds the marker's
+  `not_attempted` beside it, and on paper that declaration is the only blank
+  there is.
 - **The attempt is a `check`.** One per subject section, tier taken from the
   subject, `date` and `sat_on` the local date of `started_at`, paper code
   `exam-skills #<test>`, questions numbered by label with the first topic ref
@@ -296,4 +300,97 @@ What the skills are written to.
 - **Text only** — no diagrams, no rendered maths beyond superscripts.
 - **Time per question is what the page measured while a question had focus.**
   A guide, not a stopwatch: it survives a reload but not a closed laptop.
-- **One test per date.**
+- **One sitting per date**, and one unmarked homework per subject per due date.
+- **Homework ticks are browser-local.** The record knows set, handed in and
+  marked; it does not know which questions she has ticked.
+
+## 9. Homework mode — schema step 16
+
+The test row has a second mode. `mode = 'homework'` is a sheet, not a sitting:
+the same bank, the same marking into attempts, none of the timer.
+
+**Why not just a test.** A sitting is the server's — Start, the deadline, the
+answer boxes, the token, auto-close. Homework is on paper over a weekend, with
+a timer she sets herself, handed in as photographs. Pretending a sitting
+happened would derive every answer as blank, date the work by the parent's
+click, code the attempt `exam-skills` and ask for a technique session. So the
+sitting half is skipped and the bank and marking halves are kept.
+
+**Vocabulary.** A homework is *set* (`ready`), *handed in* (`closed`) and
+*marked*; it never passes through `open`. `scheduled_for` is the day it is
+set and shown; `due_on` is the day it is due; `duration_minutes` is the guide
+she reads ("about 25 minutes"), `HOMEWORK_MIN_MINUTES`–`HOMEWORK_MAX_MINUTES`.
+
+**Schema.** `exam_tests.mode` (`sitting` default, CHECK on `EXAM_MODES`),
+`exam_tests.due_on`, `exam_answers.not_attempted`; an index on `due_on`. Step
+16 adds the columns in place; `createExamTables` carries them for a fresh
+database. Nothing is rebuilt.
+
+**Rules the service enforces.**
+
+- `due_on` required and on or after `scheduled_for`; no `block_key` (a
+  homework sits outside the timetable); the guide's own range; `due_on` is
+  refused on a sitting.
+- One unmarked homework per **subject per due date**
+  (`Store::examHomeworkClash`). A sitting on the same date does not clash
+  with a homework, nor a homework with it: `examTestOnDate` reads sittings
+  only.
+- `mode` is fixed: cancel and schedule the other kind.
+- A homework cannot be started (`startExamTest` refuses; `/exam/{id}/start`
+  redirects). `POST /exam/{id}/handin` — anyone with the link, like Start —
+  moves it `ready → closed`, `closed_by` student or parent. The tool's
+  `hand_in` action does the same from the parent's chat, dated
+  `handed_in_on`; `tracker_exam_mark_test` on a set homework hands it in
+  itself, so the photographs arriving is the hand-in.
+- A homework is **not `exam` evidence**: `evidenceBetween` reads sittings
+  only, and the Wednesday chip (`examTestsBetween`) sees sittings only. Its
+  marked attempts are the evidence, dated the hand-in day, and appear as
+  extra rows on that day — the weekend has no blocks.
+- The sitting date (`exam_sat_date`) of a homework is the local date of
+  `closed_at`; before hand-in, `due_on`.
+- Cancelling a homework retires its questions when `scheduled_for` is on or
+  before today — the sheet has been on the page — and returns them to vetted
+  when it is still in the future, as for a paper she has or has not started.
+
+**Blanks.** In a sitting a blank stays derived from the empty box; the marker
+may now also declare `not_attempted` (closing Phase 2 item S3), and either
+counts. On paper there is no box, so a homework's blank is **only** the
+marker's `not_attempted`, and an unmarked homework has none.
+`exam_answer_blank()` holds both rules; `exam_section_totals()` reads the mode
+off the section, which `Store::examTest` stamps on it.
+
+**Marking.** `marks[]` entries take `not_attempted` in either mode and
+`answer` — the marker's transcription of what she wrote — in homework mode
+only (a sitting's answers are what she typed; `saveExamMarks` keeps a null
+`answer` from overwriting them with `COALESCE`). The attempt is one `check`
+per subject as for a sitting, coded `homework #<id>`, named after the sheet,
+dated the hand-in day, with the transcription as the question's answer
+(`(not attempted)` or `(on paper)` when there is none). The reply asks for
+one subject session per section with the review, no `block_key`, no
+`duration_minutes`, and **no `exam-skills` session**.
+
+**Pages.** `/exam/{id}` for a homework is the sheet: the instructions as
+"Before you start", the questions in full from the day it is set, a tick per
+question kept in `localStorage` only (hers, like the bell), a **Handed in**
+button, and a print stylesheet. Handed in: the sheet with a waiting note.
+Marked: score per question, "what you wrote, as read from the photo", the
+feedback line, totals, the attempt link. The parent additionally sees scheme,
+model answer, marker's note and the bank line, through `$isParent` as for a
+paper; everyone else goes through `exam_student_view()`. `/exam` lists
+homework with a `homework` chip and its due date; the board carries a
+homework line under this week when any is set or handed in and unmarked.
+
+**Tools.** `tracker_exam_schedule_test(mode, due_on)`;
+`tracker_exam_update_test(action: hand_in, fields.handed_in_on)` and, for a
+set homework, `fields.due_on`; `tracker_exam_list_tests(mode)`;
+`tracker_exam_mark_test(handed_in_on, marks[].answer, marks[].not_attempted)`;
+`tracker_today` lists homework out (and on a day with no blocks — the
+weekend — that is most of what it says); `tracker_week_report` gains a
+`HOMEWORK` block, by due date, with the marks once marked and `OVERDUE` or
+`READY FOR MARKING` otherwise.
+
+**Skills.** `gcse-progress-tracker` sets homework from the parent's tracker
+chat and marks it from the photographs (`references/homework.md`);
+`exam-question-generator` writes the questions to its checklist and may build
+a sheet on request; `exam-practice-session` points her at the sheet and never
+marks it; `parent-weekly-review` reads the `HOMEWORK` block.

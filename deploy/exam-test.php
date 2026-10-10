@@ -91,7 +91,7 @@ register_shutdown_function(static function () use ($dbPath) {
 });
 
 echo "== schema ==\n";
-check('a fresh database reaches schema 15', $store->meta('schema_version'), '15');
+check('a fresh database reaches schema 16', $store->meta('schema_version'), '16');
 $tables = array_column($store->db->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(), 'name');
 foreach (['exam_questions', 'exam_tests', 'exam_test_questions', 'exam_answers'] as $t) {
     check("table $t exists", in_array($t, $tables, true), true);
@@ -511,6 +511,185 @@ contains('a marked question cannot drop below its score', $reply, 'cannot go bel
 $reply = call($store, 'tracker_exam_update_question', ['id' => $q2, 'action' => 'edit', 'fields' => ['model_answer_md' => '2x(3x + 4), fully factorised']]);
 contains('but can otherwise be corrected', $reply, 'The attempt written at marking keeps its copy');
 check('and stays marked', $store->examQuestion($q2)['status'], 'marked');
+
+echo "\n== M. homework: the same bank, on paper ==\n";
+putenv('TRACKER_NOW=2026-10-09 18:00');
+check('a sitting answer typed "skip" and declared not attempted is blank', exam_answer_blank(['answer' => 'skip', 'not_attempted' => true]), true);
+check('a sitting answer with text and no declaration is not', exam_answer_blank(['answer' => 'x = 5', 'not_attempted' => false]), false);
+check('a homework question not yet marked is not blank', exam_answer_blank(null, 'homework'), false);
+check('a homework question the marker declared is', exam_answer_blank(['answer' => null, 'not_attempted' => true], 'homework'), true);
+$reply = call($store, 'tracker_exam_add_questions', ['questions' => [
+    $q('hw-m1', 'maths', ['A17'], 2, ['question_md' => 'A line has the equation y = 3x + 4. Work out y when x = 0, 1, 2 and 5. Write each sum.', 'mark_scheme_md' => 'B2 for all four correct (4, 7, 10, 19); B1 for two or three', 'model_answer_md' => '4, 7, 10, 19']),
+    $q('hw-m2', 'maths', ['A4'], 3, ['question_md' => 'A line passes through (0, 4) and (2, 14). Work out the gradient, then write the equation of the line.', 'mark_scheme_md' => 'M1 for (14 − 4)/(2 − 0); A1 gradient 5; A1 y = 5x + 4', 'model_answer_md' => 'gradient 5, y = 5x + 4']),
+    $q('hw-m3', 'maths', ['A17'], 2, ['question_md' => 'A line has the equation 2y = 8x + 6. Write it in the form y = …', 'mark_scheme_md' => 'B2 for y = 4x + 3; B1 for y = (8x + 6)/2', 'model_answer_md' => 'y = 4x + 3']),
+    $q('hw-l1', 'english-language', ['L2'], 4, ['question_md' => 'Write one paragraph on how the writer presents the sea.', 'mark_scheme_md' => 'Level 2 (3-4) clear; Level 1 (1-2) simple.', 'paper_style' => '8700/1']),
+]]);
+[$h1, $h2, $h3, $h4] = ids($reply);
+foreach ([$h1, $h2, $h3, $h4] as $id) {
+    call($store, 'tracker_exam_update_question', ['id' => $id, 'action' => 'vet']);
+}
+$hwArgs = ['name' => 'Straight lines: weekend homework', 'mode' => 'homework', 'scheduled_for' => '2026-10-09', 'due_on' => '2026-10-11',
+    'duration_minutes' => 25, 'instructions' => "On Tuesday the two numbers in a line's equation were getting swapped. These questions make that stick.\nOn paper, by hand. No calculator. Write every line of working.",
+    'sections' => [['subject' => 'maths', 'question_ids' => [$h1, $h2]]]];
+$reply = call($store, 'tracker_exam_schedule_test', array_diff_key($hwArgs, ['due_on' => 1]));
+contains('a homework needs a due date', $reply, 'needs due_on');
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['due_on' => '2026-10-08']));
+contains('due before set is refused', $reply, 'before scheduled_for');
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['block_key' => 3]));
+contains('a homework takes no block', $reply, 'takes no block_key');
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['mode' => 'sitting', 'duration_minutes' => 30]));
+contains('a sitting takes no due date', $reply, 'due_on is for mode homework');
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['duration_minutes' => 4]));
+contains('the guide has its own range', $reply, 'duration_minutes');
+check('and nothing was written by the refusals', count($store->listExamTests(['mode' => 'homework'])), 0);
+
+$reply = call($store, 'tracker_exam_schedule_test', $hwArgs);
+contains('a homework is set', $reply, 'set for 2026-10-09, due 2026-10-11: 2 questions, 5 marks, about 25 min, on paper.');
+contains('and the reply says where the sheet is', $reply, 'The sheet is on /exam/');
+contains('and how it comes back', $reply, 'photographs every page and hands them in');
+preg_match('/Homework #(\d+)/', $reply, $m);
+$hw = (int) $m[1];
+check('its questions are scheduled', [$store->examQuestion($h1)['status'], $store->examQuestion($h2)['status']], ['scheduled', 'scheduled']);
+$row = $store->examTestRow($hw);
+check('stored as homework with its due date', [$row['mode'], $row['due_on'], $row['status']], ['homework', '2026-10-11', 'ready']);
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['name' => 'Second maths sheet', 'sections' => [['subject' => 'maths', 'question_ids' => [$h3]]]]));
+contains('a second maths homework due the same day is refused', $reply, 'One homework per subject per due date');
+$reply = call($store, 'tracker_exam_schedule_test', ['name' => 'Timed paper same day', 'scheduled_for' => '2026-10-11', 'duration_minutes' => 30,
+    'sections' => [['subject' => 'maths', 'question_ids' => [$h3]]]]);
+contains('but a sitting on the due date does not clash with it', $reply, 'Test #');
+preg_match('/Test #(\d+)/', $reply, $m);
+call($store, 'tracker_exam_update_test', ['id' => (int) $m[1], 'action' => 'cancel']);
+$reply = call($store, 'tracker_exam_schedule_test', array_replace($hwArgs, ['name' => 'Sea paragraph', 'scheduled_for' => '2026-10-10',
+    'sections' => [['subject' => 'english-language', 'question_ids' => [$h4]]]]));
+contains('another subject due the same day is fine', $reply, 'Homework #');
+preg_match('/Homework #(\d+)/', $reply, $m);
+$hw2 = (int) $m[1];
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw2, 'action' => 'edit', 'fields' => ['mode' => 'sitting']]);
+contains('a mode is fixed', $reply, "mode is fixed");
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw2, 'action' => 'edit', 'fields' => ['block_key' => 3]]);
+contains('a homework cannot be given a block later either', $reply, 'not a homework field');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw2, 'action' => 'edit', 'fields' => ['due_on' => '2026-10-12']]);
+contains('a set homework can move its due date', $reply, "Homework #$hw2 edited (due_on).");
+contains('and the head reads the new date', $reply, 'due 2026-10-12');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw2, 'action' => 'cancel', 'note' => 'not this week']);
+contains('a homework set for tomorrow cancels back to vetted', $reply, 'set to vetted');
+check('because she has not seen it', $store->examQuestion($h4)['status'], 'vetted');
+$reply = call($store, 'tracker_exam_update_test', ['id' => 1, 'action' => 'hand_in']);
+contains('a sitting is not handed in through the tool', $reply, 'timed sitting');
+
+$list = call($store, 'tracker_exam_list_tests', ['mode' => 'homework']);
+contains('the list names the homework in its own words', $list, "#$hw Straight lines: weekend homework — homework · set 2026-10-09, due 2026-10-11 · set · 2 q · 5 marks · about 25 min · sheet: /exam/$hw");
+lacks('and no sitting', $list, 'Week 39');
+$list = call($store, 'tracker_exam_list_tests', ['mode' => 'sitting']);
+lacks('the sitting list has no homework', $list, 'Straight lines');
+$sheet = render_exam_test($store, $store->examTest($hw), false);
+contains('the sheet shows the questions from the day it is set', $sheet, 'Work out y when x = 0, 1, 2 and 5');
+contains('and the instructions', $sheet, 'two numbers in a line');
+contains('and the due date', $sheet, '11 October 2026');
+contains('and a tick per question', $sheet, 'class="hw-tick"');
+contains('and the hand-in button', $sheet, "/exam/$hw/handin");
+lacks('but no scheme', $sheet, 'B2 for all four');
+lacks('and no Start', $sheet, "/exam/$hw/start");
+lacks('and no answer box', $sheet, '<textarea');
+$sheetP = render_exam_test($store, $store->examTest($hw), true);
+contains('the parent sees the scheme on the sheet', $sheetP, 'B2 for all four');
+$index = render_exam_index($store, false);
+contains('/exam lists the homework with its due date', $index, 'due 2026-10-11');
+contains('as homework', $index, '>homework</span>');
+try {
+    $store->startExamTest($hw);
+    fail('a homework cannot be started');
+} catch (InvalidArgumentException $e) {
+    contains('a homework cannot be started', $e->getMessage(), 'has no Start');
+}
+
+putenv('TRACKER_NOW=2026-10-10 11:00');
+$today = call($store, 'tracker_today', []);
+contains('Saturday has no blocks', $today, 'No blocks today.');
+contains('but names the homework out', $today, "- #$hw Straight lines: weekend homework — due 2026-10-11, set 2026-10-09 · set · /exam/$hw");
+$board = render_index($store, false, '/', null);
+contains('the board shows the homework under the week', $board, 'class="tt-homework"');
+contains('with its due date', $board, 'due 11 October 2026');
+$day = $store->judgeDay('2026-10-09');
+check('a set homework is not evidence of anything', array_filter($day['extras'], static fn($e) => $e['type'] === 'exam'), []);
+$reply = call($store, 'tracker_week_report', ['date' => '2026-10-09']);
+contains('the week report has a HOMEWORK block', $reply, 'HOMEWORK');
+contains('with the sheet set', $reply, '- due 2026-10-11 Straight lines: weekend homework (maths, 5 marks) — set');
+$get = call($store, 'tracker_exam_get_test', ['id' => $hw]);
+contains('get_test withholds the schemes while the sheet is out', $get, 'withheld while the homework is out');
+lacks('really', $get, 'B2 for all four');
+$get = call($store, 'tracker_exam_get_test', ['id' => $hw, 'include_bank' => true]);
+contains('the parent reads them with include_bank', $get, 'B2 for all four');
+contains('and is told marking hands it in', $get, 'hands it in and marks it in one call');
+
+putenv('TRACKER_NOW=2026-10-12 09:00');
+$reply = call($store, 'tracker_exam_mark_test', ['id' => $hw, 'handed_in_on' => '2026-10-13', 'marks' => [
+    ['question_id' => $h1, 'score' => 2], ['question_id' => $h2, 'score' => 0]]]);
+contains('a hand-in date in the future is refused', $reply, 'in the future');
+$reply = call($store, 'tracker_exam_mark_test', ['id' => 1, 'marks' => [['question_id' => $q1, 'score' => 1, 'answer' => 'x']]]);
+contains('a sitting takes no transcription', $reply, 'already marked');
+$reply = call($store, 'tracker_exam_mark_test', ['id' => $hw, 'handed_in_on' => '2026-10-10', 'note' => 'Done Saturday morning; 20 min by her timer.', 'marks' => [
+    ['question_id' => $h1, 'score' => 2, 'answer' => "y = 4, 7, 10, 19\nsums written for each", 'student_feedback' => 'All four right, every sum written. That is the habit.'],
+    ['question_id' => $h2, 'score' => 0, 'not_attempted' => true, 'note' => 'Nothing on the page for Q2.', 'student_feedback' => 'Not attempted. The gradient sum is always a safe first line.'],
+]]);
+contains('a set homework is handed in and marked in one call', $reply, "Homework #$hw \"Straight lines: weekend homework\" marked. Handed in 2026-10-10 (due 2026-10-11).");
+contains('one attempt for maths', $reply, '- maths: 2/5 over 2 questions, 1 not attempted — attempt #');
+contains('question by question', $reply, "- Q2 maths A4 0/3 · NOT ATTEMPTED — Nothing on the page for Q2.");
+contains('and no technique session is asked for', $reply, 'No exam-skills session');
+lacks('nor a block', $reply, 'block\'s evidence');
+$row = $store->examTestRow($hw);
+check('the row is marked, handed in by the parent on the stated day', [$row['status'], $row['closed_by'], tt_local((string) $row['closed_at'])[0]], ['marked', 'parent', '2026-10-10']);
+check('its questions are marked', [$store->examQuestion($h1)['status'], $store->examQuestion($h2)['status']], ['marked', 'marked']);
+preg_match('/attempt #(\d+)/', $reply, $m);
+$att = $store->getAttempt('maths', (int) $m[1]);
+check('the attempt is a check dated the hand-in day', [$att['kind'], $att['date']], ['check', '2026-10-10']);
+check('coded as homework', $att['papers'][0]['code'], "homework #$hw");
+check('with the non-attempt counted as a blank', (int) $att['papers'][0]['blanks'], 1);
+$aq = $store->listQuestions((int) $att['papers'][0]['id']);
+check('the transcription is the attempt\'s answer', $aq[0]['answer'], "y = 4, 7, 10, 19\nsums written for each");
+check('and the non-attempt says so', $aq[1]['answer'], '(not attempted)');
+$day = $store->judgeDay('2026-10-10');
+check('the attempt is an extra on the Saturday', count(array_filter($day['extras'], static fn($e) => $e['type'] === 'attempt' && $e['subject'] === 'maths')), 1);
+$sheet = render_exam_test($store, $store->examTest($hw), false);
+contains('the marked sheet shows the score', $sheet, '2 / 2');
+contains('what she wrote', $sheet, 'What you wrote, as read from the photo');
+contains('the non-attempt', $sheet, 'Not attempted');
+contains('and the feedback', $sheet, 'safe first line');
+lacks('but not the marker\'s note', $sheet, 'Nothing on the page');
+lacks('nor the test note', $sheet, 'Done Saturday morning');
+$sheetP = render_exam_test($store, $store->examTest($hw), true);
+contains('the parent sees the marker\'s note', $sheetP, 'Nothing on the page');
+contains('and the attempt link', $sheetP, '/s/maths/a/');
+$reply = call($store, 'tracker_week_report', ['date' => '2026-10-09']);
+contains('the week report carries the marks', $reply, '- due 2026-10-11 Straight lines: weekend homework (maths, 5 marks) — marked, handed in 2026-10-10: maths 2/5 (1 not attempted)');
+lacks('and does not file it under exam practice', $reply, 'EXAM PRACTICE');
+$today = call($store, 'tracker_today', []);
+lacks('nothing is owed any more', $today, 'Homework out:');
+
+// A second sheet: handed in through the tool, then overdue reporting.
+$reply = call($store, 'tracker_exam_schedule_test', ['name' => 'Rearranging: one more go', 'mode' => 'homework', 'scheduled_for' => '2026-10-12', 'due_on' => '2026-10-13',
+    'duration_minutes' => 15, 'sections' => [['subject' => 'maths', 'question_ids' => [$h3]]]]);
+preg_match('/Homework #(\d+)/', $reply, $m);
+$hw3 = (int) $m[1];
+putenv('TRACKER_NOW=2026-10-14 09:00');
+$today = call($store, 'tracker_today', []);
+contains('a sheet past its due date is overdue', $today, "due 2026-10-13, set 2026-10-12 · set — OVERDUE");
+$reply = call($store, 'tracker_week_report', ['date' => '2026-10-14']);
+contains('and the week report says so', $reply, 'OVERDUE, nothing handed in');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw3, 'action' => 'hand_in', 'fields' => ['handed_in_on' => '2026-10-13'], 'note' => 'photos came Tuesday night']);
+contains('the tool hands it in, dated', $reply, "Homework #$hw3 \"Rearranging: one more go\" handed in, dated 2026-10-13.");
+$list = call($store, 'tracker_exam_list_tests', ['mode' => 'homework', 'status' => 'closed']);
+contains('and the list says it is ready for marking', $list, 'READY FOR MARKING from the photographs');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw3, 'action' => 'hand_in']);
+contains('handing in twice is a no-op', $reply, 'already handed in');
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw3, 'action' => 'edit', 'fields' => ['due_on' => '2026-10-20']]);
+contains('a handed-in sheet keeps its due date', $reply, 'is handed in, so fields.due_on can no longer change');
+$reply = call($store, 'tracker_exam_mark_test', ['id' => $hw3, 'handed_in_on' => '2026-10-14', 'marks' => [['question_id' => $h3, 'score' => 2]]]);
+contains('a hand-in date that contradicts the record is refused', $reply, 'does not match');
+$reply = call($store, 'tracker_exam_mark_test', ['id' => $hw3, 'marks' => [['question_id' => $h3, 'score' => 2, 'answer' => 'y = 4x + 3']]]);
+contains('marked from the photographs', $reply, "Homework #$hw3 \"Rearranging: one more go\" marked. Handed in 2026-10-13.");
+$reply = call($store, 'tracker_exam_update_test', ['id' => $hw3, 'action' => 'cancel']);
+contains('a marked homework cannot be cancelled', $reply, 'its attempts are the record');
 
 echo "\n";
 if ($failures > 0) {

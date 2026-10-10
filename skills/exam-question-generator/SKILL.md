@@ -269,7 +269,8 @@ tracker_exam_schedule_test(
 ```
 
 Rules the tool enforces, so get them right first: every question vetted, in its section's
-subject, and unused; one section per subject; one test per date; `block_key` must be the
+subject, and unused (a question that went on a homework sheet is used too); one section per
+subject; one sitting per date (a homework due that day does not clash); `block_key` must be the
 exam-practice block that runs that day. Rules it only warns about, which are yours:
 
 - 45 minutes by default. Section guides sum to the duration **less five minutes** of reading
@@ -330,6 +331,28 @@ retired, unless `requeue: true`. A marked test cannot be cancelled.
 The build may carry an unsat paper forward and swap questions in a `ready` test on its own. Any
 other change — length, an `open` or marked paper, a cancellation — is shown to the parent before
 it is made, and the test is reported as it then stands. Re-tag anything swapped in.
+
+## A homework sheet, when asked
+
+The parent may ask this project for a **homework** rather than a paper: the same bank, on paper,
+by a due date. `tracker_exam_schedule_test(mode: "homework", name, scheduled_for: <the day it
+is set>, due_on, duration_minutes: <the guide she reads, 5-180>, instructions, sections)` — no
+`block_key`, one unmarked sheet per subject per due date. Write and vet the questions to the
+checklist exactly as for a paper, tagged `hw:<due_on>`; the service keeps them from ever being
+drawn into a Wednesday paper (a question is met once). Two differences from a paper, both on
+purpose:
+
+- The **instructions are hers to read on the sheet**, so they may say why it was set, in one
+  plain sentence, then the rules (on paper, by hand; no calculator or notes; about N minutes
+  with a visible timer; every line of working; the safe first line) and what to do when done
+  (photograph every page and give the photos to Dad). No `why:` tags are needed; the sheet
+  carries its reason.
+- **Nothing is hidden**: the questions show at `/exam/<id>` from `scheduled_for`. Do not set a
+  sheet from questions the weekly build is counting on.
+
+Marking a homework is the parent's tracker project, from the photographs
+(`gcse-progress-tracker/references/homework.md`); this project does not mark it. The unattended
+build never sets homework: a sheet is a decision made on a loose end the parent has read.
 
 ## Keeping the bank healthy
 

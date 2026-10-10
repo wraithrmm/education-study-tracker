@@ -92,7 +92,36 @@ and one thing to work on. The parent reads the whole paper — schemes, model
 answers, marker's notes — at `/exam/<id>` signed in, and the per-subject
 attempts at `/s/<subject>/a/<id>`.
 
-## 7. If the connector's tool list is stale
+## 7. Homework — after schema step 16 is deployed
+
+Step 16 runs on the first request after the deploy: `mode` and `due_on` join
+`exam_tests`, `not_attempted` joins `exam_answers`. Every existing test reads
+as a sitting. Nothing to create and no timetable change: a homework takes no
+block.
+
+**This weekend's sheet.** `docs/homework-seed.json` is the straight-lines
+homework set on 9 Oct, as the three tool calls that put it on the tracker.
+From the parent's tracker chat:
+
+> Read `docs/homework-seed.json` and run its three steps with the
+> `tracker_exam_*` tools: add the six questions, vet them, set the homework.
+> Show me `/exam/<id>`.
+
+If she has already done it on paper by then, mark it from the photographs in
+the same chat: `tracker_exam_get_test(id, include_bank: true)`, then
+`tracker_exam_mark_test(id, handed_in_on: <the day she did it>, marks: […])`.
+Marking a set homework hands it in. The A9-A10 loose end on the tracker
+already says the sheet is owed; the marked attempt is what closes it, and the
+Friday review adjudicates the refs as for a paper.
+
+Do **not** add the questions to the bank before the deploy: the Sunday build
+picks vetted questions by flag, and `A9-A10` is flagged.
+
+**Skills.** Re-upload `gcse-progress-tracker` (it gains
+`references/homework.md`), `exam-question-generator`, `exam-practice-session`
+and `parent-weekly-review`, or update the plugin.
+
+## 8. If the connector's tool list is stale
 
 If a chat cannot see `tracker_exam_*`, remove and re-add the Education
 Tracker connector in Settings → Connectors: the tool list is read once at

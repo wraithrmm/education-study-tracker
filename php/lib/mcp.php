@@ -440,6 +440,32 @@ function mcp_no_such_block(int $key, string $date): string
  * explicit link exists to prevent. Either way the mismatch is named, so the
  * caller can see which of the two it got wrong.
  */
+/**
+ * The homework she owes, as lines for tracker_today: set or handed in and
+ * not yet marked, oldest due first, with its page. Empty when nothing is
+ * out. A sheet past its due date is OVERDUE; one handed in is READY FOR
+ * MARKING from the photographs.
+ *
+ * @return array<int,string>
+ */
+function mcp_homework_lines(Store $store, string $date): array
+{
+    $owed = $store->examHomeworkOwed();
+    if (!$owed) {
+        return [];
+    }
+    $lines = ['', 'Homework out:'];
+    foreach ($owed as $hw) {
+        $lines[] = "- #{$hw['id']} {$hw['name']} — due {$hw['due_on']}"
+            . ($hw['due_on'] === $date ? ' (today)' : '')
+            . ', set ' . $hw['scheduled_for'] . ' · ' . exam_status_word($hw)
+            . ($hw['status'] === 'closed' ? ' — READY FOR MARKING from the photographs (parent\'s project)' : '')
+            . ($hw['status'] === 'ready' && $hw['due_on'] < $date ? ' — OVERDUE' : '')
+            . " · /exam/{$hw['id']}";
+    }
+    return $lines;
+}
+
 function mcp_check_block(Store $store, int $key, string $date, string $slug): array
 {
     $block = mcp_find_block($store, $key, $date);
@@ -2367,9 +2393,18 @@ function mcp_call_tool(Store $store, string $name, array $a): array
             $judged = array_values(array_filter(
                 $day['blocks'], static fn(array $b): bool => $b['status'] !== 'n/a'
             ));
+            // Homework she owes, whatever the day: the weekend has no blocks
+            // and is exactly when a sheet is due.
+            $hwLines = mcp_homework_lines($store, $date);
             if (!$judged) {
                 $lines[] = 'No blocks today.';
-                return mcp_text(implode("\n", $lines));
+                if ($day['extras']) {
+                    $lines[] = 'Extra work today, outside the timetable: ' . implode('; ', array_map(
+                        static fn($e) => $e['subject'] . ' ' . $e['type'] . ' #' . $e['id'] . ' ' . $e['label'],
+                        $day['extras']
+                    )) . '.';
+                }
+                return mcp_text(implode("\n", array_merge($lines, $hwLines)));
             }
             $now  = array_values(array_filter($judged, static fn($b) => $b['status'] === 'now'));
             $next = null;
@@ -2434,6 +2469,7 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         $unmet
                     )) . '.';
             }
+            $lines = array_merge($lines, $hwLines);
 
             // Continuity, per subject with a block today: what the last
             // session planned, and anything it or an earlier one left
@@ -2916,6 +2952,35 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                         $line .= ': ' . implode(' · ', $bits);
                     } elseif ($et['status'] === 'closed') {
                         $line .= ' — READY FOR MARKING';
+                    }
+                    $lines[] = $line;
+                }
+            }
+
+            // Homework due this week: set, handed in, marked — and what each
+            // scored, once marked. A sheet still out past its due date is a
+            // miss in waiting, named as such.
+            $homework = $store->examHomeworkBetween($monday, tt_add_days($monday, 6));
+            if ($homework) {
+                $lines[] = "\nHOMEWORK";
+                foreach ($homework as $hw) {
+                    $full = $store->examTest((int) $hw['id']);
+                    $subs = implode('/', array_column($full['sections'], 'subject'));
+                    $line = '- due ' . $hw['due_on'] . ' ' . $hw['name'] . ' (' . $subs . ', ' . exam_marks_word($hw['marks'])
+                        . ') — ' . exam_status_word($hw)
+                        . ($hw['closed_at'] ? ', handed in ' . tt_local((string) $hw['closed_at'])[0] : '');
+                    if ($hw['status'] === 'marked') {
+                        $bits = [];
+                        foreach ($full['sections'] as $sec) {
+                            $tot    = exam_section_totals($sec);
+                            $bits[] = $sec['subject'] . ' ' . num((float) $tot['score']) . '/' . num($tot['max'])
+                                . ($tot['blanks'] ? ' (' . $tot['blanks'] . ' not attempted)' : '');
+                        }
+                        $line .= ': ' . implode(' · ', $bits);
+                    } elseif ($hw['status'] === 'closed') {
+                        $line .= ' — READY FOR MARKING from the photographs';
+                    } elseif ($hw['due_on'] < tt_today()) {
+                        $line .= ' — OVERDUE, nothing handed in';
                     }
                     $lines[] = $line;
                 }
