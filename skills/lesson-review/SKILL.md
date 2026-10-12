@@ -25,7 +25,7 @@ is copied to the session's `next_steps` and printed as `last_review` in the next
 
 | Mode | Trigger | Writes |
 |---|---|---|
-| **A — wrap-up** | A tutor skill closing a Shape A/C session, or a Shape B that changed a status; **or the student asking to stop, at any point, in any shape** | one `tracker_log_session` carrying `updates[]` and `review` |
+| **A — wrap-up** | A tutor skill closing a Shape A/C session, or a Shape B that changed a status; `homework-session` closing a sit-down on a sheet; **or the student asking to stop, at any point, in any shape** | one `tracker_log_session` carrying `updates[]` and `review` |
 | **B — audit** | The nightly scheduled task in a subject project; or the parent says "audit maths" | `tracker_save_lesson_review`, `tracker_update_topic`, `tracker_update_signal`, `tracker_audit_stamp` |
 | **C — parent on demand** | "review today's maths", "what did the audit change", "show me the signals", "what's owed a review" ("how does she learn" at the weekly grain is `weekly-synthesis` Mode B) | reads; `tracker_save_lesson_review(stage: "parent")` only when the parent corrects something |
 
@@ -52,6 +52,12 @@ Add, before writing:
   already have from the queue.
 - `tracker_list_practice(subject, since: <this week's Monday>)` when a retrieval block ran
   this week and its items bear on section 6.
+
+**A homework sit-down** (`homework-session`) is reviewed on process only. The sheet is unmarked
+and its answers were not checked, so the tally is questions written of the total by her count,
+blanks named, and help asked for; `progress[]`, `errors[]` and `retention` carry only what a
+different example taught beside the sheet showed, never a judgement of a sheet answer, and
+`missing_evidence` says the marks are owed from the parent's marking.
 
 Then, in this order:
 

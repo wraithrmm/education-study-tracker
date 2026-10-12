@@ -39,6 +39,12 @@ line and keep the `block_key` for the log. If it doesn't, help anyway and log ho
 as *extra*. A Spanish block missed earlier today is mentioned once, without reproach; the same
 work now, logged with today's date and that `block_key`, counts as it.
 
+**Homework out.** If `tracker_today` lists a `set` homework sheet — any Spanish sheet, or another
+subject's once it is `OVERDUE` — the first message names it before the slot: what it is on, when
+it is or was due, the link, and that her Homework project is where she does it. Once, without
+reproach. Never work or re-set a question from the sheet (`references/timetable.md` § Opening;
+`homework-session` runs the sheet).
+
 Then `tracker_now()` at the start of every turn while the slot runs. Only the clock ends the slot
 or any extra time she asks for — never your estimate of how long a set should have taken. If she
 says she has more time, write the agreed end time in your reply, pass it as `until`, and keep

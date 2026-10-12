@@ -208,6 +208,9 @@ sitting — `tracker_exam_schedule_test(mode: "homework", due_on, …)`, then
 the five calls to set one, the marking shape, and how it is adjudicated: under the paper table
 above, with evidence lines beginning `adjudicated homework #<id> Q<label>:`. `tracker_today`
 and the `HOMEWORK` block of `tracker_week_report` say what is out, overdue, or ready for marking.
+She does the sheet in her own Homework project, where `homework-session` opens on it and logs
+the sit-down; a sit-down that stopped before hand-in leaves an UNFINISHED item that the marking
+session resolves.
 
 ### Where the bar sits depends on how the subject is marked
 

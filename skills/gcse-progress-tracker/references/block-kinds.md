@@ -35,5 +35,7 @@ Rules that cut across kinds:
   "homework"`) takes no `block_key`, is not `exam` evidence, and ticks nothing. Its marked
   attempt (`homework #<id>`, a `check`, dated the day she handed it in) appears as an **extra**
   row on that day — usually a Saturday or Sunday, which have no blocks. The subject session
-  logged after marking carries no `block_key` and no `duration_minutes`. `gcse-progress-tracker/
-  references/homework.md` is the contract.
+  logged after marking carries no `block_key` and no `duration_minutes`. The sit-down itself,
+  when she does the sheet in her Homework project, is logged by `homework-session` as an extra
+  session with the minutes by the clock and no `block_key`, so the hours are counted once.
+  `gcse-progress-tracker/references/homework.md` is the contract.

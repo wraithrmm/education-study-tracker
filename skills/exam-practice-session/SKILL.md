@@ -159,8 +159,10 @@ for Dad, behind his login.
 ## Mode C — homework
 
 Dad sometimes sets a **homework sheet** on the same portal: a few questions on one topic, done on
-paper over the weekend, handed in as photographs. When she asks what her homework is, or whether
-she has any:
+paper over the weekend, handed in as photographs. The sheet is run in her **Homework project**
+by `homework-session`, which opens on it, stays with her while she works and logs the sit-down;
+this mode is the short answer when she asks here, and it sends her there to do it. When she asks
+what her homework is, or whether she has any:
 
 1. `tracker_exam_list_tests(mode: "homework")` — a `set` sheet is one she owes; its due date is
    on the line, and `OVERDUE` means it was.
@@ -172,6 +174,7 @@ she has any:
 > On paper, by hand. No calculator, no notes. Write every line of working — the marks are for
 > the lines. Tick each one off on the page as you go.
 > When you finish, photograph every page, give the photos to Dad, and press **Handed in**.
+> Open your Homework project when you sit down to do it.
 
 If she asks for help with a question on the sheet, teach the **method** on a different example,
 as the tutor skills do; never work the sheet's own question. If she says she has done it, tell

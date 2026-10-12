@@ -74,6 +74,7 @@ keeps skill releases apart from anything the service might tag later.
 | `spanish-maintenance-session` | student | The short Spanish slot, logged as practice and as a session that moves its topics |
 | `retrieval-block-session` | student | Any retrieval block: item selection, interleaving, the blanks script |
 | `exam-practice-session` | student | The weekly timed paper: sitting it, then marking it; pointing her at a homework sheet |
+| `homework-session` | student | The homework sheet she owes: opens on it, stays with her on paper, hand-in, logs the sit-down; never marks |
 | `gcse-maths-marker` | parent | Marks an AQA 8300 paper against its scheme |
 | `gcse-english-marker` | parent | Marks 8700 and 8702 against level descriptors |
 | `gcse-cs-marker` | parent | Marks 8525, both components |
@@ -92,11 +93,12 @@ The shared references every skill cites — the study principles, the timetable 
 kinds, the common grading facts — live in `gcse-progress-tracker/references/` and are not
 duplicated anywhere.
 
-Two skills also carry a `PROJECT.md`: the custom instructions and knowledge-base layout for the
+Three skills also carry a `PROJECT.md`: the custom instructions and knowledge-base layout for the
 Claude project that skill belongs to. It is documentation for setting the project up, not part
 of the skill, and Claude never loads it. `exam-question-generator`'s names the two scheduled
 tasks its project runs — the Sunday build and the Tuesday check — and the standing decisions
-the build works to.
+the build works to. `homework-session`'s is her Homework project: the one place she opens to do
+a sheet, with an optional Saturday check.
 
 ## The service contract
 

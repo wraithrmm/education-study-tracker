@@ -533,7 +533,9 @@ and instructions she is meant to read — why it was set, the rules, what to
 do when done. The page at `/exam/<id>` shows the questions from the day it is
 set, because the page is the sheet; she works on paper, ticks each question
 in her browser, photographs every page, hands the photos over and presses
-**Handed in**. The parent marks from the photographs in the tracker chat with
+**Handed in**. Her Homework project (`homework-session`) opens on the sheet
+she owes and logs the sit-down, and every lesson names a sheet that is out
+in its first message. The parent marks from the photographs in the tracker chat with
 `tracker_exam_mark_test`, transcribing what she wrote and declaring any
 non-attempt; the attempt is coded `homework #<id>`, dated the hand-in day,
 and appears as an extra on that day, since the weekend has no blocks. No
