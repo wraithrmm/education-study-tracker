@@ -121,6 +121,20 @@ picks vetted questions by flag, and `A9-A10` is flagged.
 `references/homework.md`), `exam-question-generator`, `exam-practice-session`
 and `parent-weekly-review`, or update the plugin.
 
+**The Homework project (12 Oct).** The first sheet was not picked up: a
+lesson opened that weekend and no lesson skill said a sheet was out. Two
+changes close that, and neither needs a deploy:
+
+- **Homework** — a new project for Paige. Its instructions are
+  `skills/homework-session/PROJECT.md`; nothing in its knowledge base; the
+  connector only. Upload `homework-session`, or update the plugin. It opens
+  every conversation on the sheet she owes.
+- Re-upload `maths-tutor-session`, `english-tutor-session`,
+  `cs-tutor-session`, `spanish-maintenance-session`, `exam-practice-session`
+  and `gcse-progress-tracker` (its `references/timetable.md`, `homework.md`
+  and `block-kinds.md` changed), or update the plugin. Every lesson now names
+  a `set` sheet in its first message.
+
 ## 8. If the connector's tool list is stale
 
 If a chat cannot see `tracker_exam_*`, remove and re-add the Education

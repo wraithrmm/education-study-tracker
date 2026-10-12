@@ -112,6 +112,18 @@ missed block earlier in the day. Then:
   the same work now" (which is true: same subject, same date, block_key passed).
 - If it is a **non-study day or a holiday**, say so and help anyway; log with today's date; it
   appears as extra.
+- If `tracker_today` lists **Homework out** with a sheet that is `set`: the first message says
+  so, before the plan, in plain words — what it is on, when it is due or that it was, the link —
+  and that her Homework project is where she does it. A sheet in **this session's subject** is
+  named every time; a sheet in another subject only when it is `OVERDUE`. Say it once, without
+  reproach, and then it is her call: on a day with a block for this subject, the block runs; on
+  a day with none (the weekend, usually), say plainly that the sheet comes first, because an
+  extra session does not replace it, and teach only if she still chooses the lesson. A sheet
+  shown as `READY FOR MARKING` is with Dad and is not mentioned.
+- **The sheet is never this session's work.** Never print, hint at or work one of its
+  questions, never re-set its items, never count the lesson as the homework, and never resolve
+  an UNFINISHED item that names a homework sheet: say it is still owed and point her to the
+  Homework project. `homework-session` runs the sheet; `homework.md` is the contract.
 
 **Closing — every session that produced work.** Log with the **actual date the work was done**
 (`date:` on `tracker_log_session`; `played_at` on practice; `sat_on` on attempt papers). Work

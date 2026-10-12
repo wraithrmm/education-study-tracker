@@ -7,8 +7,12 @@ work — on paper, by hand, over a weekend, handed in as photographs — and tha
 part a timed test cannot hold. So a homework is a test row in `mode: "homework"`, and it never
 passes through `open`.
 
-Runs **in the parent's project only**, from the tracker chat. Her project points her at the
-sheet (`exam-practice-session` Mode C) and never marks it.
+Setting and marking run **in the parent's project only**, from the tracker chat. Doing the sheet
+is hers, in her **Homework project**: `homework-session` opens every conversation there on the
+sheet that is out, stays with her while she works on paper, and logs the sit-down. Every lesson
+skill names a `set` sheet in its first message (`timetable.md`, "Opening"), and
+`exam-practice-session` Mode C points her at it when she asks in the exam project. None of them
+marks it, checks an answer on it, or works one of its questions.
 
 ## When to set one
 
@@ -58,6 +62,13 @@ tracker chat. If the sheet is still `set`, marking hands it in; to record the ha
 `tracker_exam_list_tests(mode: "homework")` shows set, handed in and marked, with `OVERDUE` and
 `READY FOR MARKING`.
 
+**The sit-down is a session of its own.** When she does the sheet with her Homework project
+open, `homework-session` logs one session for the subject: the day, the minutes by the clock,
+how many questions she says are written, any method it taught on a different example, and
+whether it was handed in. No `block_key`, no status move, and nothing about whether an answer is
+right. A sit-down that stops before hand-in is logged with `unfinished` naming the sheet, so it
+leads that subject's review queue until a later sit-down or the marking session resolves it.
+
 ## Marking from the photographs
 
 1. `tracker_exam_get_test(id, include_bank: true)` — every question with its scheme beside it.
@@ -77,7 +88,12 @@ tracker chat. If the sheet is still `set`, marking hands it in; to record the ha
    ref with evidence `homework #<id> Q<label>: <score>/<max>, loss=… — <what happened>` and its
    `retrieval_outcome`; **no `block_key`, no `duration_minutes`** (the attempt is the record;
    the hours are hers at the weekend); no status move except a `notstarted` ref she answered on,
-   under the parent rule. **No `exam-skills` session**: a homework is not a timed sitting.
+   under the parent rule. **No `exam-skills` session**: a homework is not a timed sitting. If
+   `tracker_review_queue(subject)` shows an UNFINISHED item naming this sheet (left by a
+   `homework-session` sit-down that stopped before hand-in), pass `resolves: [<that session's
+   id>]` on this call: the marked sheet is what closes it. Where a sit-down logged a method
+   taught on a different example for a question, say so in that question's marker `note`, so
+   the Friday adjudication can see that the question had help beside it.
 5. Read back `tracker_history(subject, weeks: 1)`; tell the parent the marks and what the sheet
    showed against the brief it was set for. She reads her marks and the feedback lines on the
    sheet.

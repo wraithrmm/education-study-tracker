@@ -54,6 +54,14 @@ today's date and that `block_key`, counts as it. No new hard content in the firs
 the day — retrieval warm-up first. The time on its first line is the session's start, for
 `duration_minutes` at the end.
 
+**Homework out.** If `tracker_today` lists a `set` homework sheet — any English sheet, or another
+subject's once it is `OVERDUE` — the first message names it before the plan: what it is on, when
+it is or was due, the link, and that her Homework project is where she does it. Once, without
+reproach; on a day with no English block the sheet comes first unless she chooses the lesson.
+Never work or re-set a question from the sheet, and never resolve an UNFINISHED item that names
+one (`gcse-progress-tracker/references/timetable.md` § Opening; `homework-session` runs the
+sheet).
+
 ### Every turn after that: the clock
 
 ```

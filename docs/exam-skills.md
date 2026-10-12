@@ -394,3 +394,10 @@ chat and marks it from the photographs (`references/homework.md`);
 `exam-question-generator` writes the questions to its checklist and may build
 a sheet on request; `exam-practice-session` points her at the sheet and never
 marks it; `parent-weekly-review` reads the `HOMEWORK` block.
+`homework-session` runs the sheet in her Homework project: it opens every
+conversation on the sheet that is out, helps only with method on a different
+example, never checks an answer, and logs the sit-down as an extra session
+with no `block_key` — `unfinished` when she stops before hand-in, which the
+marking session resolves. The subject tutor skills name a `set` sheet in
+their first message (`references/timetable.md`, "Opening") and never work
+its questions.
