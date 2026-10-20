@@ -299,7 +299,7 @@ reason, requested_by: "student")`. Say it goes to Dad to approve; never approve 
 Connector unavailable — meaning a `tracker_*` call was attempted this turn and failed, or the
 tools are absent, never assumed → say so in one line, run the slot from what she tells you, and
 end with the block below, never introducing it as a log. `gcse-progress-tracker` turns it into
-the two calls when it is pasted: the retrieval line becomes the practice run, and each UPDATES
+the calls when it is pasted: a chat retrieval line becomes a practice run (the App line is already logged), and each UPDATES
 line becomes an `updates[]` entry with its status (or none) and its evidence, exactly as
 written. A slot that became a taught lesson ends instead with `lesson-review`'s fallback block.
 
