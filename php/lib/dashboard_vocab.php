@@ -30,22 +30,46 @@ const DASH_VOCAB_CSS = <<<'CSS'
 .va h1.va-title{font-size:clamp(1.6rem,4vw,2.6rem);text-align:center;margin:0 0 .3rem;font-weight:800;
   background:linear-gradient(90deg,#9333ea,#db2777);-webkit-background-clip:text;background-clip:text;color:transparent}
 .va .lede{text-align:center;color:#57534e;margin:0 0 1.2rem;font-size:1.05rem}
-.va .group{margin:.9rem 0 .2rem;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:#57534e;
-  display:flex;align-items:center;gap:.6rem}
-.va .group::after{content:"";flex:1;height:1px;background:#e7e5e4}
-.va .sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:.7rem}
-.va .set{font:inherit;text-align:left;border:2px solid #d6d3d1;background:#fff;border-radius:14px;padding:.75rem .85rem;
-  cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s;display:grid;gap:.15rem;color:inherit}
-.va .set:hover{transform:translateY(-2px);border-color:#a78bfa}
-.va .set[aria-pressed="true"]{border-color:#7c3aed;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;
-  box-shadow:0 10px 24px -12px rgba(124,58,237,.8)}
-.va .set .sn{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;opacity:.75}
-.va .set .nm{font-weight:700;font-size:1rem;line-height:1.25}
-.va .set .meta{font-size:.74rem;opacity:.8}
+.va .hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:stretch;
+  background:linear-gradient(90deg,#eff6ff,#f5f3ff);border-radius:18px;padding:1rem 1.1rem}
+.va .now{display:grid;gap:.25rem;align-content:center;min-width:0}
+.va .now .sn{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#57534e}
+.va .now .nm{font-weight:800;font-size:1.35rem;line-height:1.2;color:#1c1917}
+.va .now .meta{font-size:.82rem;color:#57534e}
+.va .now .meta b{color:#7c3aed}
+.va .due{display:inline-flex;align-items:center;gap:.4rem;font:inherit;font-size:.8rem;font-weight:700;color:#7c3aed;
+  background:#fff;border:1px solid #c4b5fd;border-radius:999px;padding:.25rem .7rem;cursor:pointer;justify-self:start;margin-top:.3rem}
+.va .due:hover{background:#f5f3ff}
 .va .stars{font-size:.95rem;letter-spacing:.06em;color:#f59e0b}
-.va .set[aria-pressed="true"] .stars{color:#fde68a}
 .va .stars .off{color:#d6d3d1;opacity:.7}
-.va .set[aria-pressed="true"] .stars .off{color:#fff;opacity:.35}
+.va .modes.compact{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:0;align-content:center;min-width:16rem}
+.va .modes.compact .mode{padding:.9rem .8rem;border-radius:14px}
+.va .modes.compact .mode .ic{font-size:1.8rem;margin-bottom:.2rem}
+.va .modes.compact .mode h2{font-size:1.05rem;margin:0}
+.va .modes.compact .mode p{font-size:.78rem;margin:.15rem 0 0;opacity:.9}
+@media (max-width:640px){.va .hero{grid-template-columns:1fr}.va .modes.compact{min-width:0}}
+.va details.pick{margin-top:.8rem;border:1px solid #e7e5e4;border-radius:14px;background:#fff}
+.va details.pick>summary{cursor:pointer;list-style:none;padding:.7rem 1rem;font-weight:700;color:#1c1917;display:flex;justify-content:space-between;align-items:center;gap:.6rem}
+.va details.pick>summary::-webkit-details-marker{display:none}
+.va details.pick>summary::after{content:"\25BE";color:#7c3aed}
+.va details.pick[open]>summary::after{content:"\25B4"}
+.va details.pick>summary small{font-weight:400;color:#57534e}
+.va .pickbar{display:grid;grid-template-columns:minmax(10rem,1fr) auto minmax(8rem,1fr);gap:.5rem;padding:0 1rem .6rem;align-items:center}
+@media (max-width:640px){.va .pickbar{grid-template-columns:1fr}}
+.va .pickbar select,.va .pickbar input{font:inherit;font-size:.9rem;padding:.45rem .6rem;border:1px solid #d6d3d1;border-radius:10px;background:#fff;min-width:0;width:100%}
+.va .tiers{display:flex;gap:.3rem}
+.va .tiers button{font:inherit;font-size:.78rem;font-weight:700;padding:.35rem .7rem;border:1px solid #d6d3d1;border-radius:999px;background:#fff;cursor:pointer;color:#57534e}
+.va .tiers button[aria-pressed="true"]{background:#1c1917;color:#fff;border-color:#1c1917}
+.va .list{max-height:38vh;overflow:auto;border-top:1px solid #e7e5e4;border-radius:0 0 14px 14px}
+.va .row-set{display:grid;grid-template-columns:3rem minmax(0,1fr) auto auto;gap:.6rem;align-items:center;width:100%;text-align:left;
+  font:inherit;border:0;border-bottom:1px solid #f5f5f4;background:#fff;padding:.55rem 1rem;cursor:pointer;color:#1c1917}
+.va .row-set:hover{background:#f5f3ff}
+.va .row-set[aria-pressed="true"]{background:#ede9fe;box-shadow:inset 3px 0 0 #7c3aed}
+.va .row-set .n{font-family:ui-monospace,Menlo,monospace;font-size:.8rem;color:#57534e}
+.va .row-set .nm{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.va .row-set .w{font-size:.75rem;color:#57534e;white-space:nowrap}
+.va .row-set .stars{font-size:.85rem}
+.va .empty{padding:1rem;color:#57534e;font-size:.9rem}
 .va .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem;margin-top:1.3rem}
 .va .mode{font:inherit;border:0;border-radius:18px;padding:1.4rem 1.2rem;color:#fff;text-align:center;cursor:pointer;
   transition:transform .15s,box-shadow .15s}
@@ -138,6 +162,9 @@ const DASH_VOCAB_CSS = <<<'CSS'
 .play .keys{text-align:center;opacity:.6;font-size:.75rem;margin-top:.5rem}
 @media (max-width:600px){.play .top .stat b{font-size:1.2rem}.play .field{top:8rem}}
 /* the steps */
+.steps-all>summary{cursor:pointer;font-weight:700;margin:1rem 0 .3rem}
+.steps-all .tablewrap{max-height:24rem;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.steps-all table{margin-top:0;border:0}
 .steps-sets td.stars{color:#f59e0b;letter-spacing:.08em;white-space:nowrap}
 .steps-sets td.stars .off{color:#d6d3d1}
 .step{display:grid;grid-template-columns:auto 1fr;gap:.2rem .75rem;align-items:start}
@@ -157,7 +184,7 @@ var data=JSON.parse(document.getElementById('vocab-data').textContent);
 var sets=data.sets.slice().sort(function(a,b){return a.number-b.number;});
 var byNum={};sets.forEach(function(s){byNum[s.number]=s;s.words.forEach(function(w){w.set=s.number;});});
 var selected=parseInt(localStorage.getItem('vocab-set-'+data.slug)||'0',10);
-if(!byNum[selected])selected=sets.length?sets[0].number:0;
+if(!byNum[selected])selected=byNum[data.due]?data.due:(sets.length?sets[0].number:0);
 var PENDING='vocab-pending-'+data.slug;
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function uuid(){if(window.crypto&&crypto.randomUUID)return 'web-'+crypto.randomUUID();
@@ -187,24 +214,44 @@ function mixed(pct){var cur=current(),prev=previous();if(!prev.length)return cur
 
 /* ---- screens ---- */
 function setBg(cls){root.className='va'+(cls?' '+cls:'');}
+var pick={open:false,theme:null,tier:'all',q:''};
+function themeOf(s){return (s.topic_refs[0]&&data.topicNames[s.topic_refs[0]])||'Other sets';}
+function tierOf(s){if(/\[H\]|\(Higher\)/.test(s.name))return 'H';var w=s.words[0];return (w&&w.tier==='H')?'H':'F';}
 function welcome(){setBg('');
-  var groups={},order=[];sets.forEach(function(s){var g=(s.topic_refs[0]&&data.topicNames[s.topic_refs[0]])||'Other sets';
-    if(!groups[g]){groups[g]=[];order.push(g);}groups[g].push(s);});
-  var h='<div class="panel"><h1 class="va-title">'+esc(data.title)+' 🎮</h1><p class="lede">Choose a set, then a game. Every finished game is logged for you.</p>';
+  var h='<div class="panel"><h1 class="va-title">'+esc(data.title)+' 🎮</h1><p class="lede">Pick a game. Every finished game is logged for you.</p>';
   if(!sets.length){h+='<p class="center">No sets yet. Dad adds them with <code>tracker_save_vocab_sets</code>.</p></div>';root.innerHTML=h;return;}
-  h+='<div style="background:linear-gradient(90deg,#eff6ff,#f5f3ff);border-radius:18px;padding:1rem 1.1rem">';
-  order.forEach(function(g){h+='<div class="group">'+esc(g)+'</div><div class="sets">';
-    groups[g].forEach(function(s){h+='<button type="button" class="set" data-set="'+s.number+'" aria-pressed="'+(s.number===selected)+'">'
-      +'<span class="sn">Set '+s.number+'</span><span class="nm">'+esc(s.name)+'</span><span class="meta">'+s.words.length+' words'
-      +(s.runs?' · '+s.runs+' game'+(s.runs===1?'':'s'):'')+(s.best!==null?' · best '+Math.round(s.best*100)+'%':'')+'</span>'+stars(s.stars)+'</button>';});
-    h+='</div>';});
-  h+='<p class="picked">Currently selected: <b>'+esc(byNum[selected].name)+'</b> · '+(byNum[selected].next?esc('next step: '+byNum[selected].next):'')+'</p></div>';
-  h+='<div class="modes"><button type="button" class="mode cards" data-go="cards"><div class="ic">📚</div><h2>Flashcards</h2><p>Learn at your own pace with flip cards</p>'
-    +'<div class="tips">✓ Click to reveal the English<br>✓ Say whether you knew it<br>✓ Logged when you finish</div></button>'
-    +'<button type="button" class="mode gallery" data-go="gallery"><div class="ic">🎯</div><h2>Shooting Gallery</h2><p>Fast-paced action game to test your skills</p>'
-    +'<div class="tips">✓ Shoot down the words<br>✓ Gets faster as you go<br>✓ Three misses in a row and it’s over</div></button></div>';
-  h+='<p class="center" style="margin:1.2rem 0 0;color:#57534e">'+esc(data.subjectName)+' · '+sets.length+' sets · <a href="#steps">your steps ↓</a></p></div>';
-  root.innerHTML=h;}
+  var cur=byNum[selected],due=byNum[data.due];
+  /* the set in hand and the two games, above the fold */
+  h+='<div class="hero"><div class="now"><span class="sn">Set '+cur.number+' · '+esc(themeOf(cur))+'</span><span class="nm">'+esc(cur.name)+'</span>'
+    +'<span class="meta">'+cur.words.length+' words'+(cur.runs?' · '+cur.runs+' game'+(cur.runs===1?'':'s'):'')+(cur.best!==null?' · best '+Math.round(cur.best*100)+'%':'')
+    +(cur.next?' · next: <b>'+esc(cur.next)+'</b>':'')+'</span>'+stars(cur.stars)
+    +(due&&due.number!==cur.number?'<button type="button" class="due" data-set="'+due.number+'">→ Up next for you: Set '+due.number+' '+esc(due.name)+'</button>':'')
+    +'</div>'
+    +'<div class="modes compact"><button type="button" class="mode cards" data-go="cards"><div class="ic">📚</div><h2>Flashcards</h2><p>Flip, then say if you knew it</p></button>'
+    +'<button type="button" class="mode gallery" data-go="gallery"><div class="ic">🎯</div><h2>Shooting Gallery</h2><p>Shoot the words before they escape</p></button></div></div>';
+  /* the picker: a theme, a tier, a search, and a short list */
+  var themes=[],seen={};sets.forEach(function(s){var t=themeOf(s);if(!seen[t]){seen[t]=1;themes.push(t);}});
+  if(pick.theme===null)pick.theme=themeOf(cur);
+  var rows=sets.filter(function(s){
+    if(pick.q){var q=pick.q.toLowerCase();return s.name.toLowerCase().indexOf(q)>=0||('set '+s.number).indexOf(q)>=0||String(s.number)===q
+      ||s.words.some(function(w){return w.word.toLowerCase().indexOf(q)>=0||w.english.toLowerCase().indexOf(q)>=0;});}
+    if(pick.theme!=='*'&&themeOf(s)!==pick.theme)return false;
+    return pick.tier==='all'||tierOf(s)===pick.tier;});
+  h+='<details class="pick"'+(pick.open?' open':'')+'><summary><span>Change set <small>· '+sets.length+' sets in '+themes.length+' groups</small></span></summary>'
+    +'<div class="pickbar"><select data-theme><option value="*"'+(pick.theme==='*'?' selected':'')+'>All groups</option>'
+    +themes.map(function(t){return '<option value="'+esc(t)+'"'+(pick.theme===t?' selected':'')+'>'+esc(t)+'</option>';}).join('')+'</select>'
+    +'<div class="tiers">'+[['all','All'],['F','Foundation'],['H','Higher']].map(function(t){return '<button type="button" data-tier="'+t[0]+'" aria-pressed="'+(pick.tier===t[0])+'">'+t[1]+'</button>';}).join('')+'</div>'
+    +'<input type="search" data-q placeholder="Search a set or a word…" value="'+esc(pick.q)+'"></div>'
+    +'<div class="list">'+(rows.length?rows.map(function(s){return '<button type="button" class="row-set" data-set="'+s.number+'" aria-pressed="'+(s.number===selected)+'">'
+      +'<span class="n">'+s.number+'</span><span class="nm">'+esc(s.name)+'</span><span class="w">'+s.words.length+' words'+(s.runs?' · '+s.runs+' game'+(s.runs===1?'':'s'):'')+'</span>'+stars(s.stars)+'</button>';}).join('')
+      :'<div class="empty">Nothing matches. Try another group or clear the search.</div>')+'</div></details>';
+  h+='<p class="center" style="margin:1rem 0 0;color:#57534e;font-size:.9rem">'+esc(data.subjectName)+' · <a href="#steps">your steps ↓</a></p></div>';
+  root.innerHTML=h;
+  var sel=root.querySelector('.row-set[aria-pressed="true"]');if(sel&&pick.open)sel.scrollIntoView({block:'nearest'});
+  var d=root.querySelector('details.pick');if(d)d.addEventListener('toggle',function(){pick.open=d.open;});
+  var th=root.querySelector('[data-theme]');if(th)th.addEventListener('change',function(){pick.theme=th.value;pick.open=true;welcome();});
+  var q=root.querySelector('[data-q]');if(q){q.addEventListener('input',function(){pick.q=q.value;pick.open=true;var at=q.selectionStart;welcome();
+    var nq=root.querySelector('[data-q]');if(nq){nq.focus();try{nq.setSelectionRange(at,at);}catch(e){}}});}}
 
 /* flashcards: flip, then say whether you knew it; the set is logged when every card is judged, or on Finish */
 function flashcards(){setBg('cards-bg');
@@ -307,7 +354,9 @@ function refreshSteps(){fetch(location.pathname,{headers:{'Accept':'text/html'}}
 }).catch(function(){});}
 
 function go(screen){root.onclick=null;if(screen==='cards')return flashcards();if(screen==='gallery')return gallery();welcome();
-  root.onclick=function(e){var s=e.target.closest('[data-set]');if(s){selected=parseInt(s.dataset.set,10);try{localStorage.setItem('vocab-set-'+data.slug,String(selected));}catch(x){}return go('welcome');}
+  root.onclick=function(e){var t=e.target.closest('[data-tier]');if(t){pick.tier=t.dataset.tier;pick.open=true;return welcome();}
+    var s=e.target.closest('[data-set]');if(s){selected=parseInt(s.dataset.set,10);try{localStorage.setItem('vocab-set-'+data.slug,String(selected));}catch(x){}
+      if(s.classList.contains('due'))pick.theme=null;return go('welcome');}
     var g=e.target.closest('[data-go]');if(g)go(g.dataset.go);};}
 flush();go('welcome');
 })();
@@ -330,10 +379,11 @@ function render_vocab_app(Store $store, array $subject, bool $isParent, ?array $
         $p = $steps['sets'][$s['number']];
         $jsSets[] = [
             'number' => $s['number'], 'name' => $s['name'], 'topic_refs' => $s['topic_refs'], 'words' => $s['words'],
-            'stars' => $p['stars'], 'runs' => $p['runs'], 'best' => $p['best'], 'next' => $p['next'],
+            'stars' => $p['stars'], 'runs' => $p['runs'], 'best' => $p['best'], 'next' => $p['next'], 'last' => $p['last'],
         ];
     }
     $data = [
+        'due'         => vocab_due_set($steps['sets']),
         'slug'        => $slug,
         'subjectName' => $short,
         'title'       => $short . ' Learning Platform!',
@@ -380,7 +430,27 @@ function vocab_steps_html(array $subject, array $sets, array $steps, bool $isPar
         return $h . '<p><small>No sets yet. The parent adds them with tracker_save_vocab_sets.</small></p>';
     }
 
-    $h .= '<div class="tablewrap"><table class="steps-sets"><thead><tr><th>Set</th><th>Topics</th><th>Games</th><th>Best</th>'
+    // The sets she has actually played lead; the whole list sits behind a
+    // disclosure, because 138 rows between the game and the topics is a
+    // scroll nobody asked for.
+    $played = array_values(array_filter($sets, static fn($s) => $steps['sets'][$s['number']]['runs'] > 0));
+    if ($played) {
+        $h .= '<h3 class="kicker mono" style="margin:1rem 0 .3rem">Sets in play</h3>' . vocab_sets_table($slug, $played, $steps);
+    } else {
+        $h .= '<p><small>No games yet. Play a set and it appears here.</small></p>';
+    }
+    $h .= '<details class="steps-all"><summary>All ' . count($sets) . ' sets</summary>' . vocab_sets_table($slug, $sets, $steps) . '</details>';
+
+    if (!$steps['topics']) {
+        return $h;
+    }
+    return $h . vocab_topics_html($subject, $steps, $isParent, $store);
+}
+
+/** The sets table: one row per set with its games, best, stars and next step. */
+function vocab_sets_table(string $slug, array $sets, array $steps): string
+{
+    $h = '<div class="tablewrap"><table class="steps-sets"><thead><tr><th>Set</th><th>Topics</th><th>Games</th><th>Best</th>'
         . '<th>Stars</th><th>Next step</th></tr></thead><tbody>';
     foreach ($sets as $s) {
         $p    = $steps['sets'][$s['number']];
@@ -396,12 +466,14 @@ function vocab_steps_html(array $subject, array $sets, array $steps, bool $isPar
             . '<td class="stars" title="' . $p['stars'] . ' of 3">' . $star . '</td>'
             . '<td><small>' . h($p['next']) . '</small></td></tr>';
     }
-    $h .= '</tbody></table></div>';
+    return $h . '</tbody></table></div>';
+}
 
-    if (!$steps['topics']) {
-        return $h;
-    }
-    $h .= '<h3 class="kicker mono" style="margin:1.2rem 0 .3rem">Topics the sets teach</h3>';
+/** The per-topic steps, with the parent's mark-off where the evidence allows one. */
+function vocab_topics_html(array $subject, array $steps, bool $isParent, Store $store): string
+{
+    $slug = $subject['slug'];
+    $h    = '<h3 class="kicker mono" style="margin:1.2rem 0 .3rem">Topics the sets teach</h3>';
     if (!$isParent) {
         $h .= '<p><small>When a topic\'s games meet the bar, Dad can mark the step off from here once he is signed in.</small></p>';
     }

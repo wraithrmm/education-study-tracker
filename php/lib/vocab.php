@@ -624,6 +624,28 @@ function vocab_steps(Store $store, array $subject, array $sets): array
 }
 
 /**
+ * The set the next game should be on: the lowest-numbered set below three
+ * stars whose last game is at least the spacing ago (or that has never been
+ * played), which is spanish-maintenance-session's rule for which set is due.
+ * Null when every set has three stars or there are none.
+ *
+ * @param array<int,array> $setSteps from vocab_steps()['sets']
+ */
+function vocab_due_set(array $setSteps): ?int
+{
+    $today = tt_today();
+    foreach ($setSteps as $n => $p) {
+        if ($p['stars'] >= 3) {
+            continue;
+        }
+        if ($p['last'] === null || tt_days_between($p['last'], $today) >= VOCAB_SPACING_DAYS) {
+            return (int) $n;
+        }
+    }
+    return null;
+}
+
+/**
  * The earliest good run and the first later one at least the spacing apart,
  * or null. Runs sorted by date.
  *
