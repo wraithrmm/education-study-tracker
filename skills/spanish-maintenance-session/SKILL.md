@@ -77,8 +77,12 @@ week, is the week's plan for the slot; open on its `retrieve_first` line unless
 `tracker_retrieval_due` has overtaken it.
 
 Then as needed: `tracker_get_state`, `tracker_list_resources`, `tracker_list_practice(subject:
-"spanish", since: …)` to see which sets the app has already drilled this week. **Never invent a
-URL.**
+"spanish", since: …)` to see which sets the app has already drilled this week, and
+`tracker_list_vocab_sets(subject: "spanish", words: false)` for the sets themselves with her
+stars on each — the app at https://education.rmmann.co.uk/s/spanish/play logs every game it
+plays, so those runs are already in the record and are never logged again from the chat. A set
+at three stars has met the game's bar; the slot's job for it is production (say it, write it in
+a sentence), not another recognition round. **Never invent a URL.**
 
 ## The slot — 15 minutes by default, never more than 30
 

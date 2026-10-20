@@ -67,6 +67,9 @@ jobs:
       - name: Progress forecast acceptance tests
         run: php deploy/progress-test.php
 
+      - name: Vocabulary app acceptance tests
+        run: php deploy/vocab-test.php
+
       - name: Check required secrets are present
         env:
           SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}

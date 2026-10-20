@@ -1389,11 +1389,16 @@ function render_practice_board(Store $store, array $subject, array $query = []):
 function practice_dashboard_section(Store $store, array $subject): string
 {
     $runs = $store->listPracticeRuns($subject['slug']);
+    // A subject with vocabulary sets has a game to play even before a run
+    // is logged, and the link to it is the one thing she opens this page for.
+    $play = function_exists('vocab_list_sets') && vocab_list_sets($store, $subject['slug'])
+        ? ' <a href="/s/' . h($subject['slug']) . '/play" style="font-size:.8rem">play the vocabulary app →</a>'
+        : '';
     if (!$runs) {
-        return '';
+        return $play === '' ? '' : '<h2>Practice' . $play . '</h2>';
     }
     $config = practice_scoreboard_for($store, $subject['slug']);
     return '<h2>Practice <a href="/s/' . h($subject['slug']) . '/practice" style="font-size:.8rem">'
-        . 'the whole board →</a></h2>'
+        . 'the whole board →</a>' . ($play === '' ? '' : ' ·' . $play) . '</h2>'
         . practice_render_panels($store, $subject, $config, $runs, [], 4);
 }

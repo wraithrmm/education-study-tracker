@@ -1,0 +1,296 @@
+[
+ {
+  "number": 1,
+  "name": "Sports - Juego al",
+  "topic_refs": [
+   "T04",
+   "G22"
+  ],
+  "words": [
+   {
+    "word": "juego al",
+    "english": "I play"
+   },
+   {
+    "word": "juegas al",
+    "english": "you play"
+   },
+   {
+    "word": "juega al",
+    "english": "he/she plays"
+   },
+   {
+    "word": "criquet",
+    "english": "cricket"
+   },
+   {
+    "word": "baloncesto",
+    "english": "basketball"
+   },
+   {
+    "word": "fútbol",
+    "english": "football"
+   },
+   {
+    "word": "rugby",
+    "english": "rugby"
+   },
+   {
+    "word": "tenis",
+    "english": "tennis"
+   },
+   {
+    "word": "netball",
+    "english": "netball"
+   },
+   {
+    "word": "tenis de mesa",
+    "english": "table tennis"
+   }
+  ]
+ },
+ {
+  "number": 2,
+  "name": "Sports - Hago",
+  "topic_refs": [
+   "T04",
+   "G23"
+  ],
+  "words": [
+   {
+    "word": "hago",
+    "english": "I do"
+   },
+   {
+    "word": "haces",
+    "english": "you do"
+   },
+   {
+    "word": "hace",
+    "english": "he/she does"
+   },
+   {
+    "word": "equitación",
+    "english": "horseriding"
+   },
+   {
+    "word": "natación",
+    "english": "swimming"
+   },
+   {
+    "word": "boxeo",
+    "english": "boxing"
+   },
+   {
+    "word": "gimnasia",
+    "english": "gymnastics"
+   },
+   {
+    "word": "atletismo",
+    "english": "athletics"
+   },
+   {
+    "word": "ciclismo",
+    "english": "cycling"
+   }
+  ]
+ },
+ {
+  "number": 3,
+  "name": "Free Time & Preferences",
+  "topic_refs": [
+   "T04",
+   "G26"
+  ],
+  "words": [
+   {
+    "word": "me gusta",
+    "english": "I like"
+   },
+   {
+    "word": "me encanta",
+    "english": "I love"
+   },
+   {
+    "word": "prefiero",
+    "english": "I prefer"
+   },
+   {
+    "word": "no me gusta",
+    "english": "I don't like"
+   },
+   {
+    "word": "detesto",
+    "english": "I hate"
+   },
+   {
+    "word": "odio",
+    "english": "I hate"
+   },
+   {
+    "word": "jugar a los videojuegos",
+    "english": "to play video games"
+   },
+   {
+    "word": "ver vídeos en línea",
+    "english": "to watch videos online"
+   },
+   {
+    "word": "colgar fotos en las redes sociales",
+    "english": "to post photos on social networks"
+   },
+   {
+    "word": "ir al cine",
+    "english": "to go to the cinema"
+   },
+   {
+    "word": "descargar películas",
+    "english": "to download films"
+   },
+   {
+    "word": "hacer natación",
+    "english": "to go swimming"
+   },
+   {
+    "word": "tocar la guitarra",
+    "english": "to play the guitar"
+   },
+   {
+    "word": "tocar el piano",
+    "english": "to play the piano"
+   },
+   {
+    "word": "salir",
+    "english": "to go out"
+   },
+   {
+    "word": "pasear",
+    "english": "to walk"
+   },
+   {
+    "word": "chatear",
+    "english": "to chat"
+   },
+   {
+    "word": "escuchar",
+    "english": "to listen"
+   }
+  ]
+ },
+ {
+  "number": 4,
+  "name": "Why & Because",
+  "topic_refs": [
+   "T04",
+   "T10"
+  ],
+  "words": [
+   {
+    "word": "¿Por qué?",
+    "english": "Why?"
+   },
+   {
+    "word": "porque",
+    "english": "because"
+   },
+   {
+    "word": "es divertido",
+    "english": "it is fun"
+   },
+   {
+    "word": "es aburrido",
+    "english": "it is boring"
+   },
+   {
+    "word": "es rápido",
+    "english": "it is fast"
+   },
+   {
+    "word": "es emocionante",
+    "english": "it is exciting"
+   },
+   {
+    "word": "es interesante",
+    "english": "it is interesting"
+   },
+   {
+    "word": "es relajante",
+    "english": "it is relaxing"
+   }
+  ]
+ },
+ {
+  "number": 5,
+  "name": "Hablar - Present Tense",
+  "topic_refs": [
+   "G21"
+  ],
+  "words": [
+   {
+    "word": "hablar",
+    "english": "to speak"
+   },
+   {
+    "word": "hablo",
+    "english": "I speak"
+   },
+   {
+    "word": "hablas",
+    "english": "you speak"
+   },
+   {
+    "word": "habla",
+    "english": "he/she speaks"
+   },
+   {
+    "word": "hablamos",
+    "english": "we speak"
+   },
+   {
+    "word": "habláis",
+    "english": "you all speak"
+   },
+   {
+    "word": "hablan",
+    "english": "they speak"
+   }
+  ]
+ },
+ {
+  "number": 6,
+  "name": "Hablar - Past Tense",
+  "topic_refs": [
+   "G29"
+  ],
+  "words": [
+   {
+    "word": "hablar",
+    "english": "to speak"
+   },
+   {
+    "word": "hablé",
+    "english": "I spoke"
+   },
+   {
+    "word": "hablaste",
+    "english": "you spoke"
+   },
+   {
+    "word": "habló",
+    "english": "he/she spoke"
+   },
+   {
+    "word": "hablamos",
+    "english": "we spoke"
+   },
+   {
+    "word": "hablasteis",
+    "english": "you all spoke"
+   },
+   {
+    "word": "hablaron",
+    "english": "they spoke"
+   }
+  ]
+ }
+]

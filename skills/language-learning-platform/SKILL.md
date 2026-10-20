@@ -23,6 +23,45 @@ Operating manual for extending single-file, React-based language-learning apps
 (flashcards + games over a `vocabularySets`-style data structure) in a way that
 is **syllabus-accurate** and **progress-aware**, rather than ad hoc.
 
+## The app lives on the site now
+
+For this student the Spanish app is no longer a browser artifact: it runs at
+**https://education.rmmann.co.uk/s/spanish/play** (Flashcards and the Shooting
+Gallery over the same sets), and its sets are rows in the Education Tracker.
+Two consequences, which override the file-editing workflow below whenever the
+tracker tools are available:
+
+- **A new set is a tool call, not a file edit.** Read the sets with
+  `tracker_list_vocab_sets(subject: "spanish")` — it shows every set, its
+  words, how many games she has played on it and its stars — then append with
+  `tracker_save_vocab_sets(subject, sets: [{ number, name, topic_refs, words }])`,
+  numbering after the last set shown. Never renumber: the practice log and her
+  stars are keyed on the number. `delete: true` removes a set. The site shows
+  the change on its next load; nothing is deployed.
+- **Every set names the tracker topics it teaches** in `topic_refs` (the app's
+  file called them `trackerRefs`, which the tool also accepts): the theme ref
+  first (`T04`), then the grammar point where the set is one (`G22`). Those
+  refs are what join a game to the record — each word shown becomes a practice
+  item under the set's first ref — and what let the page offer the parent a
+  step to mark off. A set with no refs is playable but moves nothing. Map them
+  with `tracker_get_state(subject: "spanish")`.
+- **Games log themselves.** A finished game posts to the tracker as a
+  `spanish_gallery` or `spanish_flashcards` practice run with one item per word,
+  binds to the day's Spanish block by date, and advances the retrieval
+  schedule. Do not log app games by hand from the chat any more; read them with
+  `tracker_list_practice(subject: "spanish", source: "spanish_gallery")`.
+- **Bulk import has two helpers in the repository.** `node deploy/import-vocab.js app.jsx`
+  reads the `vocabularySets` object out of a single-file app and prints the JSON
+  the tool takes; `php deploy/import-vocab-csv.php master.csv --start=N` turns
+  the AQA master vocabulary list (item, english, word_class, tier, aqa_units,
+  tracker_topic) into sets of 15 by topic, tier and word class, named like the
+  app's ("Identity 8: Adjectives"). Feed either output to
+  `tracker_save_vocab_sets` in batches of up to 50 sets.
+
+The sections below still apply to a language or a student whose app is a
+single file — and the content rules (source fidelity, set size, spacing,
+consolidation sets, topic mapping) apply to every set however it is stored.
+
 ## Starting a brand-new app: use the bundled template
 
 If the user doesn't already have an app and wants one started from scratch —
@@ -166,10 +205,12 @@ spaced-repetition exposure — the Wednesday, Thursday and Friday `spanish` bloc
 (`references/timetable.md` in the same skill) — and it always loses a tie against the four exam
 subjects. Two consequences for this skill:
 
-- **App runs count as the block.** When gallery/flashcard runs are reported, log them with
-  `tracker_log_practice(subject: "spanish", runs: [...])` using the real `played_at` and, where
-  the run happened in a timetable slot, the `block_id` from `tracker_today`. That is what marks
-  the Spanish block done on the board. Unreported runs are invisible and the block shows missed.
+- **App runs count as the block.** A game on the site logs itself the moment it ends, binding to
+  the Spanish block by date, so the board shows the slot done without anyone reporting it. Only a
+  run played somewhere else (an old artifact, a paper drill) is reported by hand, with
+  `tracker_log_practice(subject: "spanish", runs: [...])`, the real `played_at` and, where it ran
+  in a slot, the `block_key` from `tracker_today`. Unreported runs are invisible and the block
+  shows missed.
 - **Keep sets short and spaced.** Sets built for these slots should be ~8–12 items, revisited on
   an expanding schedule (next day → 3 days → a week → a fortnight) rather than massed. Don't build
   a 40-item set for a 15-minute slot.

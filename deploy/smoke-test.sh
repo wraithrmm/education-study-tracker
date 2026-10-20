@@ -159,6 +159,20 @@ if [ "$REMOTE" = 0 ]; then
 fi
 contains "and names the activities registered for the subject" "$board" "Tutoring session"
 
+# The vocabulary app: the page renders for any subject, with or without
+# sets, and a result posted for a subject with no sets is refused rather
+# than stored against nothing. On production Spanish has its sets.
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$BASE/s/maths/play")"
+check "the vocabulary app page renders" "$code" "200"
+page="$("${CURL[@]}" "$BASE/s/maths/play")"
+contains "and carries the app root" "$page" 'id="vocab"'
+contains "and the steps heading" "$page" 'Your steps'
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' \
+  -d '{"game":"gallery","set":1,"client_run_id":"smoke-run-0001","items":[{"word":"x","outcome":"correct"}]}' "$BASE/s/maths/play/run")"
+check "a game result for a set that does not exist is refused" "$code" "400"
+code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST -d 'ref=A4&status=secure&evidence=not+signed+in' "$BASE/s/maths/play/mark")"
+check "marking a step off needs the parent's sign-in" "$code" "403"
+
 page="$("${CURL[@]}" "$BASE/s/maths/t/A4")"
 contains "a topic page renders its change history" "$page" "Every change"
 contains "a topic page renders where it was examined" "$page" "In papers"
@@ -286,7 +300,7 @@ for tool in tracker_list_subjects tracker_get_state tracker_review_queue \
             tracker_learner_model tracker_exam_add_questions tracker_exam_list_questions \
             tracker_exam_update_question tracker_exam_schedule_test tracker_exam_list_tests \
             tracker_exam_get_test tracker_exam_mark_test tracker_exam_update_test \
-            tracker_progress_forecast tracker_now; do
+            tracker_progress_forecast tracker_now tracker_list_vocab_sets tracker_save_vocab_sets; do
   contains "tools/list advertises $tool" "$body" "\"$tool\""
 done
 
@@ -297,10 +311,10 @@ done
 # occurrences instead.
 triggers="$(printf '%s' "$body" | grep -o 'USE WHEN' | wc -l | tr -d ' ')"
 tools="$(printf '%s' "$body" | grep -o '"name":"tracker_' | wc -l | tr -d ' ')"
-if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 56 ]; then
+if [ "$triggers" -eq "$tools" ] && [ "$tools" -eq 58 ]; then
   pass "all $tools tool descriptions lead with a USE WHEN trigger"
 else
-  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 56 of 56)"
+  fail "$triggers of $tools tool descriptions carry a USE WHEN trigger (expected 58 of 58)"
 fi
 
 call() { rpc "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}"; }

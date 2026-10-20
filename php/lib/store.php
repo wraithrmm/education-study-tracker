@@ -495,7 +495,7 @@ final class Store
      * copy of the record, so every step checks the current shape rather than
      * assuming it.
      */
-    private const SCHEMA_VERSION = 16;
+    private const SCHEMA_VERSION = 17;
 
     private function migrate(): void
     {
@@ -538,6 +538,28 @@ final class Store
 
     private function migrateStep(int $v): void
     {
+        if ($v === 17) {
+            // The vocabulary app's sets: the data the games on
+            // /s/<subject>/play run over. One row per set, numbered the way
+            // the old single-file app numbered them, so a label such as
+            // "Set 3" means the same thing in the practice log as it did in
+            // the app. Words and topic refs are JSON: a set is read whole
+            // and written whole, never queried word by word.
+            $this->db->exec(
+                "CREATE TABLE IF NOT EXISTS vocab_sets (
+                   subject_slug TEXT NOT NULL,
+                   number       INTEGER NOT NULL CHECK (number >= 1),
+                   name         TEXT NOT NULL,
+                   topic_refs   TEXT NOT NULL DEFAULT '[]',
+                   words        TEXT NOT NULL DEFAULT '[]',
+                   note         TEXT,
+                   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                   updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                   PRIMARY KEY (subject_slug, number)
+                 )"
+            );
+            return;
+        }
         if ($v === 16) {
             // Homework: the test row's second mode. `mode` tells a timed
             // sitting from a sheet done on paper, `due_on` is the day the
