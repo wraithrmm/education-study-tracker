@@ -93,7 +93,10 @@ paper length. Photographed and marked the same day. Record minutes sustained.
 ## 9. Spanish is little-and-often, and always loses a tie [strong for spacing]
 
 Spanish is foundation for 2028, not an exam for 2027. Short frequent spaced-repetition slots. If a
-day overruns, Spanish is cut first; the four exam subjects are never cut for it.
+day overruns, Spanish is cut first; the four exam subjects are never cut for it. The vocabulary
+app on the tracker site (`/s/spanish/play`) is the primary tool: it holds the sets, logs every
+game as practice, and scores each set in stars; the chat's job is production of what the game
+recognised. Recognition in a game never moves a status on its own.
 
 ## 10. Tone
 

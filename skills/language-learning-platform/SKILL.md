@@ -23,11 +23,17 @@ Operating manual for extending single-file, React-based language-learning apps
 (flashcards + games over a `vocabularySets`-style data structure) in a way that
 is **syllabus-accurate** and **progress-aware**, rather than ad hoc.
 
-## The app lives on the site now
+## The app lives on the site now, and it is the primary teaching tool
 
 For this student the Spanish app is no longer a browser artifact: it runs at
 **https://education.rmmann.co.uk/s/spanish/play** (Flashcards and the Shooting
-Gallery over the same sets), and its sets are rows in the Education Tracker.
+Gallery over the same sets), its sets are rows in the Education Tracker, and
+`spanish-maintenance-session` builds every slot around it — a game on the set
+that is due first, production of what it recognised in the chat second. The
+sets you build here are therefore the syllabus as she meets it: their order is
+the order she learns in, their `topic_refs` are what her games move, and a set
+she cannot play (no refs, 40 words, a theme she has not reached) is a slot
+lost.
 Two consequences, which override the file-editing workflow below whenever the
 tracker tools are available:
 

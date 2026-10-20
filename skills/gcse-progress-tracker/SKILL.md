@@ -125,9 +125,11 @@ the retrieval evidence in hand: `tracker_history(subject, ref)` for the outcomes
 retry is all there is. Never demote on the verdict alone.
 
 **Turning a pasted fallback block into the record.** A `=== PRACTICE … ===` block from a Spanish
-slot is two calls: its retrieval line is `tracker_log_practice`, and its `UPDATES:` lines are the
-`updates[]` of one `tracker_log_session` with the header's date, block and minutes, each status
-judged under the rules above and the evidence copied as written. When a `=== LESSON REVIEW … ===` block is
+slot is one or two calls: its `Retrieval (chat only)` line, when it is not "none", is
+`tracker_log_practice` (the `App:` line is already in the record — the app logs its own games,
+so never log that line); and its `UPDATES:` lines are the `updates[]` of one
+`tracker_log_session` with the header's date, block and minutes, each status judged under the
+rules above and the evidence copied as written. When a `=== LESSON REVIEW … ===` block is
 pasted (the connector was down when the session ran), it is one `tracker_log_session` call: the
 header gives `subject`, `date`, `block_key` and `duration_minutes`; `UPDATES` lines are
 `updates[]` with their `status`, `retrieval_outcome` and `watch` exactly as written, minus any

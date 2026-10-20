@@ -49,7 +49,12 @@ A subject tutor skill's own opening starter is also a retrieval event and follow
 interleaving and blanks rules below — but it is logged as part of that session, not separately.
 
 If the block has a single subject (a quotation-retrieval or vocabulary-retrieval slot), run it
-here anyway: the machinery is the same, the item pool is just narrower.
+here anyway: the machinery is the same, the item pool is just narrower. For Spanish the items
+come from the sets in the vocabulary app (`tracker_list_vocab_sets(subject: "spanish", words:
+true)`), missed-first from `tracker_retrieval_due`, asked English → Spanish because the app
+already does Spanish → English. A game on the app is not a substitute for a `retrieval` block:
+it logs under `spanish_gallery`, which does not satisfy that kind, and it is recognition rather
+than production. It does satisfy a `spanish` block, which is `spanish-maintenance-session`'s.
 
 ## Opening — two calls, and no assumptions about which subjects exist
 

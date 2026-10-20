@@ -14,6 +14,24 @@ first checkpoint** — they are recorded as unknown deliberately rather than gue
 | **Components** | Listening 25% · Speaking 25% · Reading 25% · Writing 25% |
 | **Marker skill** | `gcse-spanish-marker` |
 | **Dashboard** | <https://education.rmmann.co.uk/s/spanish> |
+| **Vocabulary app** | <https://education.rmmann.co.uk/s/spanish/play> — the primary teaching tool; sets via `tracker_list_vocab_sets` / `tracker_save_vocab_sets`; games log themselves |
+
+## The vocabulary app's evidence
+
+Every game she finishes is a practice run (`spanish_gallery`, `spanish_flashcards`) with one
+item per word under the set's topic refs, so the per-topic practice table and the retrieval
+schedule see it without anyone logging it. The app scores each set in stars — played; a game
+at 80%+; a second 80%+ game at least three days later — and `tracker_list_vocab_sets` reports,
+per topic, the one move the games support. Two rules for adjudicating:
+
+- **A game is recognition.** It can carry `notstarted`/`gap → developing` with evidence that
+  says so ("recognises the words; production not yet shown"), and three stars make a
+  `developing` topic *ready* for `secure`. The parent makes either move from the app page
+  (signed in, one click, which logs a session with the evidence), or the slot makes it from
+  production in the chat. Never `secure` from games alone when the record shows no production;
+  never `examready` from a game.
+- **Never log a game by hand**, and never void one to correct a score: a wrong set or a
+  stray one-word game is voided with `tracker_void_practice` and a reason, like any run.
 
 ## Component scaling — the thing that catches people out
 
