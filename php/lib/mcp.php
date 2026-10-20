@@ -37,6 +37,8 @@ require_once __DIR__ . '/mcp_synthesis.php';
 // The exam-skills tools: the question bank, the timed test and its marking.
 require_once __DIR__ . '/mcp_exam.php';
 require_once __DIR__ . '/mcp_progress.php';
+// The vocabulary app's sets: list and save.
+require_once __DIR__ . '/mcp_vocab.php';
 
 function mcp_text(string $s): array
 {
@@ -352,6 +354,202 @@ function mcp_practice_when(mixed $v, string $at): string
         throw new McpError("$at played_at \"$v\" is not a date I can read. Use ISO 8601, e.g. 2026-09-04T18:30:00Z.");
     }
     return gmdate('Y-m-d H:i:s', $t);
+}
+
+/**
+ * Validate a batch of practice runs as tracker_log_practice does, without
+ * writing anything. Shared with the vocabulary app's own endpoint, so a game
+ * played on the site is held to exactly the rules a tool call is: the
+ * arithmetic, the registered source, the capped items, the block check.
+ *
+ * Throws McpError for a malformed run. A run that does not add up is not
+ * malformed but wrong, so it comes back as `refused` text for the caller to
+ * show, the way the tool always has.
+ *
+ * @return array{clean?:array<int,array>,unknown_refs?:array<int,string>,unknown_metrics?:array<int,string>,
+ *               dropped?:array<int,string>,refused?:string}
+ */
+function mcp_practice_prepare(Store $store, string $slug, array $runs): array
+{
+    $sources = [];
+    foreach ($store->listPracticeSources($slug) as $src) {
+        $sources[$src['key']] = json_decode((string) ($src['metrics_schema'] ?: '{}'), true) ?: [];
+    }
+    $knownRefs = array_column($store->listTopics($slug), 'ref');
+
+    // Everything is validated before anything is written. A batch that
+    // half-stores is worse than one that is refused: the client would
+    // retry the whole batch and the idempotency key is the only thing
+    // making that safe.
+    $clean    = [];
+    $unknownR = [];
+    $unknownM = [];
+    $dropped  = [];
+    $seenIds  = [];
+
+    foreach (array_values($runs) as $i => $run) {
+        if (!is_array($run)) {
+            throw new McpError('each run must be an object.');
+        }
+        $at        = 'run ' . ($i + 1);
+        $clientId  = mcp_str($run, 'client_run_id', true, 1, 64);
+        $source    = mcp_str($run, 'source', true, 1, 60);
+        $label     = mcp_str($run, 'label', true, 1, 200);
+        $attempted = (int) mcp_num($run, 'attempted', true, 0);
+        $correct   = (int) mcp_num($run, 'correct', true, 0);
+        $retry     = (int) mcp_num($run, 'correct_after_retry', false, 0, null, 0);
+        $incorrect = (int) mcp_num($run, 'incorrect', true, 0);
+
+        if (isset($seenIds[$clientId])) {
+            throw new McpError("$at repeats client_run_id \"$clientId\" from earlier in the same call.");
+        }
+        $seenIds[$clientId] = true;
+
+        if (!isset($sources[$source])) {
+            throw new McpError("$at has source \"$source\", which is not registered for $slug. "
+                . 'Registered sources: ' . (implode(', ', array_keys($sources)) ?: 'none') . '.');
+        }
+
+        // The arithmetic is the basis of every figure the board shows,
+        // so a run that does not add up is refused, naming the gap.
+        $sum = $correct + $retry + $incorrect;
+        if ($sum !== $attempted) {
+            return ['refused' => "$at (\"$label\") does not add up: attempted $attempted, but correct $correct"
+                . " + correct_after_retry $retry + incorrect $incorrect = $sum"
+                . ' — out by ' . abs($attempted - $sum) . '. Nothing was stored; fix the figures and send the call again.'];
+        }
+
+        $metrics = [];
+        if (isset($run['metrics'])) {
+            if (!is_array($run['metrics'])) {
+                throw new McpError("$at metrics must be an object of numbers.");
+            }
+            foreach ($run['metrics'] as $k => $v) {
+                if (!is_numeric($v)) {
+                    // The metric is lost, not the run.
+                    $dropped[] = "$k (not a number)";
+                    continue;
+                }
+                if (!array_key_exists($k, $sources[$source])) {
+                    $unknownM[] = "$k on $source";
+                }
+                $metrics[$k] = $v + 0;
+            }
+        }
+
+        $refs = [];
+        if (isset($run['topic_refs'])) {
+            if (!is_array($run['topic_refs'])) {
+                throw new McpError("$at topic_refs must be an array of topic references.");
+            }
+            if (count($run['topic_refs']) > 20) {
+                throw new McpError("$at topic_refs may hold at most 20 entries.");
+            }
+            foreach ($run['topic_refs'] as $ref) {
+                if (!is_string($ref) || $ref === '') {
+                    throw new McpError("$at topic_refs entries must be non-empty strings.");
+                }
+                if (!in_array($ref, $knownRefs, true)) {
+                    $unknownR[] = $ref;
+                }
+                $refs[] = $ref;
+            }
+        }
+
+        $items = is_array($run['items'] ?? null) ? $run['items'] : [];
+        if (count($items) > 200) {
+            throw new McpError("$at may hold at most 200 items.");
+        }
+        $cleanItems = [];
+        foreach (array_values($items) as $j => $item) {
+            if (!is_array($item)) {
+                throw new McpError("$at item " . ($j + 1) . ' must be an object.');
+            }
+            $outcome = $item['outcome'] ?? null;
+            if (!in_array($outcome, PRACTICE_OUTCOMES, true)) {
+                throw new McpError("$at item " . ($j + 1) . ' outcome must be one of: '
+                    . implode(', ', PRACTICE_OUTCOMES) . '.');
+            }
+            $itemRef = mcp_str($item, 'topic_ref', false, 0, 40);
+            if ($itemRef !== null && !in_array($itemRef, $knownRefs, true)) {
+                $unknownR[] = $itemRef;
+            }
+            $cleanItems[] = [
+                'prompt'         => mcp_str($item, 'prompt', false, 0, 500),
+                'topic_ref'      => $itemRef,
+                'item_key'       => mcp_str($item, 'item_key', false, 1, 64),
+                'outcome'        => (string) $outcome,
+                'attempts_taken' => isset($item['attempts_taken'])
+                    ? (int) mcp_num($item, 'attempts_taken', false, 1) : null,
+                'position'       => isset($item['position'])
+                    ? (int) mcp_num($item, 'position', false, 0) : $j,
+                'note'           => mcp_str($item, 'note', false, 0, 300),
+            ];
+        }
+
+        $clean[] = [
+            'subject_slug'        => $slug,
+            'client_run_id'       => $clientId,
+            'source'              => $source,
+            'label'               => $label,
+            'played_at'           => mcp_practice_when($run['played_at'] ?? null, $at),
+            'attempted'           => $attempted,
+            'correct'             => $correct,
+            'correct_after_retry' => $retry,
+            'incorrect'           => $incorrect,
+            'duration_seconds'    => isset($run['duration_seconds'])
+                ? (int) mcp_num($run, 'duration_seconds', false, 0) : null,
+            'metrics'             => $metrics,
+            'topic_refs'          => $refs,
+            'block_key'           => isset($run['block_key'])
+                ? (int) mcp_num($run, 'block_key', false, 1) : null,
+            'items'               => $cleanItems,
+        ];
+        // played_at is what the board judges the run on, so the key is
+        // checked against that run's own local date.
+        $last = $clean[count($clean) - 1];
+        if ($last['block_key']) {
+            [$localDate] = tt_local($last['played_at']);
+            mcp_check_block($store, $last['block_key'], $localDate, $slug);
+        }
+    }
+
+    return ['clean' => $clean, 'unknown_refs' => $unknownR, 'unknown_metrics' => $unknownM, 'dropped' => $dropped];
+}
+
+/**
+ * Store prepared runs and advance the retrieval schedule once per run that
+ * was actually stored.
+ *
+ * @param array<int,array> $clean from mcp_practice_prepare
+ * @return array{rows:array<int,string>,ids:array<int,int>,stored:int,dupes:int,sched:array{item:int,topic:int}}
+ */
+function mcp_practice_store(Store $store, string $slug, array $clean): array
+{
+    $rows   = [];
+    $ids    = [];
+    $stored = 0;
+    $dupes  = 0;
+    $sched  = ['item' => 0, 'topic' => 0];
+    foreach ($clean as $run) {
+        $res = $store->addPracticeRun($run);
+        $res['status'] === 'stored' ? $stored++ : $dupes++;
+        $ids[] = (int) $res['id'];
+        // The schedule advances once per stored run: a duplicate
+        // client_run_id stores nothing and schedules nothing, so a
+        // retried report cannot count an answer twice.
+        if ($res['status'] === 'stored' && $run['items']) {
+            [$runDate] = tt_local($run['played_at']);
+            $n = retrieval_apply_run($store, $slug, $runDate, $run['items']);
+            $sched['item']  += $n['item'];
+            $sched['topic'] += $n['topic'];
+        }
+        $rows[] = '| ' . $res['id'] . ' | ' . str_replace('|', '/', $run['label'])
+            . ' | ' . $run['source'] . ' | ' . $run['attempted']
+            . ' | ' . $run['correct'] . '/' . $run['correct_after_retry'] . '/' . $run['incorrect']
+            . ' | ' . ($res['status'] === 'stored' ? 'stored' : 'duplicate — already recorded') . ' |';
+    }
+    return ['rows' => $rows, 'ids' => $ids, 'stored' => $stored, 'dupes' => $dupes, 'sched' => $sched];
 }
 
 // ---- tool definitions ---------------------------------------------------
@@ -2323,7 +2521,7 @@ function mcp_tools(): array
         ],
     ];
     return array_merge($tools, mcp_exam_tools($readOnly, $write, $isoDate, $subjectArg),
-        mcp_progress_tools($readOnly, $subjectArg));
+        mcp_progress_tools($readOnly, $subjectArg), mcp_vocab_tools($readOnly, $write, $subjectArg));
 }
 
 // ---- tool implementations -----------------------------------------------
@@ -5210,197 +5408,38 @@ function mcp_call_tool(Store $store, string $name, array $a): array
                 throw new McpError('runs may contain at most 50 entries. Split the session across calls.');
             }
 
-            $sources = [];
-            foreach ($store->listPracticeSources($slug) as $src) {
-                $sources[$src['key']] = json_decode((string) ($src['metrics_schema'] ?: '{}'), true) ?: [];
+            $prep = mcp_practice_prepare($store, $slug, $runs);
+            if (isset($prep['refused'])) {
+                return mcp_text($prep['refused']);
             }
-            $knownRefs = array_column($store->listTopics($slug), 'ref');
-
-            // Everything is validated before anything is written. A batch that
-            // half-stores is worse than one that is refused: the client would
-            // retry the whole batch and the idempotency key is the only thing
-            // making that safe.
-            $clean    = [];
-            $unknownR = [];
-            $unknownM = [];
-            $dropped  = [];
-            $seenIds  = [];
-
-            foreach (array_values($runs) as $i => $run) {
-                if (!is_array($run)) {
-                    throw new McpError('each run must be an object.');
-                }
-                $at        = 'run ' . ($i + 1);
-                $clientId  = mcp_str($run, 'client_run_id', true, 1, 64);
-                $source    = mcp_str($run, 'source', true, 1, 60);
-                $label     = mcp_str($run, 'label', true, 1, 200);
-                $attempted = (int) mcp_num($run, 'attempted', true, 0);
-                $correct   = (int) mcp_num($run, 'correct', true, 0);
-                $retry     = (int) mcp_num($run, 'correct_after_retry', false, 0, null, 0);
-                $incorrect = (int) mcp_num($run, 'incorrect', true, 0);
-
-                if (isset($seenIds[$clientId])) {
-                    throw new McpError("$at repeats client_run_id \"$clientId\" from earlier in the same call.");
-                }
-                $seenIds[$clientId] = true;
-
-                if (!isset($sources[$source])) {
-                    throw new McpError("$at has source \"$source\", which is not registered for $slug. "
-                        . 'Registered sources: ' . (implode(', ', array_keys($sources)) ?: 'none') . '.');
-                }
-
-                // The arithmetic is the basis of every figure the board shows,
-                // so a run that does not add up is refused, naming the gap.
-                $sum = $correct + $retry + $incorrect;
-                if ($sum !== $attempted) {
-                    return mcp_text("$at (\"$label\") does not add up: attempted $attempted, but correct $correct"
-                        . " + correct_after_retry $retry + incorrect $incorrect = $sum"
-                        . ' — out by ' . abs($attempted - $sum) . '. Nothing was stored; fix the figures and send the call again.');
-                }
-
-                $metrics = [];
-                if (isset($run['metrics'])) {
-                    if (!is_array($run['metrics'])) {
-                        throw new McpError("$at metrics must be an object of numbers.");
-                    }
-                    foreach ($run['metrics'] as $k => $v) {
-                        if (!is_numeric($v)) {
-                            // The metric is lost, not the run.
-                            $dropped[] = "$k (not a number)";
-                            continue;
-                        }
-                        if (!array_key_exists($k, $sources[$source])) {
-                            $unknownM[] = "$k on $source";
-                        }
-                        $metrics[$k] = $v + 0;
-                    }
-                }
-
-                $refs = [];
-                if (isset($run['topic_refs'])) {
-                    if (!is_array($run['topic_refs'])) {
-                        throw new McpError("$at topic_refs must be an array of topic references.");
-                    }
-                    if (count($run['topic_refs']) > 20) {
-                        throw new McpError("$at topic_refs may hold at most 20 entries.");
-                    }
-                    foreach ($run['topic_refs'] as $ref) {
-                        if (!is_string($ref) || $ref === '') {
-                            throw new McpError("$at topic_refs entries must be non-empty strings.");
-                        }
-                        if (!in_array($ref, $knownRefs, true)) {
-                            $unknownR[] = $ref;
-                        }
-                        $refs[] = $ref;
-                    }
-                }
-
-                $items = is_array($run['items'] ?? null) ? $run['items'] : [];
-                if (count($items) > 200) {
-                    throw new McpError("$at may hold at most 200 items.");
-                }
-                $cleanItems = [];
-                foreach (array_values($items) as $j => $item) {
-                    if (!is_array($item)) {
-                        throw new McpError("$at item " . ($j + 1) . ' must be an object.');
-                    }
-                    $outcome = $item['outcome'] ?? null;
-                    if (!in_array($outcome, PRACTICE_OUTCOMES, true)) {
-                        throw new McpError("$at item " . ($j + 1) . ' outcome must be one of: '
-                            . implode(', ', PRACTICE_OUTCOMES) . '.');
-                    }
-                    $itemRef = mcp_str($item, 'topic_ref', false, 0, 40);
-                    if ($itemRef !== null && !in_array($itemRef, $knownRefs, true)) {
-                        $unknownR[] = $itemRef;
-                    }
-                    $cleanItems[] = [
-                        'prompt'         => mcp_str($item, 'prompt', false, 0, 500),
-                        'topic_ref'      => $itemRef,
-                        'item_key'       => mcp_str($item, 'item_key', false, 1, 64),
-                        'outcome'        => (string) $outcome,
-                        'attempts_taken' => isset($item['attempts_taken'])
-                            ? (int) mcp_num($item, 'attempts_taken', false, 1) : null,
-                        'position'       => isset($item['position'])
-                            ? (int) mcp_num($item, 'position', false, 0) : $j,
-                        'note'           => mcp_str($item, 'note', false, 0, 300),
-                    ];
-                }
-
-                $clean[] = [
-                    'subject_slug'        => $slug,
-                    'client_run_id'       => $clientId,
-                    'source'              => $source,
-                    'label'               => $label,
-                    'played_at'           => mcp_practice_when($run['played_at'] ?? null, $at),
-                    'attempted'           => $attempted,
-                    'correct'             => $correct,
-                    'correct_after_retry' => $retry,
-                    'incorrect'           => $incorrect,
-                    'duration_seconds'    => isset($run['duration_seconds'])
-                        ? (int) mcp_num($run, 'duration_seconds', false, 0) : null,
-                    'metrics'             => $metrics,
-                    'topic_refs'          => $refs,
-                    'block_key'           => isset($run['block_key'])
-                        ? (int) mcp_num($run, 'block_key', false, 1) : null,
-                    'items'               => $cleanItems,
-                ];
-                // played_at is what the board judges the run on, so the key is
-                // checked against that run's own local date.
-                $last = $clean[count($clean) - 1];
-                if ($last['block_key']) {
-                    [$localDate] = tt_local($last['played_at']);
-                    mcp_check_block($store, $last['block_key'], $localDate, $slug);
-                }
-            }
-
-            $rows   = [];
-            $stored = 0;
-            $dupes  = 0;
-            $sched  = ['item' => 0, 'topic' => 0];
-            foreach ($clean as $run) {
-                $res = $store->addPracticeRun($run);
-                $res['status'] === 'stored' ? $stored++ : $dupes++;
-                // The schedule advances once per stored run: a duplicate
-                // client_run_id stores nothing and schedules nothing, so a
-                // retried report cannot count an answer twice.
-                if ($res['status'] === 'stored' && $run['items']) {
-                    [$runDate] = tt_local($run['played_at']);
-                    $n = retrieval_apply_run($store, $slug, $runDate, $run['items']);
-                    $sched['item']  += $n['item'];
-                    $sched['topic'] += $n['topic'];
-                }
-                $rows[] = '| ' . $res['id'] . ' | ' . str_replace('|', '/', $run['label'])
-                    . ' | ' . $run['source'] . ' | ' . $run['attempted']
-                    . ' | ' . $run['correct'] . '/' . $run['correct_after_retry'] . '/' . $run['incorrect']
-                    . ' | ' . ($res['status'] === 'stored' ? 'stored' : 'duplicate — already recorded') . ' |';
-            }
+            $res = mcp_practice_store($store, $slug, $prep['clean']);
 
             $lines = [
-                'Practice for ' . $s['name'] . ': ' . $stored . ' stored, ' . $dupes
+                'Practice for ' . $s['name'] . ': ' . $res['stored'] . ' stored, ' . $res['dupes']
                     . ' already recorded (a duplicate client_run_id is a no-op, never a second row).',
                 '',
                 '| Run | Label | Activity | Attempted | First/Retry/Not got | Result |',
                 '|---|---|---|---|---|---|',
             ];
-            $lines = array_merge($lines, $rows);
-            if ($unknownR) {
+            $lines = array_merge($lines, $res['rows']);
+            if ($prep['unknown_refs']) {
                 $lines[] = '';
-                $lines[] = 'Note: no topic with reference ' . implode(', ', array_unique($unknownR))
+                $lines[] = 'Note: no topic with reference ' . implode(', ', array_unique($prep['unknown_refs']))
                     . ' exists in this subject. The runs are stored, but those refs will not join to a topic'
                     . ' in the per-topic breakdown — check them with tracker_get_state.';
             }
-            if ($unknownM) {
-                $lines[] = 'Note: metric ' . implode(', ', array_unique($unknownM))
+            if ($prep['unknown_metrics']) {
+                $lines[] = 'Note: metric ' . implode(', ', array_unique($prep['unknown_metrics']))
                     . ' is not declared in that source\'s metrics schema. It is stored anyway, so nothing is lost,'
                     . ' but check the key if a panel expects it.';
             }
-            if ($dropped) {
-                $lines[] = 'Note: dropped non-numeric metric ' . implode(', ', array_unique($dropped))
+            if ($prep['dropped']) {
+                $lines[] = 'Note: dropped non-numeric metric ' . implode(', ', array_unique($prep['dropped']))
                     . '. The run is stored without it.';
             }
-            if ($sched['item'] + $sched['topic'] > 0) {
-                $lines[] = 'Retrieval schedule updated: ' . $sched['topic'] . ' topic-grain and '
-                    . $sched['item'] . ' item-grain outcomes applied. tracker_retrieval_due reads it.';
+            if ($res['sched']['item'] + $res['sched']['topic'] > 0) {
+                $lines[] = 'Retrieval schedule updated: ' . $res['sched']['topic'] . ' topic-grain and '
+                    . $res['sched']['item'] . ' item-grain outcomes applied. tracker_retrieval_due reads it.';
             }
             $lines[] = '';
             $lines[] = 'No topic status was changed: practice never moves a status. Use tracker_log_session for that.';
@@ -5638,6 +5677,9 @@ function mcp_call_tool(Store $store, string $name, array $a): array
     }
     if ($name === 'tracker_progress_forecast') {
         return mcp_progress_call($store, $a);
+    }
+    if ($name === 'tracker_list_vocab_sets' || $name === 'tracker_save_vocab_sets') {
+        return mcp_vocab_call($store, $name, $a);
     }
 
     throw new McpError("Unknown tool \"$name\".");

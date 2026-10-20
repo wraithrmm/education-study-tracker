@@ -91,7 +91,7 @@ register_shutdown_function(static function () use ($dbPath) {
 });
 
 echo "== schema ==\n";
-check('a fresh database reaches schema 16', $store->meta('schema_version'), '16');
+check('a fresh database reaches schema 17', $store->meta('schema_version'), '17');
 $tables = array_column($store->db->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(), 'name');
 foreach (['exam_questions', 'exam_tests', 'exam_test_questions', 'exam_answers'] as $t) {
     check("table $t exists", in_array($t, $tables, true), true);

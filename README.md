@@ -156,6 +156,8 @@ The second must return `401` with a `WWW-Authenticate: Bearer resource_metadata=
 | `tracker_save_weekly_review` | Save the written half of a week as a new version. The tracker attaches its own snapshot of the figures. |
 | `tracker_get_weekly_review` | Read a saved review back, with the snapshot it was written against and how the record has moved since. |
 | `tracker_progress_forecast` | Progress over time for a subject: the aimline, the forecast cone, the week-by-week table and the stall signals behind `/s/<subject>/progress`. |
+| `tracker_list_vocab_sets` | The vocabulary app's sets for a subject, with the games played on each, its stars and the topic steps the results support. |
+| `tracker_save_vocab_sets` | Add or replace sets by number, each tagged with the topic refs it teaches; `delete: true` removes one. Never renumber. |
 | `tracker_save_lesson_review` | Save or re-version one session's lesson review. The normal path is the `review` argument of `tracker_log_session`; this is for the audit and the parent. |
 | `tracker_get_lesson_review` | One lesson review in the standard layout, with its snapshot and the drift since. |
 | `tracker_list_lesson_reviews` | Reviewed sessions one line each — or, with `missing: true`, the sessions still owed one. |
@@ -584,16 +586,15 @@ and is never grade-converted, never appears in `tracker_list_attempts`, and
 thresholds and the no-downgrade rule already live. Two write paths for status
 is how a record stops being trustworthy.
 
-Ingest is one batched call at the end of a session rather than one call per
-game, and it goes through MCP rather than a POST: the Spanish app runs inside a
-Claude artifact sandbox that can only reach `api.anthropic.com`, so the model
-makes the call. Every run carries a `client_run_id` from the client; repeating
-a call with the same id is a silent no-op returning the existing row. The app
+Ingest from a chat is one batched call at the end of a session rather than
+one call per game. The vocabulary app on the site (below) posts each finished
+game itself. Every run carries a `client_run_id` from the client; repeating a
+call with the same id is a silent no-op returning the existing row. The app
 retries failed reports and a model-driven tool call can fire twice, and without
 that one retry would put a phantom spike in the trend line.
 
-Per-item detail is optional and sparse-friendly: the Spanish app supplies items
-only for the words missed, a maths session supplies every question with its
+Per-item detail is optional and sparse-friendly: the vocabulary app supplies
+one item per word shown, a maths session supplies every question with its
 topic reference and how many attempts it took. Topic figures roll up **from the
 items when a run has them, and are apportioned across the run-level
 `topic_refs` otherwise — never both**, or the counts double. That rule is one
@@ -677,6 +678,47 @@ Nothing on the board counts consecutive days or withholds anything for missing
 one. The chart exists
 because she likes seeing progress, not to manufacture obligation, and comparing
 Spanish accuracy to maths accuracy would invite the wrong conclusion.
+
+## The vocabulary app
+
+`/s/<subject>/play` is the single-file Spanish app brought onto the site:
+Flashcards and the Shooting Gallery over the same `vocabularySets`, ported to
+plain JavaScript so the page needs no build and nothing from a CDN. Three
+things change by its living here.
+
+**The sets are data.** One row per set in `vocab_sets`, numbered as the app
+numbered them, each tagged with the topic refs it teaches (`T04` for the
+theme, `G22` for the grammar point the set is one). `tracker_list_vocab_sets`
+reads them, `tracker_save_vocab_sets` adds or replaces them by number, and
+the picker on the page groups them by topic. The Spanish seed is
+`php/lib/seed/spanish-vocab.json`, written from the app file by
+`node deploy/import-vocab.js app.jsx`, which evaluates the `vocabularySets`
+literal in a sandbox and carries `trackerRefs` over; it seeds a subject once,
+on the first request after the subject exists, and never again — a set
+deleted through the tool stays deleted.
+
+**Every finished game logs itself.** The page posts the game to
+`/s/<subject>/play/run`, which builds the practice run from the set the
+server holds — the label, the run's topic refs, each word's ref and a stable
+item key from its set — and takes only the outcomes from the browser, through
+the same validation `tracker_log_practice` applies. The run binds to the
+day's block by subject and date like any other, so a game in the Wednesday
+slot ticks it and the reply says so; the retrieval schedule advances on every
+word; the board at `/s/<subject>/practice` fills. A post that fails is kept
+in the browser and sent the next time the page opens. In the flashcards she
+says herself whether she knew each card, so that round has outcomes too.
+
+**The results are read as steps.** A set earns one star for being played
+(five or more words), two for a game at 80% or better, three for a second
+80%+ game at least three days after the first — the subject's own secure bar
+applied to the game. Under the app, each topic the sets teach is shown
+against its status with the one move the games support: not started or gap
+to developing on a first good run (recognition, and the evidence says so),
+developing to secure on the spaced pair. Secure and exam-ready are never
+proposed from a game. The parent, signed in, marks a step off with one
+click; that logs a session through `tracker_log_session` with the evidence
+written out, so a status still moves only by a session with evidence, and
+the trail says which game it rested on. A game alone moves nothing.
 
 ## Adding a subject
 

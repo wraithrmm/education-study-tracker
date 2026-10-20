@@ -163,10 +163,13 @@ require_once __DIR__ . '/lib/dashboard.php';
 require_once __DIR__ . '/lib/timetable_edit.php';
 require_once __DIR__ . '/lib/dashboard_exam.php';
 require_once __DIR__ . '/lib/dashboard_progress.php';
+require_once __DIR__ . '/lib/vocab.php';
+require_once __DIR__ . '/lib/dashboard_vocab.php';
 
 try {
     $store = new Store($dbPath);
     seedIfEmpty($store);
+    vocab_seed_if_empty($store);
 } catch (Throwable $e) {
     error_log('tracker: store unavailable: ' . $e->getMessage());
     send_json(['error' => 'internal_error', 'error_description' => 'The database could not be opened.'], 500);
@@ -637,6 +640,44 @@ if (preg_match('#^/s/([^/]+)$#', $path, $m)) {
         send_html(render_index($store), 404);
     }
     send_html(render_subject($store, $subject, parent_signed_in($store, $password)));
+}
+
+// The vocabulary app: the games she plays, logging themselves as practice,
+// and the steps the results support. Reading and playing are as public as
+// the board; a finished game posts its result with no login — the browser
+// is the only witness to the game — and the server takes only the outcomes
+// from it, building the run from the set it holds. Marking a step off is the
+// parent's, behind the cookie and the CSRF token like every other write.
+if (preg_match('#^/s/([^/]+)/play$#', $path, $m)) {
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_html(render_index($store), 404);
+    }
+    send_html(render_vocab_app($store, $subject, parent_signed_in($store, $password)));
+}
+
+if (preg_match('#^/s/([^/]+)/play/run$#', $path, $m)) {
+    if ($method !== 'POST') {
+        send_json(['error' => 'method_not_allowed'], 405);
+    }
+    $dashboardGuard();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_json(['error' => 'not_found'], 404);
+    }
+    [$status, $out] = vocab_take_run($store, $subject, body());
+    send_json($out, $status);
+}
+
+if (preg_match('#^/s/([^/]+)/play/mark$#', $path, $m) && $method === 'POST') {
+    $requireParent();
+    $subject = $store->getSubject(urldecode($m[1]));
+    if (!$subject) {
+        send_json(['error' => 'not_found'], 404);
+    }
+    $flash = vocab_mark_off($store, $subject, body());
+    send_html(render_vocab_app($store, $subject, true, $flash), $flash['ok'] ? 200 : 400);
 }
 
 // Progress over time and the forecast: the line, the aimline, the cone.

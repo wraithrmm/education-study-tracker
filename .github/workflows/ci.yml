@@ -61,6 +61,12 @@ jobs:
       - name: Exam skills acceptance tests
         run: php deploy/exam-test.php
 
+      # The vocabulary app: the sets and their tools, a game taken in as a
+      # practice run, the block it ticks, the stars and the steps, the
+      # parent's mark-off through a session, and the page.
+      - name: Vocabulary app acceptance tests
+        run: php deploy/vocab-test.php
+
       # The skills ship from this repo as well as the service does. Validate
       # the plugin and marketplace manifests and every SKILL.md, then build
       # the zips: one per skill for a hand upload to claude.ai, and one for
