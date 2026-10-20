@@ -51,8 +51,12 @@ A named week (`2026-W37`) → that week. Say which week at the top of the output
    anything sat this week (blanks per paper, handwritten pieces); `tracker_review_queue(subject)`
    for the top gap, the ageing secures, and — in its `last_review` block — the subject's latest
    planner, which is where that subject's carry-forward comes from.
-5. `tracker_list_practice(subject: "spanish", since: <Monday>)` — the Spanish slots are practice,
-   not sessions, and would otherwise look empty.
+5. `tracker_list_practice(subject: "spanish", since: <Monday>)` — the Spanish slots are practice
+   first: the vocabulary app logs every game she plays (`spanish_gallery`, `spanish_flashcards`),
+   and a slot's chat half is a session. Then `tracker_list_vocab_sets(subject: "spanish", words:
+   false)` for her stars and the per-topic moves the games support; a topic marked READY there
+   is Dad's to mark off on the app page (signed in), and a set stuck at one star for a fortnight
+   is a carry-forward.
 5a. `tracker_progress_forecast(subject)` per subject — read its `SIGNALS` block the way
    `progress-forecast` says: a stall of two weeks or more, a run under the aimline, an
    off-target cone or no new topic opened goes into "Slipped" and that subject's
@@ -102,7 +106,7 @@ MOVEMENT THIS WEEK
 - lit: N3 gap→developing; quotation recall 4/5 (Macbeth)
 - lang: W1 evidence only — Level 5 descriptor reached on one piece (needs a second)
 - cs: two topics notstarted→developing (loops, selection)
-- spanish: 3 runs, 34 items, 71% first-time
+- spanish: 3 app games + 1 chat slot, 34 items, 71% first-time; Set 3 reached ★★★, T04 ready to mark secure (Dad, on the page)
 
 REVIEWS
 - Mon maths s142 progress_with_retrieval · Tue lit s143 consolidate · Thu maths s147 partial_reteach
