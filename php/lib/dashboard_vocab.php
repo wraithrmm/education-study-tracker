@@ -192,6 +192,19 @@ function uuid(){if(window.crypto&&crypto.randomUUID)return 'web-'+crypto.randomU
 function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
 function stars(n){var s='';for(var i=0;i<3;i++)s+=i<n?'★':'<span class="off">☆</span>';return '<span class="stars" title="'+n+' of 3 stars">'+s+'</span>';}
 
+/* ---- sounds: a ba-bing for a hit, a berh-berh for a miss; synthesised, so nothing is fetched ---- */
+var sfx=(function(){var ctx=null;
+  function ac(){if(ctx)return ctx;var C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{ctx=new C();}catch(e){ctx=null;}return ctx;}
+  function tone(type,f0,f1,at,len,vol){var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain(),t=c.currentTime+at;
+    o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+len);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+len);
+    o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+len+0.05);}catch(e){}}
+  return {
+    /* browsers only let a page make a sound after a click; the Start button is that click */
+    unlock:function(){var c=ac();if(c&&c.state==='suspended'){try{c.resume();}catch(e){}}},
+    ding:function(){tone('triangle',660,660,0,0.14,0.3);tone('triangle',990,990,0.12,0.35,0.3);},
+    buzz:function(){tone('sawtooth',170,110,0,0.2,0.2);tone('sawtooth',170,110,0.28,0.28,0.2);}};})();
+
 /* ---- logging: POST the run; keep it on this device if the post fails and send it next time ---- */
 function post(run){return fetch(data.runUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(run),keepalive:true})
   .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error_description||('HTTP '+r.status));return j;});});}
@@ -292,7 +305,7 @@ function gallery(){setBg('gal-bg');
     +'<div class="how"><h2>How to play</h2><ul><li>Words rise up the screen</li><li>Click the right English translation (or use ← ↓ →) to shoot them down</li><li>It gets faster every 3 points</li><li>Three misses in a row and the game ends</li><li>A word that escapes off the top counts as a miss</li></ul></div>'
     +'<button type="button" class="btn go" data-act="start">Start Game!</button></div>';
   root.onclick=function(e){var g=e.target.closest('[data-go]');if(g){root.onclick=null;return go(g.dataset.go);}
-    if(e.target.closest('[data-act="start"]')){root.onclick=null;play();}};}
+    if(e.target.closest('[data-act="start"]')){root.onclick=null;sfx.unlock();play();}};}
 
 function play(){
   var vocab=mixed(0.8);if(vocab.length<1){return go('welcome');}
@@ -317,13 +330,13 @@ function play(){
       +'<div class="answers"><div class="in">'+options.map(function(o){var cls=chosen===o?(feedback==='correct'?' class="ok"':' class="bad"'):'';
         return '<button type="button"'+cls+' data-ans="'+esc(o)+'"'+(feedback?' disabled':'')+'>'+esc(o)+'</button>';}).join('')+'</div><div class="keys">← left · ↓ middle → right</div></div>';}
   function moveWord(){var w=el.querySelector('.word');if(w)w.style.bottom=pos+'%';}
-  function tick(){if(over||feedback)return;pos-=1;if(pos<-10){items.push({word:word.word,set:word.set,outcome:'incorrect'});if(miss())return;next();return;}moveWord();}
+  function tick(){if(over||feedback)return;pos-=1;if(pos<-10){items.push({word:word.word,set:word.set,outcome:'incorrect'});sfx.buzz();if(miss())return;next();return;}moveWord();}
   function schedule(){if(timer)clearInterval(timer);timer=setInterval(tick,speed*10);}
   function answer(a){if(over||feedback||!word)return;chosen=a;
-    if(a===word.english){score++;streak=0;feedback='correct';items.push({word:word.word,set:word.set,outcome:'correct'});
+    if(a===word.english){score++;streak=0;feedback='correct';sfx.ding();items.push({word:word.word,set:word.set,outcome:'correct'});
       if(score%3===0){speed=Math.max(2.5,speed-0.8);}topSpeed=Math.max(topSpeed,dispSpeed());draw();
       setTimeout(function(){if(!over){next();schedule();}},800);}
-    else{feedback='wrong';items.push({word:word.word,set:word.set,outcome:'incorrect'});draw();
+    else{feedback='wrong';sfx.buzz();items.push({word:word.word,set:word.set,outcome:'incorrect'});draw();
       setTimeout(function(){if(over)return;if(miss())return;next();schedule();},800);}}
   function keys(e){if(over)return;var i={ArrowLeft:0,ArrowDown:1,ArrowRight:2}[e.key];if(i!==undefined&&options[i]){e.preventDefault();answer(options[i]);}
     if(e.key==='Escape')quit();}
